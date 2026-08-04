@@ -42,7 +42,7 @@ class ActiveRepoWidget(QWidget):
     click-to-open-picker (removed 2026-07-15 along with the "Select
     Repo..." dialog flow for normal operation). Switching the active repo
     now only happens by clicking a node in Project Editor's always-visible
-    graph panel, see plugins/studio/project_editor/."""
+    graph panel, see plugins/core/project_editor/."""
 
     def __init__(self, parent=None):
         super().__init__(parent)

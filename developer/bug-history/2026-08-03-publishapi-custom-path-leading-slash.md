@@ -13,7 +13,7 @@ the Maya-side Rig Publisher tool's "Publish Destination" showed
 Same bug as
 [2026-07-20-playblast-custom-path-leading-slash.md](2026-07-20-playblast-custom-path-leading-slash.md),
 recurring in a file that entry's own "Lesson" said to grep for and missed:
-`plugins/studio/PublishApi/maya-scripts/PublishApi/repo_paths.py`'s
+`plugins/core/PublishApi/maya-scripts/PublishApi/repo_paths.py`'s
 `get_publish_root(tool_id)` joined the resolved target repo path and the
 stored Custom Path with pathlib's `/` operator, unstripped:
 
@@ -53,10 +53,10 @@ grep across the whole repo once (`custom_path\["path"\]` or
 `custom_path\.path`) and check every hit, not just the file that prompted
 the fix. As of this entry, one more unfixed instance remains (flagged, not
 yet fixed — separate task):
-`plugins/studio/UkoreBrowser/maya-scripts/UkoreBrowser/core/repo_context.py`
+`plugins/core/UkoreBrowser/maya-scripts/UkoreBrowser/core/repo_context.py`
 (`ref_path = ref_repo_path / custom_path["path"]`).
-`plugins/studio/UkoreReferenceEditor/maya-scripts/UkoreReferenceEditor/core.py`
-(`plugins/studio/ReferenceRedirector` at the time this entry was written,
+`plugins/core/UkoreReferenceEditor/maya-scripts/UkoreReferenceEditor/core.py`
+(`plugins/core/ReferenceRedirector` at the time this entry was written,
 renamed the same day) — `_connect_input_targets`'s
 `targets.append(repo_path / custom_path["path"])` — was fixed the same day
 this entry flagged it, to

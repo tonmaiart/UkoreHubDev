@@ -27,10 +27,14 @@ unless explicitly asked.
   project/repo. **Gitignored, per-machine.**
 - `projects.example.json` — a checked-in sample shape for `projects.json`,
   not read by the app itself.
-- `plugins/studio/*.json`, `plugins/local/*.json` — `PluginConfigStore`
-  files, one per `plugin_id` a plugin's `register(api)` chose. `studio/`
+- `plugins/core/*.json`, `plugins/local/*.json` — `PluginConfigStore`
+  files, one per `plugin_id` a plugin's `register(api)` chose
+  (`api.plugin_config_store(plugin_id, shared=...)`). `core/`
   shared/git-tracked, `local/` gitignored/per-machine — mirrors the same
-  split as the top-level stores above.
+  split as the top-level stores above. Named after `shared=True/False`, not
+  after which `plugins/` source root the calling plugin itself lives under —
+  a `plugins/repo_internal/` or `cache/plugins/` plugin still writes to
+  `data/plugins/core/` for `shared=True`.
 
 ## Binary/image directories — not code, skip unless verifying a specific file
 

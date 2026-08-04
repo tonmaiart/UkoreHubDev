@@ -9,7 +9,7 @@ Organized by domain rather than by suffix convention: each of `sidebar/`,
 area end-to-end (page + its dialogs + its workers), the same discipline
 `plugins/` already enforces for its own folders. Explorer and Submit used
 to live here too (`explorer/`, `submit/`) but are now real always-on
-plugins under `plugins/studio/explorer/` and `plugins/studio/submit/` —
+plugins under `plugins/core/explorer/` and `plugins/core/submit/` —
 registered into `SectionRegistry` via `register(api)` exactly like any
 other plugin, not special-cased by `interface/` — see their own
 `README.md`s and `core/extensibility/README.md` for how plugin discovery
@@ -63,11 +63,11 @@ a new top-level section that needs `section_registry.py`).
   three stay at this root level rather than moving into a domain folder
   because they're cross-cutting infrastructure with no single domain
   owner — and `settings_tab_registry.py` specifically is imported directly
-  by `plugins/studio/software_linker/plugin.py`, so keeping it at a stable
+  by `plugins/core/software_linker/plugin.py`, so keeping it at a stable
   path avoids touching that plugin's source.
 - `builtin_settings_tabs.py` — constructs the built-in Settings tabs
   (pulling from `settings/`, `browser_links/`, `repo_settings/` —
-  Explorer and Submit register themselves from `plugins/studio/`, not from
+  Explorer and Submit register themselves from `plugins/core/`, not from
   here) and registers them into `settings_tab_registry.py`, exactly as a
   plugin would register its own.
 - `plugin_api.py` — `PluginAPI`, the object passed to every plugin's
@@ -84,7 +84,7 @@ a new top-level section that needs `section_registry.py`).
   change the active repo now), `SectionTabList` (a vertical list of section
   tabs + dynamic Browser Link tabs + a trailing Setting row — Project
   Editor is not one of these rows, see below), and a footer built from
-  `sidebar_footer_action_registry.py` (e.g. `plugins/studio/self_updater/`'s
+  `sidebar_footer_action_registry.py` (e.g. `plugins/core/self_updater/`'s
   Update button) plus GitHub login/logout. See `sidebar/README.md`.
 - `login/` — the mandatory GitHub login gate: `login_gate.py`'s
   `LoginGate` owns the actual mechanics (LoginOverlay construction, token/
@@ -102,8 +102,8 @@ a new top-level section that needs `section_registry.py`).
 - `settings/` — the Setting view's remaining app/machine-level tabs: common
   settings, program database, GitHub OAuth client ID, plugin catalog. See
   `settings/README.md`.
-- `shared/` — `commit_history.py` (`plugins/studio/explorer/` +
-  `plugins/studio/submit/`) and `image_asset.py`/`widget_helpers.py`
+- `shared/` — `commit_history.py` (`plugins/core/explorer/` +
+  `plugins/core/submit/`) and `image_asset.py`/`widget_helpers.py`
   (used by several domains/plugins) — files with a confirmed multi-consumer
   use, re-checked whenever a domain folder is split out. See
   `shared/README.md`.

@@ -7,12 +7,19 @@ artists actually run.
 
 - [`packaging/`](packaging/README.md) - admin-only tooling to build
   `UkoreHub.exe`.
+- `build/` - PyInstaller intermediates from `packaging/build_exe.py`,
+  gitignored, regenerated every build.
+- `tests/` - pytest suite (`pytest.ini` at repo root points `testpaths` here).
 - [`bug-history/`](bug-history/README.md) - record of real bugs fixed in
   this codebase, with reusable "Lesson" entries.
 - [`GLOSSARY.md`](GLOSSARY.md) - maps casual/colloquial terms used in this
   project onto their actual feature/file.
 - `commit-main.ps1` - publishes the current `dev` branch onto `main`,
   stripping `.claude/` and `developer/` itself in the process. See below.
+
+Because `main` never has a `developer/` folder, publishing also drops the
+`tests/` suite from `main` - it only exists on `dev`. `build/` never ships
+either way (gitignored).
 
 ## Branch workflow
 

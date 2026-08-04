@@ -14,14 +14,14 @@ from interface.registry_base import KeyedOrderedRegistry
 # (most plugin settings are machine/software-wide, e.g. Software Linker) —
 # opt into CATEGORY_PROJECT for tabs about the Project registry itself
 # (which project is being viewed/edited, add/rename/delete — see
-# plugins/studio/project_editor/project_settings_page.py), CATEGORY_REPO
+# plugins/core/project_editor/project_settings_page.py), CATEGORY_REPO
 # when the tab's content is actually about the active repo (e.g. Maya
 # Launcher's per-repo tool toggles), or CATEGORY_DEVELOPER for
 # studio-admin/internal-plumbing tabs (GitHub OAuth Client ID, Program
 # Database, Plugins) that most users never need to open. CATEGORY_REPO
 # tabs are registered here like any other but are not rendered by
 # SettingsView (see that class's docstring) — they render generically as
-# collapsible sections in plugins/studio/project_editor/'s right panel
+# collapsible sections in plugins/core/project_editor/'s right panel
 # instead. CATEGORY_LABELS[CATEGORY_REPO] is only used there.
 CATEGORY_GENERAL = "general"
 CATEGORY_PROJECT = "project"

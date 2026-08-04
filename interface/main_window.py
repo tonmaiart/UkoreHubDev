@@ -109,6 +109,7 @@ class MainWindow(QMainWindow):
         sidebar_footer_action_registry: SidebarFooterActionRegistry,
         section_key_to_plugin_id: dict[str, str] | None = None,
         core_plugin_ids: set[str] | None = None,
+        opt_in_plugin_ids: set[str] | None = None,
     ):
         super().__init__()
         self.store = store
@@ -143,6 +144,16 @@ class MainWindow(QMainWindow):
         # active_plugin_ids allowlist says (see that method below). Built
         # in launcher.py from PluginManifest.core.
         self._core_plugin_ids = core_plugin_ids or set()
+        # Plugin ids discovered under plugins/repo_internal/ or cache/plugins/
+        # (plugin_source() returns "repo_internal"/"repo" — see
+        # core.extensibility.loader) — gated opt-in per repo via
+        # Repo.required_plugin_ids, unlike a plain plugins/core/ plugin's
+        # opt-out active_plugin_ids. repo_internal ships bundled with the
+        # app like core; a "repo" plugin is its own separate git clone under
+        # cache/plugins/ — different in kind, but the same "hidden until a
+        # repo requires it" visibility rule applies to both. Built in
+        # launcher.py.
+        self._opt_in_plugin_ids = opt_in_plugin_ids or set()
 
         self._active_project = None
         self._active_repo = None
@@ -428,40 +439,53 @@ class MainWindow(QMainWindow):
             self._on_navigation_changed(fallback_key)
 
     def _apply_plugin_visibility(self) -> None:
-        """Hides the sidebar row of any plugins/ section not in the active
-        repo's Repo.active_plugin_ids (Settings > Repo > Enable Plugin). An
-        empty active_plugin_ids means "unrestricted" — every section stays
-        visible. A section with no entry in _section_key_to_plugin_id (e.g.
-        the built-in "About" section) is never gated, so at least one row
-        is always visible. A section whose plugin is flagged manifest.json
-        "core": true (self._core_plugin_ids, e.g. Project Editor) is also
-        never gated — a restricted allowlist that omits a core plugin would
-        otherwise hide the only way to switch the active repo at all for
-        that repo, a real lockout rather than a mere preference."""
+        """Hides the sidebar row of any plugins/ section the active repo
+        doesn't currently want shown. A section with no entry in
+        _section_key_to_plugin_id (e.g. the built-in "About" section) is
+        never gated, so at least one row is always visible. Three different
+        gating rules apply depending on where the section's plugin was
+        discovered from (core.extensibility.loader.plugin_source):
+        - manifest.json "core": true (self._core_plugin_ids, e.g. Project
+          Editor) — always visible, no matter what. A restricted
+          active_plugin_ids allowlist that omitted this would otherwise hide
+          the only way to switch the active repo at all, a real lockout
+          rather than a mere preference.
+        - plugins/repo_internal/ or cache/plugins/ (self._opt_in_plugin_ids,
+          plugin_source() "repo_internal"/"repo") — opt-in: hidden unless the
+          plugin id is in Repo.required_plugin_ids. A repo_internal plugin is
+          bundled with the app like core but stays off until a repo declares
+          it needed; a "repo" plugin is its own separate git clone under
+          cache/plugins/ and is never on by default either. Same "off until
+          required" shape as a Program requirement either way.
+        - everything else (plugins/core/ without the core flag) — opt-out:
+          visible unless the repo's Repo.active_plugin_ids is non-empty and
+          omits the plugin id. Empty active_plugin_ids means "unrestricted",
+          so existing/unconfigured repos never silently lose
+          functionality."""
         active_ids = self._active_repo.active_plugin_ids if self._active_repo is not None else []
-        if not active_ids:
-            visible_keys = None
-        else:
-            visible_keys = {
-                key
-                for key in self._section_view_index
-                if self._section_key_to_plugin_id.get(key) is None
-                or self._section_key_to_plugin_id[key] in active_ids
-                or self._section_key_to_plugin_id[key] in self._core_plugin_ids
-            }
+        required_ids = self._active_repo.required_plugin_ids if self._active_repo is not None else []
+        visible_keys = set()
+        for key in self._section_view_index:
+            plugin_id = self._section_key_to_plugin_id.get(key)
+            if plugin_id is None or plugin_id in self._core_plugin_ids:
+                visible_keys.add(key)
+            elif plugin_id in self._opt_in_plugin_ids:
+                if plugin_id in required_ids:
+                    visible_keys.add(key)
+            elif not active_ids or plugin_id in active_ids:
+                visible_keys.add(key)
         self.sidebar.tab_list.set_visible_keys(visible_keys)
 
-        if visible_keys is not None:
-            current_key = next(
-                (key for key, index in self._section_view_index.items() if index == self.view_stack.currentIndex()),
-                None,
-            )
-            if current_key is not None and current_key not in visible_keys:
-                # Insertion-order (registry order) fallback, same
-                # determinism as _rebuild_dynamic_tabs' own fallback.
-                fallback_key = next(key for key in self._section_view_index if key in visible_keys)
-                self.sidebar.tab_list.select(fallback_key)
-                self._on_navigation_changed(fallback_key)
+        current_key = next(
+            (key for key, index in self._section_view_index.items() if index == self.view_stack.currentIndex()),
+            None,
+        )
+        if current_key is not None and current_key not in visible_keys:
+            # Insertion-order (registry order) fallback, same
+            # determinism as _rebuild_dynamic_tabs' own fallback.
+            fallback_key = next(key for key in self._section_view_index if key in visible_keys)
+            self.sidebar.tab_list.select(fallback_key)
+            self._on_navigation_changed(fallback_key)
 
     # -- active repo -----------------------------------------------------
 
@@ -570,7 +594,7 @@ class MainWindow(QMainWindow):
 
     def _on_restart_requested(self) -> None:
         # Settings > Common's plain "Restart" button. Self-update's own
-        # "Update and Restart" (plugins/studio/self_updater/) uses the same
+        # "Update and Restart" (plugins/core/self_updater/) uses the same
         # os.execv mechanism independently rather than calling this — it
         # isn't reachable from here without a MainWindow reference.
         self._restart_app()

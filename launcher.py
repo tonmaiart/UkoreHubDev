@@ -136,7 +136,7 @@ def main() -> None:
 
     from core.extensibility.file_opener import FileOpenerRegistry
     from core.extensibility.hooks import HookRegistry
-    from core.extensibility.loader import apply_plugins, discover_plugins
+    from core.extensibility.loader import apply_plugins, discover_plugins, plugin_source
     from core.git_service import GitService
     from core.github.token_store import TokenStore
     from core.program_store import ProgramStore
@@ -173,16 +173,28 @@ def main() -> None:
 
     apply_theme(app, local_config_store.theme)
 
-    # plugins/studio is git-tracked and distributed to everyone via
-    # self_update.py's whole-tree `git pull`, mirroring how data/programs.json
-    # is shared today; plugins/local is gitignored, per-machine/experimental.
+    # plugins/core and plugins/repo_internal are both git-tracked and
+    # distributed to everyone via self_update.py's whole-tree `git pull`,
+    # mirroring how data/programs.json is shared today — both ship bundled
+    # with the app, no separate fetch. core is always visible per repo
+    # (subject only to manifest.json's "core": true lock); repo_internal is
+    # hidden per repo unless the repo opts in via Repo.required_plugin_ids
+    # (see interface/main_window.py's _apply_plugin_visibility). cache/plugins
+    # is different in kind, not just visibility — each entry is its own git
+    # clone (own remote/history), gitignored and per-user, fetched/updated on
+    # demand only for a repo that requires it; see plugins/README.md.
     # Discovery runs before registry construction so its result (the plugin
     # catalog) can be threaded into the builtin registrations below (Plugins
     # settings tab, repo editor's plugin picker).
     plugins_root = REPO_ROOT / "plugins"
-    (plugins_root / "studio").mkdir(parents=True, exist_ok=True)
-    (plugins_root / "local").mkdir(parents=True, exist_ok=True)
-    discovery = discover_plugins([plugins_root / "studio", plugins_root / "local"], api_version=PLUGIN_API_VERSION)
+    cache_plugins_root = REPO_ROOT / "cache" / "plugins"
+    (plugins_root / "core").mkdir(parents=True, exist_ok=True)
+    (plugins_root / "repo_internal").mkdir(parents=True, exist_ok=True)
+    cache_plugins_root.mkdir(parents=True, exist_ok=True)
+    discovery = discover_plugins(
+        [plugins_root / "core", plugins_root / "repo_internal", cache_plugins_root],
+        api_version=PLUGIN_API_VERSION,
+    )
 
     file_opener_registry = FileOpenerRegistry()
     program_launch_registry = ProgramLaunchRegistry()
@@ -233,6 +245,12 @@ def main() -> None:
     # hidden by a repo's restricted active_plugin_ids allowlist — see
     # MainWindow._apply_plugin_visibility.
     core_plugin_ids = {plugin.manifest.id for plugin in discovery.loaded if plugin.manifest.core}
+    # Plugins discovered under plugins/repo_internal/ (bundled with the app)
+    # or cache/plugins/ (its own separate git clone) — both opt-in per repo
+    # (Repo.required_plugin_ids), see MainWindow._apply_plugin_visibility.
+    opt_in_plugin_ids = {
+        plugin.manifest.id for plugin in discovery.loaded if plugin_source(plugin) in ("repo_internal", "repo")
+    }
 
     plugin_failures = discovery.failures + plugin_apply_failures
     for failure in plugin_failures:
@@ -252,6 +270,7 @@ def main() -> None:
         sidebar_footer_action_registry,
         section_key_to_plugin_id=section_key_to_plugin_id,
         core_plugin_ids=core_plugin_ids,
+        opt_in_plugin_ids=opt_in_plugin_ids,
     )
     # MainWindow.__init__ already calls showMaximized() early (so the login
     # gate itself never flashes unmaximized before real content loads), but

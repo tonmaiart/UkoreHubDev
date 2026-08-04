@@ -23,10 +23,10 @@ class Sidebar(QWidget):
     docstring), the repo-scoped SectionTabList (Explorer/Submit/About, plus
     a dynamic row per Browser Link — stretched to fill the remaining
     height; Project Editor is NOT a row here, it's an always-visible docked
-    panel instead, see plugins/studio/project_editor/ and
+    panel instead, see plugins/core/project_editor/ and
     interface/section_registry.py's SectionSpec.persistent), and a footer
     strip for sync status, SidebarFooterActionRegistry-provided widgets
-    (e.g. plugins/studio/self_updater/'s Update button), and an account row
+    (e.g. plugins/core/self_updater/'s Update button), and an account row
     (GitHub avatar/username + an icon-only Setting button right after it).
     Double-clicking a node in Project Editor's graph is the only way to
     change the active repo. Logging out lives in Settings > Common now, not
@@ -79,7 +79,7 @@ class Sidebar(QWidget):
         footer_layout.addWidget(self.status_label)
         footer_layout.addWidget(self.sync_progress_bar)
         # One widget per SidebarFooterActionRegistry entry (e.g.
-        # plugins/studio/self_updater/'s Update button) — stored keyed by
+        # plugins/core/self_updater/'s Update button) — stored keyed by
         # spec.key so MainWindow.closeEvent can reach a plugin's own
         # background_threads without Sidebar knowing what they are.
         self.footer_action_widgets: dict[str, QWidget] = {}

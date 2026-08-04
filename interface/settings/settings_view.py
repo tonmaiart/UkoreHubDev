@@ -32,7 +32,7 @@ _CATEGORY_GAP_HEIGHT = 10
 
 class SettingsView(QWidget):
     """Settings UI content — a tab list + QStackedWidget, same shape
-    `plugins/studio/project_editor/repo_settings_panel.py`'s
+    `plugins/core/project_editor/repo_settings_panel.py`'s
     RepoSettingsPanel uses for Repository Setting. Shown inside
     SettingsDialog (below), opened from Sidebar's footer Setting icon
     button (see MainWindow._on_settings_requested) — reverted 2026-07-19
@@ -54,7 +54,7 @@ class SettingsView(QWidget):
     CATEGORY_REPO tabs are still registered in the same SettingsTabRegistry
     (Explorer's own settings tab included) but are deliberately not
     rendered here as of 2026-07-15 — they render generically instead as
-    collapsible sections in plugins/studio/project_editor/'s right panel
+    collapsible sections in plugins/core/project_editor/'s right panel
     (repo_settings_panel.py), which reads the same registry filtered to
     CATEGORY_REPO. This keeps a single place to edit repo settings rather
     than duplicating them in both Settings and Project Editor."""
@@ -142,7 +142,7 @@ class SettingsView(QWidget):
         right now (a fresh SettingsDialog/SettingsView already fires this
         once on construction, via __init__'s own setCurrentRow call), kept
         for symmetry with
-        plugins/studio/project_editor/repo_settings_panel.py's
+        plugins/core/project_editor/repo_settings_panel.py's
         RepoSettingsPanel.refresh_current_tab, for a future caller that
         needs to force a redraw without changing rows."""
         self._on_row_changed(self.tab_list.currentRow())
@@ -175,7 +175,7 @@ class SettingsView(QWidget):
 class SettingsDialog(QDialog):
     """Popup wrapper around SettingsView — opened from Sidebar's footer
     Setting icon button (MainWindow._on_settings_requested), same pattern
-    plugins/studio/project_editor/repo_settings_panel.py's
+    plugins/core/project_editor/repo_settings_panel.py's
     RepoSettingsDialog uses for Repository Setting. Constructs a fresh
     SettingsView on every open (no state carried between opens, same
     "reopening gets clean state" convention register_builtin_settings_tabs'

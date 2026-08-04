@@ -174,6 +174,11 @@ class MetadataStore:
         repo.active_plugin_ids = list(plugin_ids)
         self.save()
 
+    def set_repo_required_plugin_ids(self, project_id: str, repo_id: str, plugin_ids: list[str]) -> None:
+        repo = self.get_repo(project_id, repo_id)
+        repo.required_plugin_ids = list(plugin_ids)
+        self.save()
+
     def set_repo_browser_links(self, project_id: str, repo_id: str, links: list[BrowserLink]) -> None:
         repo = self.get_repo(project_id, repo_id)
         repo.browser_links = list(links)

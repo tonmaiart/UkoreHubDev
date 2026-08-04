@@ -11,7 +11,7 @@ Clicking "Quick Script..." in Maya's Ukore Studio Tool menu printed:
 ## Root cause
 
 Commit `6f842a0` ("Update UkoreShot and UkorePlayblast Plug-ins") deleted
-`plugins/studio/MayaToolkit/maya-scripts/QuickScript/` (and a stray
+`plugins/core/MayaToolkit/maya-scripts/QuickScript/` (and a stray
 `PythonReader - Copy/` duplicate) — `QuickScript/interface.py` and
 `PythonReader/interface.py` had identical header/imports, confirming
 `QuickScript` had been renamed to `PythonReader` and the old folder was
@@ -20,7 +20,7 @@ being cleaned up as a duplicate. That commit updated the unrelated
 (`UkoreMaya/core/menu_utils.py`) but missed `quick_script()`, which still
 called `File.launch("QuickScript")` — a dangling reference to the deleted
 toolkit name.
-`plugins/studio/MayaToolkit/maya-plug-ins/ukoreMaya.py`'s top-level
+`plugins/core/MayaToolkit/maya-plug-ins/ukoreMaya.py`'s top-level
 "Quick Script..." menu item still wired to it, so the crash only surfaced
 when an artist actually clicked that specific item — `python_reader()` /
 "Local Script..." (Rig submenu) already called `File.launch("PythonReader")`
@@ -28,7 +28,7 @@ correctly and worked fine the whole time, masking the dangling one.
 
 ## Fix
 
-`plugins/studio/MayaToolkit/maya-scripts/UkoreMaya/core/menu_utils.py`'s
+`plugins/core/MayaToolkit/maya-scripts/UkoreMaya/core/menu_utils.py`'s
 `quick_script()` now calls `File.launch("PythonReader")`, matching
 `python_reader()`. Note this leaves two separate menu items ("Quick
 Script..." top-level, "Local Script..." under Rig) launching the same

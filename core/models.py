@@ -34,14 +34,22 @@ class Repo:
     required_program_ids: list[str] = field(default_factory=list)
     # Which specific version this repo launches for a multi-version Program
     # in required_program_ids (e.g. {"<maya_program_id>": "2024"}) — see
-    # plugins/studio/maya_launcher/link_resolution.py's pinned_version().
+    # plugins/core/maya_launcher/link_resolution.py's pinned_version().
     # A Program with 0/1 versions needs no entry here.
     program_version_pins: dict[str, str] = field(default_factory=dict)
-    # Which plugins/studio + plugins/local entries actually apply to this
-    # repo. Empty means "unrestricted" (every discovered plugin stays
-    # active), so existing/unconfigured repos never silently lose
-    # functionality.
+    # Which plugins/core entries actually apply to this repo. Empty means
+    # "unrestricted" (every discovered core plugin stays active), so
+    # existing/unconfigured repos never silently lose functionality. This is
+    # an opt-out list — see required_plugin_ids below for the opposite
+    # (opt-in) model used by plugins/repo_internal.
     active_plugin_ids: list[str] = field(default_factory=list)
+    # Which plugins/repo_internal entries this repo has opted into. Unlike
+    # active_plugin_ids above, empty here means "none" — a repo_internal
+    # plugin is bundled with the app (no separate git fetch, unlike a
+    # cache/plugins/ repo plugin) but stays hidden for a repo until that
+    # repo explicitly requires it, same opt-in shape as required_program_ids.
+    # See interface/main_window.py's _apply_plugin_visibility.
+    required_plugin_ids: list[str] = field(default_factory=list)
     browser_links: list[BrowserLink] = field(default_factory=list)
 
     def to_dict(self) -> dict:
@@ -61,6 +69,7 @@ class Repo:
             required_program_ids=data.get("required_program_ids", []),
             program_version_pins=data.get("program_version_pins", {}),
             active_plugin_ids=data.get("active_plugin_ids", []),
+            required_plugin_ids=data.get("required_plugin_ids", []),
             browser_links=[BrowserLink.from_dict(bl) for bl in data.get("browser_links", [])],
         )
 

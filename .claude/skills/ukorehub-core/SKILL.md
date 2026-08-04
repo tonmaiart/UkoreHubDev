@@ -69,9 +69,14 @@ another JSON writer.
   (`name`, `version`, `description`, `icon_filename`). **Shared/git-tracked.**
 
 The shared-vs-local split (tracked in git vs gitignored) is a recurring
-pattern in this codebase — it reappears for plugins (`plugins/studio` vs
-`plugins/local`) and for `PluginConfigStore` (`shared=True/False`). When
-adding new per-machine state, put it in `LocalConfigStore`, not a new file.
+pattern in this codebase — it reappears for `PluginConfigStore`
+(`shared=True/False`, writing to `data/plugins/core/` vs
+`data/plugins/local/`) and, along a different axis (bundled vs. fetched
+separately, not shared-vs-per-machine), for the plugin source roots
+themselves: `plugins/core/` and `plugins/repo_internal/` are both
+git-tracked and bundled with the app; `cache/plugins/` is gitignored, each
+entry its own separate git clone. When adding new per-machine state, put
+it in `LocalConfigStore`, not a new file.
 
 ## `core/git_service.py`
 
@@ -108,8 +113,8 @@ files, none importing each other:
   free-form-schema JSON store for one plugin's own settings (mirrors
   `LocalConfigStore` but no fixed fields). Two plugins can share data by
   independently constructing a store with the *same plugin_id string* — see
-  `plugins/studio/maya_launcher/plugin.py` reading
-  `plugins/studio/software_linker`'s config for a worked example (or
+  `plugins/core/maya_launcher/plugin.py` reading
+  `plugins/core/software_linker`'s config for a worked example (or
   `plugins/README.md`'s "Sharing data with another plugin" section for the
   general write-up).
 - **`hooks.py`** — `GitHookEvent`, `GitHookContext` (`project`, `repo`,
@@ -125,13 +130,13 @@ files, none importing each other:
 
 ## Testing conventions
 
-`pytest.ini` → `testpaths = tests`. Every existing test constructs services
+`pytest.ini` → `testpaths = developer/tests`. Every existing test constructs services
 directly with `tmp_path` fixtures — **no mocking framework anywhere in this
 repo**. `GitService` tests shell out to real `git init`/`commit`/etc. in
 temp directories rather than faking subprocess calls. Match this style for
 new `core/` tests. Note: plugin `.py` files (under `plugins/`) are loaded
 ad-hoc via `importlib`, not as normal Python packages — they can't be
 `import`ed from a normal pytest test file, so their logic isn't covered by
-the `tests/` suite unless you extract a pure helper function and load it
+the `developer/tests/` suite unless you extract a pure helper function and load it
 via the same `importlib.util.spec_from_file_location` trick a manual
 verification script would use.

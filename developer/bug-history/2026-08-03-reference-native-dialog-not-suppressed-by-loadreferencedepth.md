@@ -4,9 +4,9 @@
 
 Opening a Maya scene with a broken reference through UkoreHub's Maya
 Launcher still showed Maya's own native "could not find file" dialog, even
-after `plugins/studio/maya_launcher/plugin.py`'s `open_maya_file` was
+after `plugins/core/maya_launcher/plugin.py`'s `open_maya_file` was
 updated to add `-loadReferenceDepth "none"` to the `file -open` call
-whenever `plugins/studio/UkoreReferenceEditor` (named `ReferenceRedirector`
+whenever `plugins/core/UkoreReferenceEditor` (named `ReferenceRedirector`
 at the time this bug was found, renamed the same day) is enabled for the
 launching repo (see that plugin's README's "Beating Maya's own native 'could not find
 file' dialog" section). Confirmed via a Script Editor diagnostic print
@@ -25,7 +25,7 @@ suppressing it; both steps happen, just independently of each other.
 
 ## Fix
 
-`plugins/studio/maya_launcher/plugin.py`'s `_set_project_and_open_command`
+`plugins/core/maya_launcher/plugin.py`'s `_set_project_and_open_command`
 now also adds `-prompt false` to the same `file -open` call whenever
 `defer_reference_load` is set (alongside `-loadReferenceDepth "none"`) —
 Maya's own documented flag for suppressing interactive `file`-command

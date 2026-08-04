@@ -20,11 +20,11 @@ class SectionHost:
     set_status_message: Callable[[str], None]
     navigate_and_focus: Callable[[str, Path], None]
     # Lets a section's page trigger a real active-repo switch (e.g. on
-    # node click in plugins/studio/project_editor's graph view) without
+    # node click in plugins/core/project_editor's graph view) without
     # holding a MainWindow reference — wraps MainWindow._set_active_repo.
     set_active_repo: Callable[[str, str], None]
     # Lets a section jump straight to one SettingsTabSpec's tab inside the
-    # Setting popup (e.g. plugins/studio/program_launcher/'s "Open Setting"
+    # Setting popup (e.g. plugins/core/program_launcher/'s "Open Setting"
     # button for an unlinked Program, landing on Software Linker) without
     # holding a MainWindow reference. Wraps
     # MainWindow._on_settings_requested(select_key=...) ->
@@ -48,7 +48,7 @@ class SectionSpec:
     # a plugin that hasn't supplied an icon yet).
     icon_path: Path | None = None
     # Optional: a small widget shown at the right edge of this section's own
-    # row in Sidebar's SectionTabList (e.g. plugins/studio/Notification/'s
+    # row in Sidebar's SectionTabList (e.g. plugins/core/Notification/'s
     # unread-count badge) — built once, alongside page_factory, and never
     # rebuilt by SectionTabList. The plugin that supplies the factory keeps
     # its own reference to the returned widget and updates it directly

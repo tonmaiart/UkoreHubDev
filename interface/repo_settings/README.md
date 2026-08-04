@@ -10,7 +10,7 @@ app-level settings just because both happen to register into
 Both tabs are `CATEGORY_REPO` (registered in
 `interface/builtin_settings_tabs.py`) and — like every `CATEGORY_REPO`
 tab — are not rendered by `interface/settings/settings_view.py` at all;
-they show up in `plugins/studio/project_editor/`'s "Repository Setting"
+they show up in `plugins/core/project_editor/`'s "Repository Setting"
 popup instead, read generically off `SettingsTabRegistry` (see
 `interface/settings/README.md`'s "No longer rendered here at all" note).
 Both are genuinely scoped to a single repo, so neither relies on
@@ -28,19 +28,21 @@ for the type-specific rebuild.
   (`MetadataStore.mark_status`) — does not touch the Project/Repo registry
   record itself, only the on-disk clone.
 - `enable_plugin_page.py` — `EnablePluginPage`: per-repo checkbox list over
-  every discovered `plugins/studio`+`plugins/local` entry
-  (`Repo.active_plugin_ids`). Unchecking a plugin here actually hides its
-  sidebar section for this repo (enforced in
+  every discovered plugin. A `plugins/core` entry is opt-out
+  (`Repo.active_plugin_ids`, checked by default); a `plugins/repo_internal`
+  or `cache/plugins` entry is opt-in (`Repo.required_plugin_ids`, unchecked
+  by default). Either way, (un)checking a plugin here actually flips its
+  sidebar section's visibility for this repo (enforced in
   `interface/main_window.py`'s `_apply_plugin_visibility`, wired via a
   plugin-id-to-section-key map built in `launcher.py`). An empty
   `active_plugin_ids` (the default) means "unrestricted" — every plugin
   stays visible. A plugin flagged `manifest.json` `"core": true`
-  (`PluginManifest.core`, e.g. `plugins/studio/project_editor/`) renders
+  (`PluginManifest.core`, e.g. `plugins/core/project_editor/`) renders
   here checked and disabled — it can never actually be hidden, so there's
   nothing to toggle.
 
 **Working here:** stay inside this folder unless the change needs a new
 `core/` primitive, a `shared/` addition, or touches
-`plugins/studio/project_editor/repo_settings_panel.py` (the actual
+`plugins/core/project_editor/repo_settings_panel.py` (the actual
 container that renders these tabs) or `interface/main_window.py`'s
 `_apply_plugin_visibility`.

@@ -3,7 +3,7 @@ call log(source, message) from anywhere at runtime (not just inside
 register(api), unlike most of PluginAPI's registries), no `api` handle
 needed, same "construct/reach directly, convention not import" spirit
 PluginConfigStore already uses elsewhere in this codebase. Consumed by
-plugins/studio/DebugConsole/'s live viewer page. Deliberately not
+plugins/core/DebugConsole/'s live viewer page. Deliberately not
 persisted (see DebugConsole's own README) and not a QObject — this module
 stays Qt-free like the rest of core/extensibility/; DebugConsolePage
 subscribes with a plain Python callback and is responsible for its own UI

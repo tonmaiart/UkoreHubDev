@@ -9,7 +9,7 @@ entirely.
 
 ## Root cause
 
-`plugins/studio/UkoreShotPlayblast/maya-scripts/UkoreShotPlayblast/function.py`'s
+`plugins/core/UkoreShotPlayblast/maya-scripts/UkoreShotPlayblast/function.py`'s
 `_resolve_video_root` joined the repo path and the stored Custom Path with
 pathlib's `/` operator:
 
@@ -17,7 +17,7 @@ pathlib's `/` operator:
 return repo_path / custom_path["path"]
 ```
 
-`CustomPath.path` (`plugins/studio/project_editor/pipeline_store.py`) is
+`CustomPath.path` (`plugins/core/project_editor/pipeline_store.py`) is
 saved as whatever raw string the user typed into the "Create Input Path"
 field — no sanitization on write. On Windows, `WindowsPath("C:/repo") /
 "/movie"` evaluates to `WindowsPath("C:/movie")`: a path segment starting
@@ -35,7 +35,7 @@ before joining:
 return repo_path / custom_path["path"].lstrip("/\\")
 ```
 
-Also fixed the same day in `plugins/studio/UkoreShot/video_path_store.py`'s
+Also fixed the same day in `plugins/core/UkoreShot/video_path_store.py`'s
 `resolve_video_root` (line 73), which this function's own docstring says it
 mirrors exactly — same `repo_path / repo.local_path / custom_path["path"]`
 join. Initially left unfixed as out-of-scope for the Playblast-only change,

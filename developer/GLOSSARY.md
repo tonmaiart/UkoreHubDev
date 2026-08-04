@@ -28,7 +28,7 @@ the GitHub username/avatar). Wired through
 - **Repository Setting** — a *per-repo* settings popup, opened from
   Project Editor's node right-click menu ("Repository Setting..."), not
   the sidebar's app-level Setting button. See
-  `plugins/studio/project_editor/repo_settings_panel.py`. As of
+  `plugins/core/project_editor/repo_settings_panel.py`. As of
   2026-07-20 its tabs are grouped under two headers — "Repository" (Local
   Repository, Custom Paths, Enable Plugin, Browser) and "Plugins" (every
   plugin-contributed `CATEGORY_REPO` tab) — matching the app-level
@@ -40,7 +40,7 @@ Not a name used anywhere in the codebase itself — refers to Project
 Editor's node-graph view: the `QGraphicsView` showing every repo in a
 project as a node, with pipeline connections drawn as edges between them.
 Code name: `ProjectGraphView`
-(`plugins/studio/project_editor/project_graph_view.py`), hosted inside
+(`plugins/core/project_editor/project_graph_view.py`), hosted inside
 `ProjectEditorPage`. Always visible, docked beside whichever section is
 currently showing (`SectionSpec.persistent=True`) — not a page you
 navigate to via the sidebar.
@@ -76,7 +76,7 @@ pipeline software (Maya, Nuke, ...) a repo can require.
 
 ## Ukore Reference Editor: "project" (e.g. "KafkaProj") means Repo, not Project
 
-Added 2026-08-03 after `plugins/studio/UkoreReferenceEditor` (built this
+Added 2026-08-03 after `plugins/core/UkoreReferenceEditor` (built this
 same session as `ReferenceRedirector`, renamed later the same day) got this
 wrong twice in a row — first not matching it at all, then matching it
 but comparing at the wrong granularity. When talking about an old broken
@@ -95,7 +95,7 @@ under the same UkoreHub Project are still a different old-style "project"
 from each other. Any Internal/External-style classification of a reference
 path against "the currently active project" has to compare **repo
 identity**, not Project identity — see
-`plugins/studio/UkoreReferenceEditor/matcher.py`'s `find_match_for_path`
+`plugins/core/UkoreReferenceEditor/matcher.py`'s `find_match_for_path`
 (repo-first matching) and `core.py`'s `_build_ref_entry`/`_build_texture_entry`
 (via `_classify_path`, `matched_repo.id == active_repo.id`).
 
@@ -108,11 +108,11 @@ needed. If asked about it: it no longer exists.
 
 **Editing an existing repo's required Programs** (the old
 "Requirement" sub-tab's job) got a real replacement 2026-07-29: Repository
-Setting > **Requirements** (`plugins/studio/project_editor/
+Setting > **Requirements** (`plugins/core/project_editor/
 requirements_settings_page.py`, registered in `plugin.py`) hosts the same
 `RequirementsTreeWidget` the Add-Repo dialog uses, self-persisting on every
 check-state change — no Save button, same convention as Enable Plugin/
 Custom Paths. Includes the per-version pin picker for a multi-version
 Program (e.g. choosing 2024 vs 2026 for "Autodesk Maya" — see
 `core/models.py`'s `Repo.program_version_pins` and
-`plugins/studio/maya_launcher/link_resolution.py`).
+`plugins/core/maya_launcher/link_resolution.py`).

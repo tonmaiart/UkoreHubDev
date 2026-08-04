@@ -2,7 +2,7 @@
 calls directly to push a notification card, no `api` handle needed, same
 "construct/reach directly, convention not import" spirit `debug_log.py` and
 `PluginConfigStore` already use elsewhere in this codebase. Consumed by
-plugins/studio/Notification/'s tab. Deliberately not persisted (a
+plugins/core/Notification/'s tab. Deliberately not persisted (a
 notification's on_click is a live Python callback, which can't survive an
 app restart anyway) and not a QObject — stays Qt-free like the rest of
 core/extensibility/; the one UI consumer is responsible for its own thread

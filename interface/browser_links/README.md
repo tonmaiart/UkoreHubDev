@@ -12,7 +12,7 @@ a change to Browser Links only ever touches this one folder.
   (`core/models.py`'s `BrowserLink`, `icon_filename` falls back to
   `data/icons/icons8-browser-50.png`). A `CATEGORY_REPO` Settings tab
   (registered in `interface/builtin_settings_tabs.py`), rendered inside
-  `plugins/studio/project_editor/`'s "Repository Setting" popup like every
+  `plugins/core/project_editor/`'s "Repository Setting" popup like every
   other `CATEGORY_REPO` tab — see `interface/settings/README.md`'s "No
   longer rendered here at all" note. Unlike most `CATEGORY_REPO` tabs it's
   genuinely scoped to a single repo, so it can't rely on `set_repo()`

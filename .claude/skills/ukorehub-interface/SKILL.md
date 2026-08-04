@@ -41,7 +41,7 @@ right:
     picker anymore (that button existed, was removed, then this display-
     only version was re-added the same day at the user's request);
     clicking a repo node in Project Editor's `QGraphicsView` graph
-    (`plugins/studio/project_editor/`) is the only way to change the
+    (`plugins/core/project_editor/`) is the only way to change the
     active repo now, via `SectionHost.set_active_repo` (see below) — a
     single click, not a double-click (changed the same day too; a
     not-yet-cloned repo gets a one-time confirmation first).
@@ -115,7 +115,7 @@ Every registered page/tab factory follows the same **`page_factory: Callable[[],
 Built-ins register into the exact same registries a plugin would —
 `interface/builtin_settings_tabs.py` calls
 the same `register_*`/`api.register_*` surface as
-`plugins/studio/maya_launcher/plugin.py` does. This "dogfooding" is deliberate: if a
+`plugins/core/maya_launcher/plugin.py` does. This "dogfooding" is deliberate: if a
 built-in page needs something the registry API can't express, that's a
 signal the registry API itself is incomplete — don't special-case
 built-ins with a side channel.
@@ -141,14 +141,14 @@ Notable surface:
   `PluginConfigStore` namespaced to `plugin_id`. `shared=True` writes under
   the git-tracked studio config dir, `shared=False` under the gitignored
   local one. Two unrelated plugins agreeing on the same `plugin_id` string
-  share the same file — see `plugins/studio/maya_launcher/plugin.py`
-  reading `plugins/studio/software_linker`'s config for the live example
+  share the same file — see `plugins/core/maya_launcher/plugin.py`
+  reading `plugins/core/software_linker`'s config for the live example
   (`plugins/README.md`'s "Sharing data with another plugin" section for
   the general write-up).
 - `api.app_root` → `Path` to the UkoreHub install root itself (i.e.
   `launcher.py`'s own `REPO_ROOT`), for a plugin that needs to
   reference other paths inside the UkoreHub installation (like
-  `plugins/studio/UkoreBrowser/plugin.py` contributing `api.app_root`
+  `plugins/core/UkoreBrowser/plugin.py` contributing `api.app_root`
   itself onto `PYTHONPATH` so its vendored Maya-side code can
   `import core.store`) without guessing paths from `__file__`.
 - `api.register_file_opener(plugin_id, extensions, opener)`,
@@ -156,7 +156,7 @@ Notable surface:
   register method per registry above.
 - `api.settings_tab_registry` → read access to the same `SettingsTabRegistry`
   `register_settings_tab()` writes into, added 2026-07-15 for
-  `plugins/studio/project_editor/`'s right panel, which enumerates every
+  `plugins/core/project_editor/`'s right panel, which enumerates every
   `CATEGORY_REPO` spec generically and renders it as a collapsible section
   rather than contributing a tab of its own — same read-access-alongside-
   write-method shape as `api.file_opener_registry` above.
@@ -176,13 +176,13 @@ in sync.
 This is the one flow worth tracing end-to-end since it crosses several
 files and the naming ("open") appears at every layer:
 
-1. `plugins/studio/explorer/browser_widget.py`'s `RepoBrowserWidget` takes an
+1. `plugins/core/explorer/browser_widget.py`'s `RepoBrowserWidget` takes an
    `open_file: Callable[[Path], None] | None = None` constructor param
    (default `None` falls back to `core.os_utils.open_with_default_app`,
    i.e. the OS file association / `os.startfile`). Double-clicking a row
    calls `self._open_file(path)`, then unconditionally emits
    `file_opened.emit(path)` regardless of which opener handled it.
-2. `plugins/studio/explorer/repo_browser_page.py`'s `RepoBrowserPage` constructs
+2. `plugins/core/explorer/repo_browser_page.py`'s `RepoBrowserPage` constructs
    `RepoBrowserWidget(..., open_file=self._open_file)` and implements:
    ```python
    def _open_file(self, path: Path) -> None:

@@ -8,7 +8,7 @@ anywhere; `SettingsTabSpec` has no `on_save`/`on_cancel` hooks.
 - `settings_view.py` — `SettingsView` (the left-tab-bar shell) +
   `SettingsDialog` (the popup wrapper around it, reverted 2026-07-19 back
   to a dialog — matches Repository Setting's own `RepoSettingsDialog`
-  pattern in `plugins/studio/project_editor/repo_settings_panel.py`, and
+  pattern in `plugins/core/project_editor/repo_settings_panel.py`, and
   this app's own pre-registry history; briefly an embedded
   `MainWindow.view_stack` page in between, see `SettingsDialog`'s own
   docstring). `MainWindow._on_settings_requested` constructs a fresh
@@ -42,7 +42,7 @@ anywhere; `SettingsTabSpec` has no `on_save`/`on_cancel` hooks.
   `restart_requested` signal, connected to `MainWindow._on_restart_requested`,
   which calls the same `_restart_app()` helper
   (`os.execv(sys.executable, [sys.executable, *sys.argv])`)
-  `plugins/studio/self_updater/`'s "Update and Restart" button uses too,
+  `plugins/core/self_updater/`'s "Update and Restart" button uses too,
   just without the `self_update.pull_update()` git pull first).
   `CATEGORY_GENERAL`.
 - `github_oauth_settings_page.py` — `GithubOAuthSettingsPage`: just the
@@ -67,20 +67,20 @@ this folder's remaining app/machine-level tabs — see that folder's
 `README.md`). Both are still registered into the same
 `SettingsTabRegistry` from `interface/builtin_settings_tabs.py`, still
 `CATEGORY_REPO`, still rendered by
-`plugins/studio/project_editor/repo_settings_panel.py` — only where their
+`plugins/core/project_editor/repo_settings_panel.py` — only where their
 source files live changed.
 
 **No longer rendered here at all:** as of 2026-07-15, `SettingsView` stops
 rendering `CATEGORY_REPO` entirely — every `CATEGORY_REPO` tab (Browser,
 Local Repository, Enable Plugin, plus `project_editor`'s own Custom Paths)
 now renders as a grouped tab list inside
-`plugins/studio/project_editor/`'s "Repository Setting" popup instead,
+`plugins/core/project_editor/`'s "Repository Setting" popup instead,
 read generically off the same `SettingsTabRegistry`
 (`category == CATEGORY_REPO`) — see that plugin's `repo_settings_panel.py`.
 The tabs themselves are unchanged and still registered exactly as below —
 only which container renders them changed. "Project Data Editor" (full
 CRUD for the whole Project/Repo registry, formerly `CATEGORY_DEVELOPER`)
-moved out to `plugins/studio/project_editor/` the same day, now as a
+moved out to `plugins/core/project_editor/` the same day, now as a
 node-graph top-level section rather than a Settings tab — see that
 plugin's README. "Project Status" (read-only per-repo clone/sync status
 tree, `CATEGORY_REPO`) was removed entirely 2026-07-20 — no longer needed.

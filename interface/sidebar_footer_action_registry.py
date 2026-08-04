@@ -14,7 +14,7 @@ class SidebarFooterActionSpec:
     order: int
     # Constructs (or returns an already-constructed) widget to place in
     # Sidebar's footer strip — called once, at Sidebar construction time.
-    # See plugins/studio/self_updater/plugin.py for the eagerly-constructed-
+    # See plugins/core/self_updater/plugin.py for the eagerly-constructed-
     # then-lambda-returns-it pattern (same shape as SectionSpec.page_factory).
     widget_factory: Callable[[], QWidget]
     # Optional: given the constructed widget, return any background QThread

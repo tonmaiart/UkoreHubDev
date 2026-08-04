@@ -36,7 +36,7 @@ context.
 **Every folder should have a `README.md`.** This is a token-budget rule,
 not just documentation: a good folder README lets a session understand
 what's inside without opening every file in it. When you create a new
-folder (a new `plugins/studio/<Name>/`, a new subfolder under `core/` or
+folder (a new `plugins/core/<Name>/`, a new subfolder under `core/` or
 `interface/`), add a short `README.md` to it in the same style as the
 existing ones (see `core/README.md` for the reference tone/format — a
 short intro paragraph, then a flat bullet list of what each file/subfolder
@@ -44,15 +44,17 @@ does and how they relate).
 
 ## Scoped editing — stay inside the folder the task names
 
-When a task is about one specific area — a single `plugins/studio/<Name>/`
-or `plugins/local/<Name>/`, `core/`, or `interface/` — read and edit only
-that folder. Don't open sibling folders "just in case" unless the task
-genuinely crosses the boundary (e.g. a `core/` change whose call sites in
-`interface/` also need updating). Concretely:
+When a task is about one specific area — a single `plugins/core/<Name>/`,
+`plugins/repo_internal/<Name>/`, or `cache/plugins/<Name>/`, `core/`, or
+`interface/` — read and edit only that folder. Don't open sibling folders
+"just in case" unless the task genuinely crosses the boundary (e.g. a
+`core/` change whose call sites in `interface/` also need updating).
+Concretely:
 - Told to fix/change a plugin (Explorer, Submit, SoftwareLinker,
   MayaLauncher, or a new one) → touch only its own
-  `plugins/studio/<Name>/`/`plugins/local/<Name>/`
-  folder. See the `ukorehub-plugin` skill and `plugins/README.md` — never
+  `plugins/core/<Name>/`, `plugins/repo_internal/<Name>/`, or
+  `cache/plugins/<Name>/` folder. See the `ukorehub-plugin` skill and
+  `plugins/README.md` — never
   open a sibling plugin's source, and cross-plugin data/UI coordination
   goes through the documented
   `plugin_config_store`/`SectionHost` conventions, not imports.
@@ -83,7 +85,7 @@ smoke-test script to verify wiring after a registry/constructor change —
 everything against that copy instead. `data/local_config.json` can have a
 real `active_repo_id` saved, which makes `MainWindow.__init__` kick off a
 real background git sync (`MainWindow._start_auto_sync`, delegating to
-`plugins/studio/submit/repo_git_status_page.py`'s
+`plugins/core/submit/repo_git_status_page.py`'s
 `RepoGitStatusPage.sync_active_repo`) on a background `QThread` that starts
 running the moment `.start()` is called, independent of whether
 `app.exec()` ever runs. A real UkoreHub.exe /
@@ -101,10 +103,20 @@ any change to a shared JSON store is safe to discard or revert.
   [data/README.md](data/README.md) — don't open the JSON stores unless the
   task needs a concrete current value, and never open the image
   directories (`thumbnails/`, `program_icons/`) at all.
-- `plugins/` — UkoreHub's own always-on sub-systems (every project, never
-  toggled). See `core/extensibility/README.md` for the discovery mechanism
-  and `plugins/README.md` plus the `ukorehub-plugin` skill for the "stay
-  inside one folder" editing discipline it uses.
+- `plugins/` — UkoreHub's own sub-systems: `plugins/core/` (bundled,
+  on-by-default, opt-out per repo) and `plugins/repo_internal/` (bundled,
+  off-by-default, opt-in per repo). See `core/extensibility/README.md` for
+  the discovery mechanism and `plugins/README.md` plus the `ukorehub-plugin`
+  skill for the "stay inside one folder" editing discipline it uses.
+- `cache/plugins/` — **repo plugins**: gitignored, per-machine. Each entry
+  is its own separate git clone (own remote/history, not part of this repo
+  at all), fetched/updated on demand only for a repo that requires it. Never
+  read or list files under here unless the task explicitly names a repo
+  plugin by folder name — same reasoning as `projects/` below, this is
+  fetched/generated content, not something to explore speculatively (though
+  unlike `projects/`, its plugin.py/manifest.json are real code worth
+  reading when a task is actually about that specific plugin — see
+  `plugins/README.md`).
 - `projects/` — **the actual workspace root**, pointed to by
   `data/local_config.json`'s `workspace_root`: real cloned production repos
   (Maya/Blender scenes, huge binaries, studio artwork), gitignored. **Never
@@ -112,4 +124,5 @@ any change to a shared JSON store is safe to discard or revert.
   is no code in it, it can be enormous, and its contents are production
   data, not something to explore speculatively.
 - `launcher.py` — entry point.
-- `tests/` — pytest suite (`pytest.ini` at repo root).
+- `developer/tests/` — pytest suite (`pytest.ini` at repo root points
+  `testpaths` here). Not published to `main` — see `developer/README.md`.

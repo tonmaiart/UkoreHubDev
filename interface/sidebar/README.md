@@ -11,7 +11,7 @@ account), not Qt's `QMenuBar`/dropdown-menu widget.
   sync status, one widget per `interface/sidebar_footer_action_registry.py`
   entry (built via `spec.widget_factory()`, stored in
   `self.footer_action_widgets` keyed by `spec.key` — e.g.
-  `plugins/studio/self_updater/`'s Update button; nothing here is
+  `plugins/core/self_updater/`'s Update button; nothing here is
   hardcoded, Sidebar just renders whatever's registered), and an account
   row — `interface/login/github_auth_widget.py`'s `GitHubAuthWidget` (display-only,
   avatar+username, no login/logout control of its own — logging out lives
@@ -27,7 +27,7 @@ account), not Qt's `QMenuBar`/dropdown-menu widget.
   2026-07-15 as **display-only** — unlike the original version (removed
   earlier the same day), there's no click-to-open-picker button anymore:
   the active repo is switched exclusively by clicking a node in Project
-  Editor's always-visible graph panel (`plugins/studio/project_editor/`),
+  Editor's always-visible graph panel (`plugins/core/project_editor/`),
   not from here. `MainWindow` pushes
   into it directly (`set_active_labels`/`set_thumbnail`) from
   `_restore_active_repo`/`_set_active_repo`/`_on_repo_thumbnail_changed`.

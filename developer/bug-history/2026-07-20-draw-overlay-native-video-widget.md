@@ -11,7 +11,7 @@ different root causes stacked on top of each other — the first fix
 (replacing `QVideoWidget`) *fixed the first root cause* but the symptom
 persisted because a second, unrelated bug was hiding behind it the whole
 time. See "Second root cause" below for how that one was actually found —
-`plugins/studio/DebugConsole/` (added specifically for this) turned an
+`plugins/core/DebugConsole/` (added specifically for this) turned an
 unfalsifiable "still doesn't work" report into a one-line proof.
 
 ## Root cause
@@ -49,7 +49,7 @@ After the `_VideoSurface` fix above, the user reported the brush *still*
 didn't work, and the new hover-size circle never appeared either — with
 no way to tell, from the outside, whether the fix had even taken effect
 (the app is normally launched via `pythonw.exe`, no console) or whether a
-second bug was in play. `plugins/studio/DebugConsole/` +
+second bug was in play. `plugins/core/DebugConsole/` +
 `core/extensibility/debug_log.py` were added specifically to answer that:
 `draw_overlay.py`'s `mousePressEvent`/`mouseMoveEvent`/`resizeEvent` were
 instrumented to log to a `"UkoreShot.Draw"` source, viewable live in-app.
@@ -98,7 +98,7 @@ fixes (as the first two attempts did) would not have. **When a bug report
 says "still doesn't work" and you cannot interactively reproduce the UI
 yourself, add cheap, structured, in-app instrumentation before guessing
 again** — `core/extensibility/debug_log.py` +
-`plugins/studio/DebugConsole/` turned a third round of blind guessing
+`plugins/core/DebugConsole/` turned a third round of blind guessing
 into a one-line proof of the actual defect. Prefer two independent,
 directly-observable facts (widget visibility + event delivery) over a
 plausible-sounding theory that can't be checked from where you're

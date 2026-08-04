@@ -15,7 +15,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 DEFAULT_ICON = Path(__file__).resolve().parent / "icon.ico"
 
 
@@ -27,7 +27,7 @@ def ensure_pyinstaller() -> None:
 
 
 def build(icon: Path, name: str) -> Path:
-    build_dir = REPO_ROOT / "build"
+    build_dir = REPO_ROOT / "developer" / "build"
     entry = Path(__file__).resolve().parent / "exe_entry.py"
     cmd = [
         sys.executable, "-m", "PyInstaller",

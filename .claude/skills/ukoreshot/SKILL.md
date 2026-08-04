@@ -1,11 +1,11 @@
 ---
 name: ukoreshot
-description: Working reference for plugins/studio/UkoreShot/ (C:\Tonmai\UkoreHub) — UkoreHub's per-repo playblast video library/review plugin. Use this whenever a task names UkoreShot specifically, or targets a path under plugins/studio/UkoreShot/ (its player/drawing/comment UI, its video-naming/filter logic, its icons, or its own bug-history) — before the general ukorehub-plugin skill's folder-scoping rule, since this skill covers UkoreShot's own internal subfolder split (core/interface/images/bug-history) that the general skill doesn't know about. Also load this for plugins/studio/UkorePlayblast/ tasks that touch the shared naming convention between the two plugins.
+description: Working reference for plugins/core/UkoreShot/ (C:\Tonmai\UkoreHub) — UkoreHub's per-repo playblast video library/review plugin. Use this whenever a task names UkoreShot specifically, or targets a path under plugins/core/UkoreShot/ (its player/drawing/comment UI, its video-naming/filter logic, its icons, or its own bug-history) — before the general ukorehub-plugin skill's folder-scoping rule, since this skill covers UkoreShot's own internal subfolder split (core/interface/images/bug-history) that the general skill doesn't know about. Also load this for plugins/core/UkorePlayblast/ tasks that touch the shared naming convention between the two plugins.
 ---
 
 # UkoreShot — structure and domain knowledge
 
-`plugins/studio/UkoreShot/` is a normal `plugins/studio/<Name>/` plugin
+`plugins/core/UkoreShot/` is a normal `plugins/core/<Name>/` plugin
 (the `ukorehub-plugin` skill's "stay inside your plugin folder" rule
 applies against every *other* plugin as always), but internally it's
 split into subfolders — read only the one your task needs, same
@@ -23,7 +23,7 @@ token-budget reasoning as staying inside the plugin at all:
 **Read that subfolder's own `README.md` before opening its individual
 files** — each is a full, current description of what's inside, written
 so you don't need to open every file to place them in context. The
-top-level `plugins/studio/UkoreShot/README.md` is now a short index/rule
+top-level `plugins/core/UkoreShot/README.md` is now a short index/rule
 page, not the content itself — start there only to decide which subfolder
 you need, then go read that subfolder's README.
 
@@ -32,7 +32,7 @@ you need, then go read that subfolder's README.
 (`core/extensibility/loader.py`) requires both directly there. Everything
 else is free to live wherever makes sense internally, since `plugin.py`
 only ever reaches `interface/`/`core/` through normal absolute Python
-imports (`from plugins.studio.UkoreShot.interface.video_library_page import UkoreShotPage`,
+imports (`from plugins.core.UkoreShot.interface.video_library_page import UkoreShotPage`,
 etc.), never anything path-based.
 
 ## The `core` naming collision
@@ -49,7 +49,7 @@ relative or plugin-scoped; it's already correct.
 
 ## Companion plugin: UkorePlayblast (Maya-side, separate codebase)
 
-`plugins/studio/UkorePlayblast/` is the Maya-side tool that writes the
+`plugins/core/UkorePlayblast/` is the Maya-side tool that writes the
 video files this plugin's library reads — a completely separate Python
 environment (Maya's own interpreter, not UkoreHub's desktop app), so
 **nothing in either plugin imports from the other**. Where both sides need
@@ -70,7 +70,7 @@ to agree on something, it's duplicated deliberately rather than shared:
   not migrated) shows up as `"Unknown"` in every naming-derived filter
   category in `interface/filter_sidebar.py`, never hidden or an error.
 - **Video root resolution** — both sides independently read
-  `data/plugins/studio/ukore_shot.json`'s `repo_video_custom_path` off
+  `data/plugins/core/ukore_shot.json`'s `repo_video_custom_path` off
   disk (this plugin's own `core/video_path_store.py`, and
   `UkorePlayblast`'s `function.py`'s `_resolve_video_root`) — the
   "construct the store straight off disk" pattern this whole codebase

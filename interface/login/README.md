@@ -47,10 +47,10 @@ logout, via `_on_initial_login_completed`/`_on_relogin_completed`).
   after login (`main_window.py`'s `_offer_repo_pick_after_login`, Cancel
   button relabeled "Skip") and by any picker-style flow that needs to pick
   an existing repo from the registry (e.g.
-  `plugins/studio/project_editor/`'s pipeline-input/output node context
+  `plugins/core/project_editor/`'s pipeline-input/output node context
   menu actions) — normal active-repo switching no longer goes through this
   dialog at all, that's a node click in Project Editor's graph now (see
-  `plugins/studio/project_editor/project_graph_view.py`). Renders one
+  `plugins/core/project_editor/project_graph_view.py`). Renders one
   clickable `_RepoCard` per repo —
   name + status sharing one row (status pinned right) rather than a
   `QTreeWidget` with extra columns — click only selects (exclusive); the
@@ -67,7 +67,7 @@ logout, via `_on_initial_login_completed`/`_on_relogin_completed`).
   text stays legible — `core/theme.py`'s `QFrame#repoCard[hasThumbnail=
   "true"]` gives the card a transparent QSS background so that custom
   painting isn't erased, same fill-crop technique
-  `plugins/studio/project_editor/project_graph_view.py`'s `RepoNodeItem`
+  `plugins/core/project_editor/project_graph_view.py`'s `RepoNodeItem`
   reuses for graph nodes. The selection ring on a thumbnail card is drawn
   by hand in `paintEvent` too
   (`_ACCENT_COLOR`, from `core/theme.py`'s single defined theme) rather than

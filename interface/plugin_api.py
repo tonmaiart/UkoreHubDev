@@ -84,7 +84,7 @@ class PluginAPI:
     @property
     def program_launch_registry(self) -> ProgramLaunchRegistry:
         """Read access to the same registry register_program_launcher()
-        writes into — for plugins/studio/program_launcher/'s card grid to
+        writes into — for plugins/core/program_launcher/'s card grid to
         look up a plugin-contributed launch behavior (e.g. maya_launcher's
         setProject/env-merge wiring) for a given Program, rather than
         always subprocess.Popen-ing the raw linked exe itself."""
@@ -93,7 +93,7 @@ class PluginAPI:
     @property
     def settings_tab_registry(self) -> SettingsTabRegistry:
         """Read access to the same registry register_settings_tab() writes
-        into — for a page (plugins/studio/project_editor/'s right panel)
+        into — for a page (plugins/core/project_editor/'s right panel)
         that needs to enumerate every CATEGORY_REPO tab generically and
         render it itself, rather than contribute a tab of its own."""
         return self._settings_tab_registry
@@ -136,5 +136,5 @@ class PluginAPI:
         self._hooks.subscribe(event, handler)
 
     def plugin_config_store(self, plugin_id: str, *, shared: bool = False) -> PluginConfigStore:
-        subdir = "studio" if shared else "local"
+        subdir = "core" if shared else "local"
         return PluginConfigStore(self._plugins_data_dir / subdir / f"{plugin_id}.json")

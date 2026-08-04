@@ -9,7 +9,7 @@ from core.models import Program, Repo
 @dataclass(frozen=True)
 class ProgramLaunchSpec:
     """Lets one plugin (e.g. maya_launcher) contribute its own launch
-    behavior for a Program that plugins/studio/program_launcher's card
+    behavior for a Program that plugins/core/program_launcher's card
     grid would otherwise just subprocess.Popen the raw linked exe for —
     Maya needs setProject/env-merge/force-load-plugins wiring, not a bare
     process launch. `match` decides whether this spec applies to a given
@@ -26,7 +26,7 @@ class ProgramLaunchRegistry:
     (specs aren't keyed by a stable string id, and more than one could
     legitimately match different Programs). First match wins, checked in
     registration order. There's no guaranteed order between plugins'
-    register(api) calls, but plugins/studio/program_launcher/plugin.py only
+    register(api) calls, but plugins/core/program_launcher/plugin.py only
     ever calls find_launcher() later, at double-click time — long after
     every plugin has finished registering — so that ordering caveat
     doesn't matter in practice."""

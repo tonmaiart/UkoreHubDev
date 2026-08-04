@@ -10,8 +10,8 @@ running normally; there was no crash dialog or visible error (running via
 
 ## Root cause
 
-`plugins/studio/project_editor/repo_settings_panel.py` added
-`from plugins.studio.project_editor.plugin import CUSTOM_PATHS_SETTINGS_KEY`
+`plugins/core/project_editor/repo_settings_panel.py` added
+`from plugins.core.project_editor.plugin import CUSTOM_PATHS_SETTINGS_KEY`
 to classify Repository Setting's tabs. But the plugin's own import chain
 already ran the other way:
 
@@ -25,7 +25,7 @@ plugin.py
 
 Python import machinery can't resolve `plugin.py` a second time while it's
 still executing its own top-level code (it's "partially initialized") — the
-`from plugins.studio.project_editor.plugin import CUSTOM_PATHS_SETTINGS_KEY`
+`from plugins.core.project_editor.plugin import CUSTOM_PATHS_SETTINGS_KEY`
 line raised `ImportError: cannot import name 'ProjectEditorPage' from
 partially initialized module ...` (the error surfaces confusingly on
 whatever name the *original* importer wanted, not on the new import that
@@ -43,13 +43,13 @@ section at all, and the rest of the app came up fine without it.
 `repo_settings_panel.py` no longer imports the constant from `plugin.py` —
 the one string value (`"project_editor_custom_paths"`) is duplicated
 locally with a comment explaining why, breaking the cycle. See
-`plugins/studio/project_editor/repo_settings_panel.py`'s
+`plugins/core/project_editor/repo_settings_panel.py`'s
 `_CUSTOM_PATHS_SETTINGS_KEY`.
 
 ## Lesson
 
-Before adding a new top-level `from plugins.studio.<Name>.<module> import
-X` inside any file under `plugins/studio/<Name>/`, check whether
+Before adding a new top-level `from plugins.core.<Name>.<module> import
+X` inside any file under `plugins/core/<Name>/`, check whether
 `<Name>`'s own `plugin.py` (the entry point) already imports — directly or
 transitively — the file you're editing. If it does, importing `plugin.py`
 (or anything that itself imports `plugin.py`) from that file closes a

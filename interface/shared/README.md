@@ -8,7 +8,7 @@ before the `interface/` reorg that created this folder, and re-checked
 whenever a domain folder is split out — `dialogs.py` moved out 2026-07-20
 once a repo-wide grep showed `ProjectDialog`/`RepoDialog`/
 `RequirementsTreeWidget` had only one real consumer left,
-`plugins/studio/project_editor/`, which now owns that file directly as
+`plugins/core/project_editor/`, which now owns that file directly as
 `project_editor/dialogs.py`) — if a file only ever gets one consumer, it
 belongs in that consumer's own folder instead, not here.
 
@@ -25,18 +25,18 @@ belongs in that consumer's own folder instead, not here.
   don't) and overrides `_on_refresh_content()`.
 - `commit_history.py` — `CommitCard` widget, `CommitHistoryEntry`,
   `format_commit_date`, and `fetch_entries_via_github` (GitHub-API-first,
-  local-git-fallback). Used by `plugins/studio/explorer/`'s per-path commit
+  local-git-fallback). Used by `plugins/core/explorer/`'s per-path commit
   panel (`path_commit_history_panel.py`/`path_commit_history_worker.py`)
-  and `plugins/studio/submit/`'s whole-repo commit log
+  and `plugins/core/submit/`'s whole-repo commit log
   (`repo_git_status_page.py`/`commit_log_worker.py`), so both render
-  identically — Explorer and Submit are real `plugins/studio/` plugins now
+  identically — Explorer and Submit are real `plugins/core/` plugins now
   (not `interface/` window folders), but this stays in `interface/shared/`
   since it's imported the same normal way either side of that split.
 - `image_asset.py` — `pick_image_file` (the `QFileDialog.getOpenFileName`
   wrapper every icon/thumbnail chooser uses) and `save_image_asset` (copy
   the chosen file into a `data/*_icons`/`data/thumbnails`-style dir as
   `f"{asset_id}{ext}"`, returning the filename or `None` + a warning on
-  failure). Used by `plugins/studio/project_editor/`'s node context menu
+  failure). Used by `plugins/core/project_editor/`'s node context menu
   (repo thumbnail and `RepoDialog`), `browser_links/browser_links_settings_page.py`
   (Browser Link icon), and `settings/program_dialog.py`/
   `settings/program_database_page.py` — every place in the app that lets

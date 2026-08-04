@@ -31,7 +31,7 @@ the repo actually lives on disk.
 Confirmed via this repo's own git history:
 `data/projects.json`'s `AnimatorTeam` repo was renamed from `KafkaProj` on
 2026-07-14; `local_path` still reads `"MerderaProject/KafkaProj"`.
-`plugins/studio/PublishApi/maya-scripts/PublishApi/repo_paths.py`'s
+`plugins/core/PublishApi/maya-scripts/PublishApi/repo_paths.py`'s
 `get_active_repo()`/`resolve_ref()` both recomputed via
 `resolve_repo_path(..., project.name, repo.name)` instead of reading
 `repo.local_path` — resolving to `.../AnimatorTeam/...` (freshly created
@@ -41,17 +41,17 @@ built on `PublishApi` (ModelPublisher, RigPublisher, AnimationPublisher,
 UkoreBrowser) shared this same latent bug.
 
 The same bug independently existed in
-`plugins/studio/project_editor/project_graph_view.py`'s `_is_repo_cloned`
+`plugins/core/project_editor/project_graph_view.py`'s `_is_repo_cloned`
 (used for the Viewgraph's clone-status icon) — same recompute-from-name
 pattern, same fix.
 
 ## Fix
 
-- `plugins/studio/PublishApi/maya-scripts/PublishApi/repo_paths.py`:
+- `plugins/core/PublishApi/maya-scripts/PublishApi/repo_paths.py`:
   `get_active_repo`/`resolve_ref` now build the path as
   `Path(local_config.workspace_root) / repo.local_path` instead of calling
   `resolve_repo_path`.
-- `plugins/studio/project_editor/project_graph_view.py`'s
+- `plugins/core/project_editor/project_graph_view.py`'s
   `_is_repo_cloned`: same fix.
 - `core/paths.py`'s `resolve_repo_path` itself was left unchanged — it's
   correct for its one legitimate use (`core/store.py`'s `add_repo`, at
@@ -59,9 +59,9 @@ pattern, same fix.
 - **Not yet fixed** (flagged as a separate task, same bug pattern
   confirmed present but not yet verified/fixed one by one):
   `interface/main_window.py`, `interface/settings/local_repository_page.py`,
-  `plugins/studio/explorer/repo_browser_page.py`,
-  `plugins/studio/submit/repo_git_status_page.py`,
-  `plugins/studio/maya_launcher/plugin.py` — all call `resolve_repo_path`
+  `plugins/core/explorer/repo_browser_page.py`,
+  `plugins/core/submit/repo_git_status_page.py`,
+  `plugins/core/maya_launcher/plugin.py` — all call `resolve_repo_path`
   outside of repo-creation. Check whether this file has been resolved
   before assuming it still needs auditing.
 
