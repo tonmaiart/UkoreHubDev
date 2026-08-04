@@ -47,3 +47,38 @@ branch. It does **not** push; review the result (`git log main`,
 
 Pass `-Message "..."` to use a custom commit message instead of the
 default (which references the `dev` commit being synced).
+
+### Running it from Git Bash / MINGW64
+
+`.ps1` files aren't shell scripts - running `developer/commit-main.ps1`
+directly from Git Bash tries to execute it as bash and fails with a
+`syntax error near unexpected token` on the `<#` comment block. Invoke
+PowerShell explicitly instead:
+
+```bash
+powershell -File developer/commit-main.ps1
+```
+
+From an actual PowerShell window, `.\developer\commit-main.ps1` works
+directly - no need for `powershell -File`.
+
+Also, when pasting a failing command's output back into a terminal for a
+retry, paste only the command itself, not the whole block including old
+error text or shell prompts (e.g. a stray `tomatactics@... (dev)` line) -
+PowerShell will try to run every pasted line as its own command.
+
+### "running scripts is disabled on this system"
+
+Windows PowerShell's default execution policy blocks all `.ps1` scripts,
+signed or not. Two ways around it:
+
+- One-off, no permanent change (recommended):
+  ```powershell
+  powershell -ExecutionPolicy Bypass -File .\developer\commit-main.ps1
+  ```
+- Permanent, for this Windows user account - changes a machine security
+  setting, so run it yourself rather than scripting it:
+  ```powershell
+  Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+  ```
+  After this, plain `.\developer\commit-main.ps1` works every time.
