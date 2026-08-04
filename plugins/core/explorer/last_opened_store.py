@@ -1,7 +1,7 @@
 """Per-repo, per-user local cache of files opened via a table double-click
 in Explorer's RepoBrowserWidget.
 
-Mirrors plugins/core/UkoreBrowser/maya-scripts/UkoreBrowser/core/browser_config.py's
+Mirrors plugins/repo_internal/UkoreBrowser/maya-scripts/UkoreBrowser/core/browser_config.py's
 BrowserConfig — same <repo_root>/.ukorehub/ convention, same repo-relative
 path storage (survives a different drive letter machine to machine) — but
 scoped per OS user too (the filename includes it), since this is a

@@ -15,8 +15,8 @@ class BaseRepoSettingsPage(QWidget):
     pages (see interface/repo_settings/README.md and
     interface/browser_links/README.md — both domains have a tab built on
     this). Collapses the empty_label/content_widget scaffolding and
-    refresh() preamble that LocalRepositoryPage, EnablePluginPage, and
-    BrowserLinksSettingsPage each had independently, byte-for-byte
+    refresh() preamble that LocalRepositoryPage, RequirementsAndPluginsPage,
+    and BrowserLinksSettingsPage each had independently, byte-for-byte
     identical, before 2026-07-20.
 
     This __init__ leaves content_widget layout-less on purpose — a

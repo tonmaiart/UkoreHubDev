@@ -141,7 +141,7 @@ def _linked_key(program, version: str = "") -> str:
     single/no-version Program (preserves already-linked paths); becomes
     "<id>:<version>" once a Program has multiple versions, since each
     needs its own linked executable. Convention-only duplicate of
-    plugins/core/maya_launcher/link_resolution.py's linked_key() — keep
+    plugins/repo_internal/maya_launcher/link_resolution.py's linked_key() — keep
     both in sync if this shape ever changes, same discipline as
     MAYA_ENV_BRIDGE_PLUGIN_ID."""
     if len(program.versions) <= 1:

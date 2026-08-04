@@ -29,7 +29,7 @@ PLUGIN_ID = "program_launcher"
 # Convention-only string match with plugins/core/software_linker/plugin.py
 # — both resolve to the same data/plugins/local/software_linker.json via
 # PluginConfigStore, no coupling API needed. Same pattern
-# plugins/core/maya_launcher uses to find a linked executable.
+# plugins/repo_internal/maya_launcher uses to find a linked executable.
 SOFTWARE_LINKER_PLUGIN_ID = "software_linker"
 
 _CARD_SIZE = QSize(120, 120)
@@ -39,7 +39,7 @@ _CARD_ICON_SIZE = QSize(56, 56)
 def _linked_key(program: Program, version: str = "") -> str:
     """Per-machine Software Linker config key for a Program (+ version).
     Convention-only duplicate of plugins/core/software_linker/plugin.py's
-    own _linked_key() (and plugins/core/maya_launcher/link_resolution.py's
+    own _linked_key() (and plugins/repo_internal/maya_launcher/link_resolution.py's
     linked_key()) — keep all three in sync if this shape ever changes."""
     if len(program.versions) <= 1:
         return program.id
@@ -51,7 +51,7 @@ def _pinned_version(repo: Repo, program: Program) -> str:
     repo.program_version_pins wins if it names a version the Program still
     has; otherwise the catalog's first version (or "" if it has none).
     Convention-only duplicate of
-    plugins/core/maya_launcher/link_resolution.py's pinned_version()."""
+    plugins/repo_internal/maya_launcher/link_resolution.py's pinned_version()."""
     pin = repo.program_version_pins.get(program.id)
     if pin and pin in program.versions:
         return pin

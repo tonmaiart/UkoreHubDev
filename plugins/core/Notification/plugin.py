@@ -16,6 +16,7 @@ def register(api) -> None:
     page = NotificationPage(
         local_config_store=api.local_config,
         config_store=api.plugin_config_store(PLUGIN_ID, shared=False),
+        git_service=api.git,
     )
     api.register_section(
         SectionSpec(
@@ -32,5 +33,9 @@ def register(api) -> None:
             # badge_label's text/visibility itself (see
             # NotificationPage._recompute_badge).
             trailing_widget_factory=lambda: page.badge_label,
+            # Page owns a CommitFeedWorker (team activity feed poll) that can
+            # be mid-run when the app closes — same closeEvent
+            # terminate()+wait() contract as every other QThread-backed page.
+            background_threads=lambda p: [p._feed_worker],
         )
     )

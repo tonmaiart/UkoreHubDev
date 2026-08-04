@@ -24,7 +24,7 @@ discovery mechanism.
     `api.plugin_config_store(PLUGIN_ID, shared=False)` — per-machine, keyed
     by Program id. **Other plugins read this same mapping** by
     calling `api.plugin_config_store("software_linker", shared=False)`
-    themselves (e.g. `plugins/core/maya_launcher/plugin.py` reading a
+    themselves (e.g. `plugins/repo_internal/maya_launcher/plugin.py` reading a
     linked `maya.exe` path) — no coupling API needed, just agreeing on the
     `"software_linker"` id string. See `plugins/README.md`'s "Sharing data
     with another plugin" section.

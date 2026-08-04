@@ -11,11 +11,14 @@ plugin ships bundled with the app vs. is fetched separately, and whether
 it's on by default per repo vs. opt-in:
 - `core/` — git-tracked, ships bundled with the app (distributed via
   `self_update.py`'s whole-tree `git pull`, same as `data/programs.json`),
-  **on by default** for every repo (opt-out via Settings > Repo > Enable
-  Plugin, `Repo.active_plugin_ids`). Explorer, Submit, and Software Linker
-  all live here. A plugin additionally flagged `manifest.json` `"core":
-  true` (`PluginManifest.core`) can't even be opted out — see
-  `core/extensibility/README.md`.
+  **always on** for every repo — no per-repo opt-out at all (2026-08-04:
+  there used to be an opt-out via Settings > Repo > Enable Plugin,
+  `Repo.active_plugin_ids`, still checked by default; removed once every
+  `plugins/core/` plugin was made unconditionally visible, matching the
+  handful that were already flagged load-bearing). Explorer, Submit, and
+  Software Linker all live here — reserve this root for functionality
+  every repo genuinely needs; anything repo-specific belongs in
+  `repo_internal/` instead. See `core/extensibility/README.md`.
 - `repo_internal/` — also git-tracked and bundled with the app, but
   **opt-in**: hidden for a repo until that repo explicitly requires it
   (`Repo.required_plugin_ids`, same page as above), the same "off until
@@ -159,7 +162,7 @@ unrelated plugins that independently construct a store with the **same
 `plugin_id` string** share the same file — no coupling, no import, just
 agreeing on a string and a JSON shape in advance. `shared=True` writes to
 the git-tracked studio config dir; `shared=False` writes to the gitignored
-per-machine dir. `plugins/core/maya_launcher/plugin.py` reading
+per-machine dir. `plugins/repo_internal/maya_launcher/plugin.py` reading
 `plugins/core/software_linker`'s per-machine `maya.exe` path via
 `api.plugin_config_store("software_linker", shared=False)` is the real
 worked example, without importing SoftwareLinker's code at all.

@@ -61,7 +61,7 @@ anywhere; `SettingsTabSpec` has no `on_save`/`on_cancel` hooks.
 tab" here even though each is really its own feature domain):
 `browser_links_settings_page.py` → `interface/browser_links/` (alongside
 the Browser Link runtime tab it configures — see that folder's `README.md`);
-`local_repository_page.py`/`enable_plugin_page.py` →
+`local_repository_page.py`/`requirements_and_plugins_page.py` →
 `interface/repo_settings/` (the repo-configuration domain, distinct from
 this folder's remaining app/machine-level tabs — see that folder's
 `README.md`). Both are still registered into the same
@@ -72,8 +72,8 @@ source files live changed.
 
 **No longer rendered here at all:** as of 2026-07-15, `SettingsView` stops
 rendering `CATEGORY_REPO` entirely — every `CATEGORY_REPO` tab (Browser,
-Local Repository, Enable Plugin, plus `project_editor`'s own Custom Paths)
-now renders as a grouped tab list inside
+Local Repository, Requirements & Plugins, plus `project_editor`'s own
+Custom Paths) now renders as a grouped tab list inside
 `plugins/core/project_editor/`'s "Repository Setting" popup instead,
 read generically off the same `SettingsTabRegistry`
 (`category == CATEGORY_REPO`) — see that plugin's `repo_settings_panel.py`.

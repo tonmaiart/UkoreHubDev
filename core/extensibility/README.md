@@ -14,25 +14,20 @@ settings tabs, project-info tabs) is composed on top of these in
   raises — a broken plugin is recorded as a `PluginLoadFailure` and
   skipped, not a crash. Also has `plugin_source()`, returning `"core"`/
   `"repo_internal"` for the two bundled roots, or `"repo"` for a
-  `cache/plugins/` entry (its own separate git clone).
-  `PluginManifest.core: bool` (manifest.json `"core": true`, default
-  `false`, added 2026-07-15) flags a plugin as load-bearing for per-repo
-  *visibility* — distinct from `PluginLoadFailure` isolation, which still
-  applies the same to a core plugin if it fails to import/register.
-  `launcher.py` collects `core_plugin_ids` from this flag and passes it to
-  `MainWindow`, whose `_apply_plugin_visibility` force-shows a core
-  plugin's section regardless of a repo's `active_plugin_ids` allowlist —
-  and `interface/repo_settings/enable_plugin_page.py` renders it checked
-  and disabled so a manager can't accidentally hide it in the first place.
-  The first (and so far only) user is `plugins/core/project_editor/`:
-  hiding it for a repo would remove the only way to switch that repo's
-  active repo at all, a real lockout rather than a preference. Separately,
-  `launcher.py` also collects `repo_internal_plugin_ids` (every plugin
-  `plugin_source()` returns `"repo_internal"` for) and passes it to
-  `MainWindow` too — `_apply_plugin_visibility` uses it for the opposite
-  (opt-in) gating, keyed off `Repo.required_plugin_ids` instead of
-  `active_plugin_ids`. See "Plugins" below for the full three-way
-  visibility split.
+  `cache/plugins/` entry (its own separate git clone). `launcher.py`
+  collects `core_plugin_ids` (every plugin `plugin_source()` returns
+  `"core"` for) and passes it to `MainWindow`, whose
+  `_apply_plugin_visibility` force-shows every one of those sections for
+  every repo, no per-repo opt-out at all (2026-08-04 — there used to be a
+  `PluginManifest.core: bool` manifest flag singling out just
+  `plugins/core/project_editor/` for this; removed once the same
+  always-visible treatment was extended to the whole `plugins/core/` root,
+  making the flag redundant). Separately, `launcher.py` also collects
+  `opt_in_plugin_ids` (every plugin `plugin_source()` returns
+  `"repo_internal"`/`"repo"` for) and passes it to `MainWindow` too —
+  `_apply_plugin_visibility` uses it for the opposite (opt-in) gating,
+  keyed off `Repo.required_plugin_ids`. See "Plugins" below for the full
+  two-way visibility split.
 - `config_store.py` — `PluginConfigStore`: namespaced, atomic-write JSON
   settings for a single plugin (mirrors `LocalConfigStore`/`SystemConfigStore`
   in `core/store.py`, but with a free-form key/value schema instead of fixed
@@ -82,14 +77,14 @@ directly in `core/`, not in this subpackage.
 UkoreHub's own sub-systems — implemented once, loaded (or not, on
 failure) once at app startup for every project alike (`cache/plugins/`
 entries too, once cloned — see `plugins/README.md`). Which of the three
-a plugin lives in decides its **default** per-repo sidebar-section
-visibility (`interface/repo_settings/enable_plugin_page.py`,
+a plugin lives in decides its per-repo sidebar-section visibility
+(`interface/repo_settings/requirements_and_plugins_page.py`,
 `interface/main_window.py`'s `_apply_plugin_visibility`) — a per-repo
 *visibility* toggle, not a per-repo *load* toggle:
-- `core/` — visible by default; a repo can opt **out** via
-  `Repo.active_plugin_ids`, unless the plugin is flagged `manifest.json`
-  `"core": true` (`PluginManifest.core`, see `loader.py` above), which is
-  never hideable this way.
+- `core/` — always visible, no per-repo opt-out at all (2026-08-04).
+  Reserve this root for universal app-level functionality only —
+  anything a repo might reasonably want turned off belongs in
+  `repo_internal/` instead.
 - `repo_internal/` and `cache/plugins/` — hidden by default; a repo must
   opt **in** via `Repo.required_plugin_ids` for the section to show at
   all.

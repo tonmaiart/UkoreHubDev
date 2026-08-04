@@ -3,90 +3,65 @@
     "advanced_skeleton": {
       "PYTHONPATH": {
         "*": [
-          "C:\\Tonmai\\UkoreHub\\plugins\\studio\\AdvancedSkeleton\\maya-scripts"
+          "C:\\Tonmai\\UkoreHub\\cache\\plugins\\AdvancedSkeleton\\maya-scripts"
         ]
       },
       "ADVANCEDSKELETON_ROOT": {
         "*": [
-          "C:\\Tonmai\\UkoreHub\\plugins\\studio\\AdvancedSkeleton\\maya-scripts\\AdvancedSkeleton"
+          "C:\\Tonmai\\UkoreHub\\cache\\plugins\\AdvancedSkeleton\\maya-scripts\\AdvancedSkeleton"
         ]
       }
     },
     "dreamwall_picker": {
       "PYTHONPATH": {
         "*": [
-          "C:\\Tonmai\\UkoreHub\\plugins\\studio\\DreamwallPicker\\maya-scripts"
+          "C:\\Tonmai\\UkoreHub\\cache\\plugins\\DreamwallPicker\\maya-scripts"
         ]
       }
     },
     "maya_ngskin": {
       "PYTHONPATH": {
         "*": [
-          "C:\\Tonmai\\UkoreHub\\plugins\\studio\\MayaNgskin\\maya-scripts"
+          "C:\\Tonmai\\UkoreHub\\plugins\\core\\MayaNgskin\\maya-scripts"
         ]
       },
-      "MAYA_PLUG_IN_PATH": {
-        "2018": [
-          "C:\\Tonmai\\UkoreHub\\plugins\\studio\\MayaNgskin\\maya-plug-ins\\2018"
-        ],
-        "2019": [
-          "C:\\Tonmai\\UkoreHub\\plugins\\studio\\MayaNgskin\\maya-plug-ins\\2019"
-        ],
-        "2020": [
-          "C:\\Tonmai\\UkoreHub\\plugins\\studio\\MayaNgskin\\maya-plug-ins\\2020"
-        ],
-        "2022": [
-          "C:\\Tonmai\\UkoreHub\\plugins\\studio\\MayaNgskin\\maya-plug-ins\\2022"
-        ],
-        "2023": [
-          "C:\\Tonmai\\UkoreHub\\plugins\\studio\\MayaNgskin\\maya-plug-ins\\2023"
-        ],
-        "2024": [
-          "C:\\Tonmai\\UkoreHub\\plugins\\studio\\MayaNgskin\\maya-plug-ins\\2024"
-        ],
-        "2025": [
-          "C:\\Tonmai\\UkoreHub\\plugins\\studio\\MayaNgskin\\maya-plug-ins\\2025"
-        ],
-        "2026": [
-          "C:\\Tonmai\\UkoreHub\\plugins\\studio\\MayaNgskin\\maya-plug-ins\\2026"
-        ]
-      }
+      "MAYA_PLUG_IN_PATH": {}
     },
     "maya_toolkit": {
       "PYTHONPATH": {
         "*": [
-          "C:\\Tonmai\\UkoreHub\\plugins\\studio\\MayaToolkit\\maya-scripts"
+          "C:\\Tonmai\\UkoreHub\\plugins\\core\\MayaToolkit\\maya-scripts"
         ]
       },
       "MAYA_PLUG_IN_PATH": {
         "*": [
-          "C:\\Tonmai\\UkoreHub\\plugins\\studio\\MayaToolkit\\maya-plug-ins"
+          "C:\\Tonmai\\UkoreHub\\plugins\\core\\MayaToolkit\\maya-plug-ins"
         ]
       }
     },
     "mgear": {
       "MAYA_MODULE_PATH": {
         "*": [
-          "C:\\Tonmai\\UkoreHub\\plugins\\studio\\mGear\\maya-modules"
+          "C:\\Tonmai\\UkoreHub\\cache\\plugins\\mGear\\maya-modules"
         ]
       },
       "MGEAR_SHIFTER_COMPONENT_PATH": {
         "*": [
-          "C:\\Tonmai\\UkoreHub\\plugins\\studio\\mGear\\mgear-custom-component"
+          "C:\\Tonmai\\UkoreHub\\cache\\plugins\\mGear\\mgear-custom-component"
         ]
       }
     },
     "studio_library": {
       "PYTHONPATH": {
         "*": [
-          "C:\\Tonmai\\UkoreHub\\plugins\\studio\\StudioLibrary\\maya-scripts"
+          "C:\\Tonmai\\UkoreHub\\cache\\plugins\\StudioLibrary\\maya-scripts"
         ]
       }
     },
     "ukore_browser": {
       "PYTHONPATH": {
         "*": [
-          "C:\\Tonmai\\UkoreHub\\plugins\\studio\\UkoreBrowser\\maya-scripts",
+          "C:\\Tonmai\\UkoreHub\\plugins\\core\\UkoreBrowser\\maya-scripts",
           "C:\\Tonmai\\UkoreHub"
         ]
       }
@@ -108,14 +83,14 @@
     "model_publisher": {
       "PYTHONPATH": {
         "*": [
-          "C:\\Tonmai\\UkoreHub\\plugins\\studio\\ModelPublisher\\maya-scripts"
+          "C:\\Tonmai\\UkoreHub\\plugins\\core\\ModelPublisher\\maya-scripts"
         ]
       }
     },
     "publish_api": {
       "PYTHONPATH": {
         "*": [
-          "C:\\Tonmai\\UkoreHub\\plugins\\studio\\PublishApi\\maya-scripts",
+          "C:\\Tonmai\\UkoreHub\\plugins\\core\\PublishApi\\maya-scripts",
           "C:\\Tonmai\\UkoreHub"
         ]
       }
@@ -123,21 +98,21 @@
     "rig_publisher": {
       "PYTHONPATH": {
         "*": [
-          "C:\\Tonmai\\UkoreHub\\plugins\\studio\\RigPublisher\\maya-scripts"
+          "C:\\Tonmai\\UkoreHub\\plugins\\core\\RigPublisher\\maya-scripts"
         ]
       }
     },
     "ukore_playblast": {
       "PYTHONPATH": {
         "*": [
-          "C:\\Tonmai\\UkoreHub\\plugins\\studio\\UkorePlayblast\\maya-scripts"
+          "C:\\Tonmai\\UkoreHub\\plugins\\core\\UkorePlayblast\\maya-scripts"
         ]
       }
     },
     "ukore_reference_editor": {
       "PYTHONPATH": {
         "*": [
-          "C:\\Tonmai\\UkoreHub\\plugins\\studio\\UkoreReferenceEditor\\maya-scripts",
+          "C:\\Tonmai\\UkoreHub\\plugins\\core\\UkoreReferenceEditor\\maya-scripts",
           "C:\\Tonmai\\UkoreHub"
         ]
       }

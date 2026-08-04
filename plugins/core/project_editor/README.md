@@ -58,20 +58,19 @@ real, visible consequence (no way to add/edit/delete repos at all until
 it's fixed). See `core/extensibility/loader.py`'s `PluginLoadFailure`
 handling for why every other plugin failure is isolated and this one isn't.
 
-**`manifest.json` sets `"core": true`** (`PluginManifest.core`, added
-2026-07-15). This was originally load-bearing back when this plugin
-registered a normal switchable section — `MainWindow._apply_plugin_visibility`
-force-shows a core plugin's section regardless of a repo's restricted
-`active_plugin_ids` allowlist, since hiding the only way to switch the
-active repo would be a lockout, not a preference. Now that this section is
-`persistent=True` instead (never added to `_section_view_index`/
-`SectionTabList` at all — see the top of this file), `_apply_plugin_visibility`
-never gates it either way, so the `core` flag is currently redundant for
-*this* plugin specifically — kept because (a) it costs nothing, (b) it's
-still what `interface/settings/enable_plugin_page.py` reads to render this
-plugin's row checked-and-disabled (an honest signal to a manager that
-toggling it does nothing), and (c) it'd matter again immediately if this
-plugin were ever changed back to a normal section.
+This section is `persistent=True` (never added to `_section_view_index`/
+`SectionTabList` — see the top of this file), so
+`MainWindow._apply_plugin_visibility` never gates it at all, persistent or
+not — there used to be a `manifest.json` `"core": true` flag here too,
+load-bearing back when this plugin registered a normal switchable section,
+but it had already gone fully redundant once the section became
+persistent. Removed 2026-08-04 once every `plugins/core/` plugin (not just
+this one) became unconditionally visible for every repo — see
+`plugins/README.md`. This plugin's row still shows up, label-only and
+unchecked, in the "Core Plugin" list on the "Requirements & Plugins" tab
+(`interface/repo_settings/requirements_and_plugins_page.py`), same as
+every other `plugins/core/` plugin — nothing plugin-specific needed here
+anymore.
 
 ## Files
 
@@ -89,12 +88,14 @@ plugin were ever changed back to a normal section.
   `PluginAPI`, mirroring the existing `api.file_opener_registry` pattern)
   so the Repository Setting popup can enumerate `CATEGORY_REPO` tabs
   generically.
-- `dialogs.py` — `ProjectDialog`/`RepoDialog`/`RequirementsTreeWidget`
-  (the checkable Program requirements tree `RepoDialog` embeds for repo
-  creation) — moved in from `interface/shared/dialogs.py` 2026-07-20 once
-  a repo-wide grep confirmed this plugin was the only real consumer left;
-  imported as a normal sibling module (`from
-  plugins.core.project_editor.dialogs import ...`, the same
+- `dialogs.py` — `ProjectDialog`/`RepoDialog`. `RepoDialog` embeds
+  `interface/shared/requirements_tree_widget.py`'s `RequirementsTreeWidget`
+  (the checkable Program requirements tree, for repo creation) — that
+  widget briefly lived in this file (moved in 2026-07-20, moved back out
+  2026-08-04 once `interface/repo_settings/requirements_and_plugins_page.py`
+  became a second real consumer; see `interface/shared/README.md`).
+  `ProjectDialog`/`RepoDialog` themselves are imported as a normal sibling
+  module (`from plugins.core.project_editor.dialogs import ...`, the same
   real-package convention `plugins/README.md`'s "Multi-file plugins"
   section documents), not a relative import. Used by
   `project_graph_view.py` (`RepoDialog`, node context menu Add/Edit Repo,
@@ -198,7 +199,7 @@ plugin were ever changed back to a normal section.
     recomputing the folder from the repo's current name via
     `core.paths.resolve_repo_path`, which resolved to the wrong folder for
     any repo renamed after creation; same fix as
-    `plugins/core/PublishApi/maya-scripts/PublishApi/repo_paths.py`'s
+    `plugins/repo_internal/PublishApi/maya-scripts/PublishApi/repo_paths.py`'s
     `get_active_repo`/`resolve_ref`) first and shows a one-time "hasn't
     been cloned yet, clone and switch now?" confirmation before the very
     first clone — an already-cloned repo switches immediately with no
@@ -302,8 +303,8 @@ plugin were ever changed back to a normal section.
   Setting view. Changed again 2026-07-20 to group tabs under two
   non-selectable category header rows, same `settings_view.py`
   General/Developer grouping mechanic: "Repository" (a hardcoded key set —
-  Local Repository, Custom Paths, Enable Plugin, Browser) and "Plugins"
-  (everything else registered under `CATEGORY_REPO`, i.e. every
+  Local Repository, Custom Paths, Requirements & Plugins, Browser) and
+  "Plugins" (everything else registered under `CATEGORY_REPO`, i.e. every
   plugin-contributed tab) — this is also when the "Project Status" tab was
   removed entirely (no longer needed). This is also why
   `interface/settings/settings_view.py`
@@ -395,7 +396,7 @@ Don't import anything from this folder — construct your own
 pattern `plugins/README.md`'s "Sharing data with another plugin" section
 documents, same as `maya_launcher` reading `software_linker`'s config).
 `ModelPublisher`/`RigPublisher`/`AnimationPublisher`'s own Repo Studio
-Setting tabs and `plugins/core/PublishApi/`'s `repo_paths.py` (Maya-side,
+Setting tabs and `plugins/repo_internal/PublishApi/`'s `repo_paths.py` (Maya-side,
 constructs the store straight off disk instead — no `PluginAPI` instance
 inside Maya's Python) are the current real consumers — read either for a
 live example. Since a `RepoRef.custom_path_id` is only meaningful against

@@ -59,7 +59,7 @@ class BrowserLinksSettingsPage(BaseRepoSettingsPage):
 
         # Base leaves content_widget layout-less so a subclass can add
         # exactly one layout onto it — this one happens to be scroll-wrapped,
-        # unlike LocalRepositoryPage/EnablePluginPage's plain QVBoxLayout.
+        # unlike LocalRepositoryPage/RequirementsAndPluginsPage's plain QVBoxLayout.
         content_wrap_layout = QVBoxLayout(self.content_widget)
         content_wrap_layout.setContentsMargins(0, 0, 0, 0)
         content_wrap_layout.addWidget(scroll)

@@ -128,6 +128,14 @@ def build_stylesheet(colors: ThemeColors) -> str:
         font-size: 11px;
         font-weight: bold;
     }}
+    QLabel#submitStatusDot[state="dirty"] {{
+        background-color: {colors.warning};
+        border-radius: 5px;
+    }}
+    QLabel#submitStatusDot[state="fresh"] {{
+        background-color: {colors.accent};
+        border-radius: 5px;
+    }}
     QWidget#sidebarFooter {{
         border-top: 1px solid {colors.border};
     }}

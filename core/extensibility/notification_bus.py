@@ -30,6 +30,10 @@ class NotificationEntry:
     repo_id: str | None
     label: str
     icon_path: Path | None = None
+    # Raw image bytes (e.g. a GitHub avatar already downloaded by the
+    # producer) — takes priority over icon_path in NotificationCard, since
+    # it needs no filesystem round-trip and isn't tied to a static icon file.
+    icon_bytes: bytes | None = None
     on_click: Callable[[], None] | None = None
     timestamp: datetime = field(default_factory=datetime.now)
     id: str = field(default_factory=lambda: uuid.uuid4().hex)
@@ -46,6 +50,7 @@ def push(
     label: str,
     *,
     icon_path: Path | None = None,
+    icon_bytes: bytes | None = None,
     on_click: Callable[[], None] | None = None,
 ) -> NotificationEntry:
     entry = NotificationEntry(
@@ -54,6 +59,7 @@ def push(
         repo_id=repo_id,
         label=label,
         icon_path=icon_path,
+        icon_bytes=icon_bytes,
         on_click=on_click,
     )
     _entries.append(entry)

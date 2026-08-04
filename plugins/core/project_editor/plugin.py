@@ -6,13 +6,11 @@ from plugins.core.project_editor.custom_paths_settings_page import CustomPathsSe
 from plugins.core.project_editor.pipeline_store import PipelineStore
 from plugins.core.project_editor.project_editor_page import ProjectEditorPage
 from plugins.core.project_editor.project_settings_page import ProjectSettingsPage
-from plugins.core.project_editor.requirements_settings_page import RequirementsSettingsPage
 
 PLUGIN_ID = "project_editor"
 SECTION_KEY = PLUGIN_ID
 PROJECT_SETTINGS_KEY = "project_editor_project"
 CUSTOM_PATHS_SETTINGS_KEY = "project_editor_custom_paths"
-REQUIREMENTS_SETTINGS_KEY = "project_editor_requirements"
 
 
 def _wire(page: ProjectEditorPage, host: SectionHost) -> None:
@@ -68,20 +66,6 @@ def register(api) -> None:
                 store=api.metadata,
                 local_config_store=api.local_config,
                 pipeline_store=pipeline_store,
-            ),
-            on_activated=lambda widget: widget.refresh(),
-            category=CATEGORY_REPO,
-        )
-    )
-    api.register_settings_tab(
-        SettingsTabSpec(
-            key=REQUIREMENTS_SETTINGS_KEY,
-            label="Requirements",
-            order=26,
-            page_factory=lambda: RequirementsSettingsPage(
-                store=api.metadata,
-                local_config_store=api.local_config,
-                program_store=api.programs,
             ),
             on_activated=lambda widget: widget.refresh(),
             category=CATEGORY_REPO,

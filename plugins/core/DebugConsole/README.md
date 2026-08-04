@@ -11,16 +11,15 @@ own debugging session for why that mattered). Added 2026-07-20 to debug
 a general-purpose tool since the underlying bus is generic, not
 UkoreShot-specific.
 
-`manifest.json`'s `"core": true` makes this section always visible
-regardless of any repo's `active_plugin_ids` (see
-`core/extensibility/README.md`'s `loader.py` bullet) — a debug console is
-orthogonal to which repo is active, so gating it per-repo like an
-artist-facing tool would just mean re-enabling it for every existing and
-future repo for no benefit.
+Living under `plugins/core/` makes this section always visible for every
+repo, no per-repo opt-out at all (see `core/extensibility/README.md`'s
+`loader.py` bullet) — a debug console is orthogonal to which repo is
+active, so gating it per-repo like an artist-facing tool would just mean
+re-enabling it for every existing and future repo for no benefit.
 
 ## Files
 
-- `manifest.json` — plugin id `debug_console`, `"core": true`.
+- `manifest.json` — plugin id `debug_console`.
 - `plugin.py` — `register(api)`: builds one `DebugConsolePage` and
   registers it as a section (order 900, near the bottom of the sidebar —
   this is a developer tool, not meant to be prominent), with

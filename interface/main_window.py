@@ -139,16 +139,15 @@ class MainWindow(QMainWindow):
         # with no entry here (e.g. the built-in "About" section) are never
         # gated, so at least one row always stays visible.
         self._section_key_to_plugin_id = section_key_to_plugin_id or {}
-        # Plugin ids flagged manifest.json "core": true — their section
-        # stays visible in _apply_plugin_visibility no matter what a repo's
-        # active_plugin_ids allowlist says (see that method below). Built
-        # in launcher.py from PluginManifest.core.
+        # Plugin ids discovered under plugins/core/ (plugin_source() returns
+        # "core" — see core.extensibility.loader) — their section always
+        # stays visible in _apply_plugin_visibility, no per-repo opt-out
+        # (see that method below). Built in launcher.py.
         self._core_plugin_ids = core_plugin_ids or set()
         # Plugin ids discovered under plugins/repo_internal/ or cache/plugins/
         # (plugin_source() returns "repo_internal"/"repo" — see
         # core.extensibility.loader) — gated opt-in per repo via
-        # Repo.required_plugin_ids, unlike a plain plugins/core/ plugin's
-        # opt-out active_plugin_ids. repo_internal ships bundled with the
+        # Repo.required_plugin_ids. repo_internal ships bundled with the
         # app like core; a "repo" plugin is its own separate git clone under
         # cache/plugins/ — different in kind, but the same "hidden until a
         # repo requires it" visibility rule applies to both. Built in
@@ -442,27 +441,22 @@ class MainWindow(QMainWindow):
         """Hides the sidebar row of any plugins/ section the active repo
         doesn't currently want shown. A section with no entry in
         _section_key_to_plugin_id (e.g. the built-in "About" section) is
-        never gated, so at least one row is always visible. Three different
+        never gated, so at least one row is always visible. Two different
         gating rules apply depending on where the section's plugin was
         discovered from (core.extensibility.loader.plugin_source):
-        - manifest.json "core": true (self._core_plugin_ids, e.g. Project
-          Editor) — always visible, no matter what. A restricted
-          active_plugin_ids allowlist that omitted this would otherwise hide
-          the only way to switch the active repo at all, a real lockout
-          rather than a mere preference.
+        - plugins/core/ (self._core_plugin_ids) — always visible, no matter
+          what (2026-08-04: no more per-repo opt-out here at all — anything
+          repo-specific belongs under plugins/repo_internal/ instead, so
+          plugins/core/ is meant to be universal app-level functionality,
+          e.g. Project Editor, where switching the active repo has no other
+          entry point).
         - plugins/repo_internal/ or cache/plugins/ (self._opt_in_plugin_ids,
           plugin_source() "repo_internal"/"repo") — opt-in: hidden unless the
           plugin id is in Repo.required_plugin_ids. A repo_internal plugin is
           bundled with the app like core but stays off until a repo declares
           it needed; a "repo" plugin is its own separate git clone under
           cache/plugins/ and is never on by default either. Same "off until
-          required" shape as a Program requirement either way.
-        - everything else (plugins/core/ without the core flag) — opt-out:
-          visible unless the repo's Repo.active_plugin_ids is non-empty and
-          omits the plugin id. Empty active_plugin_ids means "unrestricted",
-          so existing/unconfigured repos never silently lose
-          functionality."""
-        active_ids = self._active_repo.active_plugin_ids if self._active_repo is not None else []
+          required" shape as a Program requirement either way."""
         required_ids = self._active_repo.required_plugin_ids if self._active_repo is not None else []
         visible_keys = set()
         for key in self._section_view_index:
@@ -472,8 +466,6 @@ class MainWindow(QMainWindow):
             elif plugin_id in self._opt_in_plugin_ids:
                 if plugin_id in required_ids:
                     visible_keys.add(key)
-            elif not active_ids or plugin_id in active_ids:
-                visible_keys.add(key)
         self.sidebar.tab_list.set_visible_keys(visible_keys)
 
         current_key = next(

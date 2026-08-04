@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
 )
 
 from core.theme import DEFAULT_THEME_NAME, get_theme
-from interface.builtin_settings_tabs import BROWSER_LINKS, ENABLE_PLUGIN, LOCAL_REPOSITORY
+from interface.builtin_settings_tabs import BROWSER_LINKS, LOCAL_REPOSITORY, REQUIREMENTS_AND_PLUGINS
 from interface.settings_tab_registry import CATEGORY_REPO, SettingsTabRegistry, SettingsTabSpec
 
 _TAB_LIST_WIDTH = 150
@@ -24,27 +24,24 @@ _HEADER_TEXT_COLOR = QColor(get_theme(DEFAULT_THEME_NAME).text_secondary)
 # padding, same convention interface/settings/settings_view.py uses.
 _CATEGORY_GAP_HEIGHT = 10
 
-# Duplicated from plugin.py's own CUSTOM_PATHS_SETTINGS_KEY/
-# REQUIREMENTS_SETTINGS_KEY rather than imported — plugin.py imports
-# project_editor_page.py, which imports project_graph_view.py, which
-# imports this file, so importing plugin.py from here closes a
-# circular-import loop (plugin.py ends up "partially initialized" and the
-# whole project_editor plugin fails to load, taking the Viewgraph panel
-# down with it — hit exactly this 2026-07-20). Keep these strings in sync
-# with plugin.py's own constants by hand.
+# Duplicated from plugin.py's own CUSTOM_PATHS_SETTINGS_KEY rather than
+# imported — plugin.py imports project_editor_page.py, which imports
+# project_graph_view.py, which imports this file, so importing plugin.py
+# from here closes a circular-import loop (plugin.py ends up "partially
+# initialized" and the whole project_editor plugin fails to load, taking
+# the Viewgraph panel down with it — hit exactly this 2026-07-20). Keep
+# this string in sync with plugin.py's own constant by hand.
 _CUSTOM_PATHS_SETTINGS_KEY = "project_editor_custom_paths"
-_REQUIREMENTS_SETTINGS_KEY = "project_editor_requirements"
 
 # The built-in CATEGORY_REPO tabs that make up "Repository" — everything
 # else registered under CATEGORY_REPO (every plugin's own settings tab,
 # e.g. Maya Launcher, UkoreShot, ModelPublisher, ...) falls under
 # "Plugins" instead. Hardcoded rather than a new SettingsTabSpec field
-# since there are only ever these five built-ins to name.
+# since there are only ever these four built-ins to name.
 _REPOSITORY_KEYS = {
     LOCAL_REPOSITORY,
     _CUSTOM_PATHS_SETTINGS_KEY,
-    _REQUIREMENTS_SETTINGS_KEY,
-    ENABLE_PLUGIN,
+    REQUIREMENTS_AND_PLUGINS,
     BROWSER_LINKS,
 }
 _CATEGORY_REPOSITORY = "repository"
@@ -59,7 +56,7 @@ def _category_for(spec: SettingsTabSpec) -> str:
 class RepoSettingsPanel(QWidget):
     """The content of Project Editor's "Repository Setting" popup (see
     RepoSettingsDialog below) — every CATEGORY_REPO SettingsTabSpec (Browser,
-    Local Repository, Custom Paths, Requirements, Enable Plugin, and any plugin's own
+    Local Repository, Custom Paths, Requirements & Plugins, and any plugin's own
     CATEGORY_REPO tab) rendered generically, read straight off
     SettingsTabRegistry.ordered(). Zero coupling to any specific plugin —
     a plugin registering its own CATEGORY_REPO tab shows up here with no
@@ -163,7 +160,7 @@ class RepoSettingsDialog(QDialog):
 
     Reflects whichever repo is currently ACTIVE, not necessarily the node
     that was right-clicked — RepoSettingsPanel's tabs (Browser, Local
-    Repository, Custom Paths, Requirements, Enable Plugin, and any plugin's own
+    Repository, Custom Paths, Requirements & Plugins, and any plugin's own
     CATEGORY_REPO tab) all self-resolve the active repo from
     local_config_store, the same
     established convention every one of them already uses inside Settings.

@@ -110,7 +110,7 @@ def main() -> None:
     # actual GUI process is plain python(w).exe and would otherwise show
     # Windows' generic Python icon in the taskbar/title bar unless the Qt
     # app sets its own window icon here.
-    icon_path = REPO_ROOT / "packaging" / "icon.ico"
+    icon_path = REPO_ROOT / "developer" / "packaging" / "icon.ico"
     if icon_path.exists():
         app.setWindowIcon(QIcon(str(icon_path)))
 
@@ -176,9 +176,9 @@ def main() -> None:
     # plugins/core and plugins/repo_internal are both git-tracked and
     # distributed to everyone via self_update.py's whole-tree `git pull`,
     # mirroring how data/programs.json is shared today — both ship bundled
-    # with the app, no separate fetch. core is always visible per repo
-    # (subject only to manifest.json's "core": true lock); repo_internal is
-    # hidden per repo unless the repo opts in via Repo.required_plugin_ids
+    # with the app, no separate fetch. core is always visible per repo, no
+    # per-repo opt-out; repo_internal is hidden per repo unless the repo
+    # opts in via Repo.required_plugin_ids
     # (see interface/main_window.py's _apply_plugin_visibility). cache/plugins
     # is different in kind, not just visibility — each entry is its own git
     # clone (own remote/history), gitignored and per-user, fetched/updated on
@@ -231,7 +231,7 @@ def main() -> None:
     # plugin's own register(api) call, learning which section(s) it
     # contributed — section_key_to_plugin_id below is what
     # MainWindow._apply_plugin_visibility uses for per-repo Plugin gating
-    # (Settings > Repo > Enable Plugin).
+    # (Settings > Repo > Requirements & Plugins).
     plugin_apply_failures: list = []
     section_key_to_plugin_id: dict[str, str] = {}
     for plugin in discovery.loaded:
@@ -240,11 +240,13 @@ def main() -> None:
         for key in section_registry.keys() - keys_before:
             section_key_to_plugin_id[key] = plugin.manifest.id
 
-    # Plugins flagged manifest.json "core": true (e.g. Project Editor —
-    # switching the active repo has no other entry point) must never be
-    # hidden by a repo's restricted active_plugin_ids allowlist — see
-    # MainWindow._apply_plugin_visibility.
-    core_plugin_ids = {plugin.manifest.id for plugin in discovery.loaded if plugin.manifest.core}
+    # Every plugins/core/ plugin is always visible for every repo, no
+    # per-repo opt-out (2026-08-04) — anything repo-specific (Maya tools,
+    # ...) belongs under plugins/repo_internal/ instead, so what's left in
+    # plugins/core/ is meant to be universal app-level functionality (e.g.
+    # Project Editor — switching the active repo has no other entry point).
+    # See MainWindow._apply_plugin_visibility.
+    core_plugin_ids = {plugin.manifest.id for plugin in discovery.loaded if plugin_source(plugin) == "core"}
     # Plugins discovered under plugins/repo_internal/ (bundled with the app)
     # or cache/plugins/ (its own separate git clone) — both opt-in per repo
     # (Repo.required_plugin_ids), see MainWindow._apply_plugin_visibility.

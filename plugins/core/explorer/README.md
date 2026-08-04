@@ -74,7 +74,7 @@ navigation aids now.)
   Files list to `<repo_root>/.ukorehub/explorer_last_opened_<username>.json`
   — a **local, per-repo, per-OS-user** cache, not team/studio-shared data
   (never goes through `PluginConfigStore`/`api.plugin_config_store`).
-  Mirrors `plugins/core/UkoreBrowser/maya-scripts/UkoreBrowser/core/browser_config.py`'s
+  Mirrors `plugins/repo_internal/UkoreBrowser/maya-scripts/UkoreBrowser/core/browser_config.py`'s
   `BrowserConfig` — same `.ukorehub/` convention, same repo-relative path
   storage (survives a different drive letter machine to machine) — but
   additionally scoped by OS username (`getpass.getuser()`, sanitized to a

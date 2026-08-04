@@ -34,14 +34,16 @@ class Repo:
     required_program_ids: list[str] = field(default_factory=list)
     # Which specific version this repo launches for a multi-version Program
     # in required_program_ids (e.g. {"<maya_program_id>": "2024"}) — see
-    # plugins/core/maya_launcher/link_resolution.py's pinned_version().
+    # plugins/repo_internal/maya_launcher/link_resolution.py's pinned_version().
     # A Program with 0/1 versions needs no entry here.
     program_version_pins: dict[str, str] = field(default_factory=dict)
-    # Which plugins/core entries actually apply to this repo. Empty means
-    # "unrestricted" (every discovered core plugin stays active), so
-    # existing/unconfigured repos never silently lose functionality. This is
-    # an opt-out list — see required_plugin_ids below for the opposite
-    # (opt-in) model used by plugins/repo_internal.
+    # Formerly an opt-out list over plugins/core entries. No longer read
+    # anywhere (2026-08-04 — every plugins/core plugin is unconditionally
+    # visible for every repo now, see interface/main_window.py's
+    # _apply_plugin_visibility and plugins/README.md); kept as a field
+    # purely so existing persisted JSON with this key still round-trips
+    # cleanly. See required_plugin_ids below for the opt-in model actually
+    # in use, for plugins/repo_internal and cache/plugins.
     active_plugin_ids: list[str] = field(default_factory=list)
     # Which plugins/repo_internal entries this repo has opted into. Unlike
     # active_plugin_ids above, empty here means "none" — a repo_internal

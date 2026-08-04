@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QIcon
+from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout
 
 from core.extensibility.notification_bus import NotificationEntry
@@ -28,7 +28,13 @@ class NotificationCard(QFrame):
 
         icon_label = QLabel()
         icon_label.setFixedSize(_ICON_SIZE, _ICON_SIZE)
-        if entry.icon_path is not None and entry.icon_path.exists():
+        if entry.icon_bytes:
+            pixmap = QPixmap()
+            pixmap.loadFromData(entry.icon_bytes)
+            icon_label.setPixmap(
+                pixmap.scaled(_ICON_SIZE, _ICON_SIZE, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
+            )
+        elif entry.icon_path is not None and entry.icon_path.exists():
             icon_label.setPixmap(QIcon(str(entry.icon_path)).pixmap(_ICON_SIZE, _ICON_SIZE))
 
         text_label = QLabel(entry.label)

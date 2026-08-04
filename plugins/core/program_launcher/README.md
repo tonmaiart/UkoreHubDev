@@ -30,14 +30,14 @@ different setup).
     falls back to a generic icon if none is set) with name + version
     below it.
   - Resolves the pinned version (`repo.program_version_pins`, same lookup
-    `plugins/core/maya_launcher/link_resolution.py`'s `pinned_version()`
+    `plugins/repo_internal/maya_launcher/link_resolution.py`'s `pinned_version()`
     does) and the linked executable path the same way
-    `plugins/core/maya_launcher` finds `maya.exe` — reads
+    `plugins/repo_internal/maya_launcher` finds `maya.exe` — reads
     `api.plugin_config_store("software_linker", shared=False).get(key)`
     (per-machine, set by the user under Settings > Software Linker).
     `_linked_key`/`_pinned_version` here are convention-only duplicates of
     `plugins/core/software_linker/plugin.py`'s and
-    `plugins/core/maya_launcher/link_resolution.py`'s own copies — keep
+    `plugins/repo_internal/maya_launcher/link_resolution.py`'s own copies — keep
     all three in sync if that key shape ever changes.
   - No separate per-card buttons — the card itself is the control.
     Double-clicking an unlinked card (shown with a "Not linked" caption)
@@ -45,7 +45,7 @@ different setup).
     the header shortcut button. Double-clicking a linked card checks
     `api.program_launch_registry.find_launcher(program)`
     (`interface/program_launch_registry.py`) first — a plugin (currently
-    only `plugins/core/maya_launcher`, for anything named "maya") can
+    only `plugins/repo_internal/maya_launcher`, for anything named "maya") can
     contribute its own launch behavior instead of a bare
     `subprocess.Popen` of the raw linked exe, e.g. Maya's
     setProject/env-merge/force-load-plugins wiring. No match found falls
@@ -65,7 +65,7 @@ Cross-plugin/interface wiring this needed, beyond this folder:
   (`ProgramLaunchRegistry`/`ProgramLaunchSpec`), plumbed through
   `interface/plugin_api.py` (`api.register_program_launcher`,
   `api.program_launch_registry`) and constructed in `launcher.py` — see
-  `plugins/core/maya_launcher/README.md`'s "Standalone launch for
+  `plugins/repo_internal/maya_launcher/README.md`'s "Standalone launch for
   plugins/core/program_launcher/" section for the contributing side.
 
 **Working here:** stay inside this folder unless the change needs a new

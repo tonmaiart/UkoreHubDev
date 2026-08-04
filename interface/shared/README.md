@@ -8,30 +8,43 @@ before the `interface/` reorg that created this folder, and re-checked
 whenever a domain folder is split out — `dialogs.py` moved out 2026-07-20
 once a repo-wide grep showed `ProjectDialog`/`RepoDialog`/
 `RequirementsTreeWidget` had only one real consumer left,
-`plugins/core/project_editor/`, which now owns that file directly as
-`project_editor/dialogs.py`) — if a file only ever gets one consumer, it
-belongs in that consumer's own folder instead, not here.
+`plugins/core/project_editor/`, which now owns `ProjectDialog`/`RepoDialog`
+directly as `project_editor/dialogs.py` — `RequirementsTreeWidget` moved
+back out to this folder on its own 2026-08-04 once
+`interface/repo_settings/requirements_and_plugins_page.py` became a second
+real consumer) — if a file only ever gets one consumer, it belongs in that
+consumer's own folder instead, not here.
 
 - `base_repo_settings_page.py` — `BaseRepoSettingsPage`: shared base for a
   Settings tab scoped to a single repo — the `empty_label`/`content_widget`
   scaffolding and `refresh()` preamble (resolve active project/repo from
   `local_config_store`, catch `NotFoundError`, `show_exclusive`) that
   `interface/repo_settings/local_repository_page.py`,
-  `interface/repo_settings/enable_plugin_page.py`, and
+  `interface/repo_settings/requirements_and_plugins_page.py`, and
   `interface/browser_links/browser_links_settings_page.py` each had
   independently, byte-for-byte identical, before 2026-07-20. A subclass
   adds its own layout onto `content_widget` (left layout-less on purpose —
   `BrowserLinksSettingsPage` wraps it in a scroll area, the other two
   don't) and overrides `_on_refresh_content()`.
+- `requirements_tree_widget.py` — `RequirementsTreeWidget`: each Program is
+  a checkable top-level node (check = required), with a checkable child per
+  version for a multi-version Program (pin, radio-style). Used by
+  `plugins/core/project_editor/dialogs.py`'s `RepoDialog` (repo creation)
+  and `interface/repo_settings/requirements_and_plugins_page.py` (editing
+  an existing repo's requirements).
 - `commit_history.py` — `CommitCard` widget, `CommitHistoryEntry`,
   `format_commit_date`, and `fetch_entries_via_github` (GitHub-API-first,
   local-git-fallback). Used by `plugins/core/explorer/`'s per-path commit
   panel (`path_commit_history_panel.py`/`path_commit_history_worker.py`)
-  and `plugins/core/submit/`'s whole-repo commit log
-  (`repo_git_status_page.py`/`commit_log_worker.py`), so both render
-  identically — Explorer and Submit are real `plugins/core/` plugins now
-  (not `interface/` window folders), but this stays in `interface/shared/`
-  since it's imported the same normal way either side of that split.
+  and `plugins/core/Notification/`'s team activity feed
+  (`commit_feed_worker.py`, via `fetch_entries_via_github` only — it
+  doesn't use `CommitCard` itself, see that plugin's README). Submit used
+  to render a whole-repo commit log through this module too
+  (`repo_git_status_page.py`/`commit_log_worker.py`) but that's been
+  removed now that Notification's feed covers it — see
+  `plugins/core/submit/README.md`. Stays in `interface/shared/` rather than
+  moving into either plugin since it's imported the same normal way from
+  more than one `plugins/core/` plugin.
 - `image_asset.py` — `pick_image_file` (the `QFileDialog.getOpenFileName`
   wrapper every icon/thumbnail chooser uses) and `save_image_asset` (copy
   the chosen file into a `data/*_icons`/`data/thumbnails`-style dir as

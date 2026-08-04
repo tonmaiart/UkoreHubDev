@@ -4,8 +4,8 @@ from core.extensibility.loader import DiscoveredPlugin, PluginLoadFailure
 from core.program_store import ProgramStore
 from core.store import LocalConfigStore, MetadataStore, SystemConfigStore
 from interface.browser_links.browser_links_settings_page import BrowserLinksSettingsPage
-from interface.repo_settings.enable_plugin_page import EnablePluginPage
 from interface.repo_settings.local_repository_page import LocalRepositoryPage
+from interface.repo_settings.requirements_and_plugins_page import RequirementsAndPluginsPage
 from interface.settings.common_settings_page import CommonSettingsPage
 from interface.settings.github_oauth_settings_page import GithubOAuthSettingsPage
 from interface.settings.plugin_catalog_page import PluginCatalogPage
@@ -24,11 +24,12 @@ PLUGINS = "plugins"
 GITHUB_OAUTH = "github_oauth"
 BROWSER_LINKS = "browser_links"
 LOCAL_REPOSITORY = "local_repository"
-ENABLE_PLUGIN = "enable_plugin"
+REQUIREMENTS_AND_PLUGINS = "requirements_and_plugins"
 
 PLUGINS_DESCRIPTION = (
     "Plugins are UkoreHub's own sub-systems, discovered here app-wide. "
-    "To turn one off for a specific repo, see Settings > (repo) > Enable Plugin."
+    "To opt a repo into an Internal or External one, see "
+    "Settings > (repo) > Requirements & Plugins — Core plugins are always on."
 )
 
 
@@ -51,8 +52,8 @@ def register_builtin_settings_tabs(
 
     # Shared on_activated for every tab whose only refresh need is
     # "call refresh() if this page has one" — BrowserLinksSettingsPage,
-    # LocalRepositoryPage, EnablePluginPage all just want that, so one
-    # duck-typed callback replaces a 1:1 wrapper per page type.
+    # LocalRepositoryPage, RequirementsAndPluginsPage all just want that, so
+    # one duck-typed callback replaces a 1:1 wrapper per page type.
     def _trigger_refresh(widget) -> None:
         refresh = getattr(widget, "refresh", None)
         if callable(refresh):
@@ -89,11 +90,14 @@ def register_builtin_settings_tabs(
     )
     registry.register(
         SettingsTabSpec(
-            key=ENABLE_PLUGIN,
-            label="Enable Plugin",
-            order=27,
-            page_factory=lambda: EnablePluginPage(
-                store=store, local_config_store=local_config_store, plugin_catalog=plugin_catalog
+            key=REQUIREMENTS_AND_PLUGINS,
+            label="Requirements & Plugins",
+            order=26,
+            page_factory=lambda: RequirementsAndPluginsPage(
+                store=store,
+                local_config_store=local_config_store,
+                program_store=program_store,
+                plugin_catalog=plugin_catalog,
             ),
             on_activated=_trigger_refresh,
             category=CATEGORY_REPO,

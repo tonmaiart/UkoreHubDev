@@ -96,7 +96,7 @@ a new top-level section that needs `section_registry.py`).
   `settings/`/`about/` by UI-kind rather than domain (`about/` itself was
   dissolved once nothing else was left in it). See `browser_links/README.md`.
 - `repo_settings/` — the repo-configuration domain (Local Repository,
-  Enable Plugin) — split out of `settings/` since these two are
+  Requirements & Plugins) — split out of `settings/` since these two are
   per-repo `CATEGORY_REPO` tabs, a different concern from `settings/`'s
   remaining app/machine-level tabs. See `repo_settings/README.md`.
 - `settings/` — the Setting view's remaining app/machine-level tabs: common

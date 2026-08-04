@@ -20,9 +20,9 @@ class ProjectEditorPage(QWidget):
     project_settings_page.py, per the user's own request to declutter this
     always-visible bar down to nothing but the graph itself. Just a
     QGraphicsView node graph (1 node = 1 repo, ProjectGraphView), full
-    width/height. Repo settings (Project Status, Browser, Local Repository,
-    Enable Plugin, and any plugin's own CATEGORY_REPO tab) are also not a
-    permanent right panel here — as of 2026-07-15 they're a popup
+    width/height. Repo settings (Browser, Local Repository,
+    Requirements & Plugins, and any plugin's own CATEGORY_REPO tab) are also
+    not a permanent right panel here — as of 2026-07-15 they're a popup
     (RepoSettingsPanel wrapped in RepoSettingsDialog, repo_settings_panel.py)
     opened via a node's right-click context menu ("Repository Setting...",
     see project_graph_view.py). Implements the standard set_repo() page

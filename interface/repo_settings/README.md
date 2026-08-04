@@ -27,19 +27,24 @@ for the type-specific rebuild.
   `resolve_repo_path`) and marks the repo `not_cloned`
   (`MetadataStore.mark_status`) — does not touch the Project/Repo registry
   record itself, only the on-disk clone.
-- `enable_plugin_page.py` — `EnablePluginPage`: per-repo checkbox list over
-  every discovered plugin. A `plugins/core` entry is opt-out
-  (`Repo.active_plugin_ids`, checked by default); a `plugins/repo_internal`
-  or `cache/plugins` entry is opt-in (`Repo.required_plugin_ids`, unchecked
-  by default). Either way, (un)checking a plugin here actually flips its
-  sidebar section's visibility for this repo (enforced in
-  `interface/main_window.py`'s `_apply_plugin_visibility`, wired via a
-  plugin-id-to-section-key map built in `launcher.py`). An empty
-  `active_plugin_ids` (the default) means "unrestricted" — every plugin
-  stays visible. A plugin flagged `manifest.json` `"core": true`
-  (`PluginManifest.core`, e.g. `plugins/core/project_editor/`) renders
-  here checked and disabled — it can never actually be hidden, so there's
-  nothing to toggle.
+- `requirements_and_plugins_page.py` — `RequirementsAndPluginsPage`: the
+  "Requirements & Plugins" tab (2026-08-04, merging what used to be two
+  separate `CATEGORY_REPO` tabs — Requirements, formerly owned by
+  `plugins/core/project_editor/`, and this folder's own Enable Plugin).
+  Two stacked sections: Program Requirements (embeds
+  `interface/shared/requirements_tree_widget.py`'s `RequirementsTreeWidget`
+  — the same checkable Program tree `RepoDialog` shows at Add-Repo time,
+  here editing an *existing* repo's `required_program_ids`/
+  `program_version_pins`), and Enable Plugin — every discovered plugin,
+  split into three lists by `core.extensibility.loader.plugin_source()`
+  instead of one flat checklist: **Core** (`plugins/core/`) — always on,
+  no checkbox, no per-repo opt-out at all; **Internal**
+  (`plugins/repo_internal/`) and **External** (`cache/plugins/`) — both
+  opt-in, unchecked by default, both persisted to the same
+  `Repo.required_plugin_ids` list. (Un)checking an Internal/External
+  plugin actually flips its sidebar section's visibility for this repo
+  (enforced in `interface/main_window.py`'s `_apply_plugin_visibility`,
+  wired via a plugin-id-to-section-key map built in `launcher.py`).
 
 **Working here:** stay inside this folder unless the change needs a new
 `core/` primitive, a `shared/` addition, or touches

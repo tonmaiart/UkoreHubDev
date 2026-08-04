@@ -205,6 +205,20 @@ class GitService:
             raise
         self._fire(GitHookEvent.AFTER_PULL, context)
 
+    def fetch(self, repo_path: Path) -> None:
+        """Updates remote-tracking refs (origin/<branch>) only — unlike
+        pull(), never touches the working tree or local branch, so it's safe
+        to run silently in the background (Notification's periodic commit
+        poll) without risking a merge into whatever the user currently has
+        checked out or in progress."""
+        repo_path = Path(repo_path)
+        try:
+            remote_url = self._run_capture(["remote", "get-url", "origin"], cwd=repo_path).strip()
+        except GitOperationError:
+            remote_url = ""
+        auth_args, auth_env = self._github_auth_args_and_env(remote_url)
+        self._run_capture([*auth_args, "fetch", "--quiet"], cwd=repo_path, extra_env=auth_env)
+
     def open_or_sync(
         self, git_url: str, dest: Path, on_output: OutputCallback = None, *, context: GitHookContext | None = None
     ) -> str:
@@ -302,13 +316,15 @@ class GitService:
     _CONFLICT_CODES = {"UU", "AA", "DD", "AU", "UA", "UD", "DU"}
 
     def get_conflicted_files(self, repo_path: Path) -> list[str]:
-        output = self._run_capture(["status", "--porcelain=v1"], cwd=Path(repo_path))
+        # -z avoids git quoting (and thus corrupting) paths that contain a
+        # space or other "unusual" characters — see get_working_tree_status.
+        output = self._run_capture(["status", "--porcelain=v1", "-z"], cwd=Path(repo_path))
         conflicted = []
-        for line in output.splitlines():
-            if not line:
+        for entry in output.split("\0"):
+            if not entry:
                 continue
-            if line[:2] in self._CONFLICT_CODES:
-                conflicted.append(line[3:])
+            if entry[:2] in self._CONFLICT_CODES:
+                conflicted.append(entry[3:])
         return conflicted
 
     def resolve_conflict_file(self, repo_path: Path, file_path: str, keep: str) -> None:
@@ -320,11 +336,12 @@ class GitService:
     def complete_merge(self, repo_path: Path) -> None:
         self._run_capture(["commit", "--no-edit"], cwd=Path(repo_path))
 
-    def get_commit_log(self, repo_path: Path, skip: int = 0, limit: int = 30) -> list[CommitInfo]:
+    def get_commit_log(self, repo_path: Path, skip: int = 0, limit: int = 30, ref: str = "HEAD") -> list[CommitInfo]:
         try:
             output = self._run_capture(
                 [
                     "log",
+                    ref,
                     f"--skip={skip}",
                     f"--max-count={limit}",
                     f"--pretty=format:%H{_FIELD_SEP}%an{_FIELD_SEP}%ae{_FIELD_SEP}%aI{_FIELD_SEP}%s",
@@ -392,14 +409,14 @@ class GitService:
             return None
         return parts[0], parts[1]
 
-    def _run_capture(self, args: list[str], cwd: Path) -> str:
+    def _run_capture(self, args: list[str], cwd: Path, extra_env: dict | None = None) -> str:
         result = subprocess.run(
             [self.git_executable, *args],
             cwd=str(cwd),
             stdin=subprocess.DEVNULL,
             capture_output=True,
             text=True,
-            env=_non_interactive_env(),
+            env=_non_interactive_env(extra_env),
             creationflags=_NO_WINDOW_FLAGS,
         )
         if result.returncode != 0:
@@ -423,19 +440,31 @@ class GitService:
 
     def get_working_tree_status(self, repo_path: Path) -> tuple[list[str], list[str], list[str]]:
         repo_path = Path(repo_path)
+        # -z gives NUL-delimited, unquoted paths. Without it, git wraps any
+        # path containing a space (or other "unusual" characters) in double
+        # quotes, which would otherwise end up baked into the path string
+        # here and make every downstream `git add`/`git reset` on that file
+        # fail with "pathspec did not match any files".
         output = self._run_capture(
-            ["status", "--porcelain=v1", "--untracked-files=all"], cwd=repo_path
+            ["status", "--porcelain=v1", "--untracked-files=all", "-z"], cwd=repo_path
         )
+        entries = output.split("\0")
         untracked: list[str] = []
         modified: list[str] = []
         staged: list[str] = []
-        for line in output.splitlines():
-            if not line:
+        i = 0
+        while i < len(entries):
+            entry = entries[i]
+            i += 1
+            if not entry:
                 continue
-            index_status, worktree_status = line[0], line[1]
-            path = line[3:]
-            if " -> " in path:
-                path = path.split(" -> ", 1)[1]
+            index_status, worktree_status = entry[0], entry[1]
+            path = entry[3:]
+            if index_status in ("R", "C"):
+                # Rename/copy entries are followed by a separate NUL-terminated
+                # orig-path token (in place of the " -> old_path" suffix used
+                # in non-z porcelain output) that we don't need here.
+                i += 1
             if index_status == "?" and worktree_status == "?":
                 untracked.append(path)
                 continue

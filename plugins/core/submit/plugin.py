@@ -26,8 +26,12 @@ def register(api) -> None:
             label="Submit",
             order=20,
             page_factory=lambda: page,
-            background_threads=lambda p: [p._git_worker, p._status_worker, p._stream_worker, p._commit_log_worker],
+            background_threads=lambda p: [p._git_worker, p._status_worker, p._stream_worker],
             icon_path=icons_dir / "icons8-submit-50.png",
             wire=_wire,
+            # SectionTabList lays this out at the right edge of Submit's own
+            # row; the page updates its color directly (see
+            # RepoGitStatusPage.status_dot / RepoStatusDot.set_state).
+            trailing_widget_factory=lambda: page.status_dot,
         )
     )

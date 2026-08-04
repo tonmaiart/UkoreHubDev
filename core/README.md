@@ -25,8 +25,11 @@ beyond "core infrastructure":
   Project/Repo registry, including `set_repo_browser_links`) and
   `LocalConfigStore`/`SystemConfigStore` (per-machine vs. shared settings).
 - `git_service.py` — wraps `git`/`git-lfs` subprocess calls: clone, pull, push,
-  commit, stage/unstage, revert, status, conflict resolution, commit log,
-  per-commit changed-files (`get_commit_files`). Fires hooks from
+  fetch (remote-tracking refs only, no merge — used by Notification's
+  background commit poll so it never touches the working tree), commit,
+  stage/unstage, revert, status, conflict resolution, commit log (optional
+  `ref=` to log `origin/<branch>` instead of local HEAD), per-commit
+  changed-files (`get_commit_files`). Fires hooks from
   `extensibility/hooks.py` around each operation. Every subprocess call
   passes `CREATE_NO_WINDOW` (Windows-only) so git never flashes a console
   behind the GUI.
@@ -46,13 +49,17 @@ beyond "core infrastructure":
   `NotFoundError`, `GitOperationError`, `GitHubAuthError`).
 - `version.py` — app name/version constants.
 
-Note: `Repo.active_plugin_ids` (`set_repo_active_plugin_ids`) is a real
-UI-visibility gate: `interface/main_window.py`'s `_apply_plugin_visibility`
-hides a plugin's sidebar section for any repo whose `active_plugin_ids` is
-non-empty and doesn't list that plugin's id (empty means "unrestricted" —
-the default, so existing repos aren't silently broken by this field's
-addition). Edited via Settings > (repo) > Enable Plugin
-(`interface/settings/enable_plugin_page.py`).
+Note: `Repo.active_plugin_ids` (`set_repo_active_plugin_ids`) is no longer
+read anywhere (2026-08-04 — every `plugins/core/` plugin is
+unconditionally visible for every repo now, see
+`interface/main_window.py`'s `_apply_plugin_visibility`); the field is
+kept purely so existing persisted JSON with this key still round-trips
+cleanly. `Repo.required_plugin_ids` (`set_repo_required_plugin_ids`) is
+the real UI-visibility gate now, for `plugins/repo_internal/` and
+`cache/plugins/` entries — hides a plugin's sidebar section unless the
+repo's `required_plugin_ids` lists that plugin's id. Edited via
+Settings > (repo) > Requirements & Plugins
+(`interface/repo_settings/requirements_and_plugins_page.py`).
 
 A second field, `Repo.browser_links` (`set_repo_browser_links`,
 `core/models.py`'s `BrowserLink`) is a different shape again: each entry
