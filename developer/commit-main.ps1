@@ -1,23 +1,30 @@
 <#
 .SYNOPSIS
-    Mirrors the dev branch onto main, stripping dev-only tooling.
+    Mirrors the dev branch onto main, stripping dev-only tooling, and pushes.
 
 .DESCRIPTION
     Publishes the current state of `dev` to `main`, excluding folders that
     should never ship to artists: `.claude/` and `developer/` (packaging,
     bug-history, GLOSSARY.md). Run from the dev branch with a clean working
-    tree. Does NOT push - review the result on main and push it yourself.
+    tree. Commits the result to local main and pushes it to origin/main,
+    unless -NoPush is passed.
 
 .PARAMETER Message
     Commit message for the sync commit on main. Defaults to a message that
     references the dev commit being synced.
 
+.PARAMETER NoPush
+    Commit to local main but skip pushing to origin - review it yourself
+    (git log main / git show main) and push manually when ready.
+
 .EXAMPLE
     developer/commit-main.ps1
     developer/commit-main.ps1 -Message "Release: plugin catalog rework"
+    developer/commit-main.ps1 -NoPush
 #>
 param(
-    [string]$Message
+    [string]$Message,
+    [switch]$NoPush
 )
 
 $ErrorActionPreference = "Stop"
@@ -81,8 +88,21 @@ try {
         git -C $worktreePath commit -m $Message | Out-Null
         $mainHead = git -C $worktreePath rev-parse --short HEAD
         Write-Host "Committed to main: $mainHead"
-        Write-Host "Review with 'git log main' / 'git show main', then push yourself:"
+    }
+
+    if ($NoPush) {
+        Write-Host "Skipping push (-NoPush). Review with 'git log main' / 'git show main', then push yourself:"
         Write-Host "  git push origin main"
+    }
+    else {
+        Write-Host "Pushing main to origin..."
+        git -C $worktreePath push origin main
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "Push failed - main was committed locally but NOT published. Resolve (e.g. 'git pull --rebase origin main' or check your connection) and push manually: git push origin main"
+        }
+        else {
+            Write-Host "Pushed to origin/main."
+        }
     }
 }
 finally {

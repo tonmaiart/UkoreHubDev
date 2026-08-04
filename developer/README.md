@@ -40,13 +40,15 @@ Requirements:
 
 What it does: checks out `main` into a temporary `git worktree`, replaces
 its tracked files with `dev`'s current tree, deletes `.claude/` and
-`developer/` from that copy, and commits the result to `main` - all
-without touching your `dev` working directory or switching your current
-branch. It does **not** push; review the result (`git log main`,
-`git show main`) and run `git push origin main` yourself when ready.
+`developer/` from that copy, commits the result to `main`, and **pushes
+`main` to `origin`** - all without touching your `dev` working directory
+or switching your current branch. If the push fails (network, diverged
+remote, etc.) the commit still lands locally; the script warns you to
+push manually once resolved.
 
 Pass `-Message "..."` to use a custom commit message instead of the
-default (which references the `dev` commit being synced).
+default (which references the `dev` commit being synced). Pass `-NoPush`
+to commit to local main only and push it yourself later.
 
 ### Running it from Git Bash / MINGW64
 
