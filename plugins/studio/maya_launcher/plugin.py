@@ -102,7 +102,7 @@ def _set_project_and_open_command(repo_root: Path, scene_path: Path, defer_refer
     own documented flag for suppressing interactive `file`-command dialogs,
     is what actually stops it — confirmed working against a real broken
     reference 2026-08-03, see
-    `bug-history/2026-08-03-reference-native-dialog-not-suppressed-by-loadreferencedepth.md`
+    `developer/bug-history/2026-08-03-reference-native-dialog-not-suppressed-by-loadreferencedepth.md`
     for why `-loadReferenceDepth` alone wasn't enough. Only set when
     plugins/studio/UkoreReferenceEditor is enabled for the launching repo
     (see open_maya_file below) — its own kAfterOpen callback

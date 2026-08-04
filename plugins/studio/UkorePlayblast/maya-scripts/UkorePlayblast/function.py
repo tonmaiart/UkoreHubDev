@@ -83,7 +83,7 @@ def _resolve_video_root(project_id: str, repo_id: str, repo_path):
             )
 
     # A stored Custom Path is always meant to be relative to the repo root
-    # (see GLOSSARY.md's "Custom Path" entry) but is saved as raw user
+    # (see developer/GLOSSARY.md's "Custom Path" entry) but is saved as raw user
     # input with no sanitization (project_editor's pipeline_store.py).
     # A leading "/" or "\" makes pathlib's `/` operator treat it as
     # anchored to the current drive, silently discarding repo_path.

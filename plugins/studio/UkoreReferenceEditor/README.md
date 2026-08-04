@@ -44,7 +44,7 @@ a pure library, the same relationship `PublishApi` has to
    of its stored `local_path` (case-insensitive, both raw and
    `core.paths.sanitize_folder_name` form). This matters because
    `local_path` is never recomputed after a rename (see
-   `bug-history/2026-07-20-repo-path-resolved-from-stale-name.md`) — a repo
+   `developer/bug-history/2026-07-20-repo-path-resolved-from-stale-name.md`) — a repo
    renamed since the old Drive-path days still has its *original* name
    baked into its on-disk folder, which is what an old absolute path
    segment actually matches, not the repo's current name and not
@@ -61,7 +61,7 @@ a pure library, the same relationship `PublishApi` has to
    UkoreHub Project (e.g. `RigTeam` and `AnimatorTeam` both filed under
    "MerderaProject") are still **external** to each other; a project-level
    fallback match (no specific repo pinpointed) is always external too,
-   since there's no concrete repo identity to confirm. See GLOSSARY.md's
+   since there's no concrete repo identity to confirm. See developer/GLOSSARY.md's
    "Ukore Reference Editor: 'project' means Repo, not Project" entry for
    why this has to be repo-level.
 3. `matcher.resolve_redirect` looks for the file under the matched repo
@@ -226,7 +226,7 @@ load any of them itself. Note it's specifically `-prompt false` that stops
 Maya's native dialog, not `-loadReferenceDepth` — that flag alone still
 leaves Maya validating each reference's path and showing the dialog anyway;
 see
-`bug-history/2026-08-03-reference-native-dialog-not-suppressed-by-loadreferencedepth.md`.
+`developer/bug-history/2026-08-03-reference-native-dialog-not-suppressed-by-loadreferencedepth.md`.
 `core.py`'s `auto_check_and_redirect` (the same `kAfterOpen` callback as
 always) then does the loading itself: redirects broken ones per the rules
 above, and explicitly (re)loads every reference that's already fine as-is
@@ -246,7 +246,7 @@ it up right afterward either way.
   pipeline-connection lookups rather than reimplementing them — always
   resolves a repo's on-disk folder as `workspace_root / repo.local_path`,
   **never** `core.paths.resolve_repo_path(...)` (see
-  `bug-history/2026-07-20-repo-path-resolved-from-stale-name.md` — that
+  `developer/bug-history/2026-07-20-repo-path-resolved-from-stale-name.md` — that
   helper is only correct at repo-creation time).
 - `maya-scripts/UkoreReferenceEditor/matcher.py` — pure path-matching
   logic, no `maya.cmds`/Qt imports. `find_match_for_path`/`resolve_redirect`

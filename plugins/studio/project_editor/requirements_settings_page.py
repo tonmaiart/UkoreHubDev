@@ -13,7 +13,7 @@ class RequirementsSettingsPage(BaseRepoSettingsPage):
     RepoDialog shows at Add-Repo time (see dialogs.py), hosted here so an
     *existing* repo's required Programs (+ pinned version for a
     multi-version Program) can be edited too. Repo About (which used to own
-    this) was removed 2026-07-20 with no replacement — see GLOSSARY.md's
+    this) was removed 2026-07-20 with no replacement — see developer/GLOSSARY.md's
     "Repo About (removed)" entry — until this tab. Self-persists on every
     check-state change, same convention as every other repo-settings tab
     (EnablePluginPage, Custom Paths, ...) — no separate Save button."""

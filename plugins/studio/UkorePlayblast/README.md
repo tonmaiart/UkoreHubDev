@@ -14,7 +14,7 @@ and show-ornaments were all either hardcoded or implicit. Writes into
 whichever folder `plugins/studio/UkoreShot/` has configured for the active
 repo, so a playblast immediately shows up in that plugin's video
 library/review tab. Renamed from `UkoreShotPlayblast` on 2026-07-20 (id
-`ukore_shot_playblast` -> `ukore_playblast`) — see `bug-history/` entries
+`ukore_shot_playblast` -> `ukore_playblast`) — see `developer/bug-history/` entries
 from that date for the plugin's pre-rename history.
 
 ## Flat naming convention

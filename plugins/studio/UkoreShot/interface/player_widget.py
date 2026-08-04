@@ -107,7 +107,7 @@ class _FrameNumberOverlay(QWidget):
     fill, black stroke, large bold text, per the user's own spec.
     WA_TransparentForMouseEvents so it never intercepts clicks meant for
     DrawOverlay beneath it (the exact class of bug
-    bug-history/2026-07-20-draw-overlay-native-video-widget.md and
+    developer/bug-history/2026-07-20-draw-overlay-native-video-widget.md and
     2026-07-20-text-tool-drew-strokes-simultaneously.md were about — this
     HUD must never be another thing standing between the mouse and
     drawing). No visibility toggle (removed 2026-07-20 per the user's own

@@ -167,7 +167,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(f"{APP_NAME} {APP_VERSION}")
 
         # No show()/showMaximized() call here on purpose — see
-        # bug-history/2026-07-20-main-window-not-maximizing.md. Nothing is
+        # developer/bug-history/2026-07-20-main-window-not-maximizing.md. Nothing is
         # ever actually painted on screen until app.exec() starts running
         # the event loop, so building the whole widget tree first (whichever
         # branch below) and only then showing it, once, deferred via
@@ -275,7 +275,7 @@ class MainWindow(QMainWindow):
         self.setMinimumHeight(MAIN_WINDOW_MIN_HEIGHT)
         # This runs synchronously inside __init__ on the cached-login path
         # (see the branch above) — safe to resize() unconditionally here
-        # because, as of bug-history/2026-07-20-main-window-not-maximizing.md,
+        # because, as of developer/bug-history/2026-07-20-main-window-not-maximizing.md,
         # nothing ever calls show()/showMaximized() before this point
         # anymore (that's now deferred to launcher.py's single
         # QTimer.singleShot(0, window.showMaximized), after app.exec()

@@ -817,7 +817,7 @@ class ReadOnlyCommentOverlay(QWidget):
     toggled by player_widget.py's own button.
     WA_TransparentForMouseEvents so it can never itself become a second
     thing standing between the mouse and anything else on the video (the
-    exact class of bug bug-history/2026-07-20-draw-overlay-native-video-widget.md
+    exact class of bug developer/bug-history/2026-07-20-draw-overlay-native-video-widget.md
     and 2026-07-20-text-tool-drew-strokes-simultaneously.md were about —
     even though this widget has nothing interactive of its own, the habit
     is worth keeping)."""

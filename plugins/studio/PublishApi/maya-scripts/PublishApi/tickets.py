@@ -219,8 +219,8 @@ def get_publish_root_for_ticket(tool_id: str, ticket: dict) -> str:
             "re-pick a Publish Path for this ticket under Manage Tickets..."
         )
 
-    # See bug-history/2026-07-20-playblast-custom-path-leading-slash.md /
-    # bug-history/2026-08-03-publishapi-custom-path-leading-slash.md —
+    # See developer/bug-history/2026-07-20-playblast-custom-path-leading-slash.md /
+    # developer/bug-history/2026-08-03-publishapi-custom-path-leading-slash.md —
     # custom_path["path"] is raw user input; a leading separator would
     # anchor this join to the current drive root instead of target_repo_path.
     return str(target_repo_path / custom_path["path"].lstrip("/\\"))

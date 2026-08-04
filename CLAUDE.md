@@ -6,16 +6,17 @@ prerequisites, and config split (system vs. local).
 
 **Before acting on a casual/colloquial term the user uses for a feature**
 (e.g. "the program's setting", "Viewgraph", "Custom Path") **or before
-asking a clarifying question about one, read [GLOSSARY.md](GLOSSARY.md)
+asking a clarifying question about one, read
+[developer/GLOSSARY.md](developer/GLOSSARY.md)
 first** — it maps terms that are easy to misread onto the actual feature/
 file, recorded specifically because one of these got misread once already
 (see its own entries for the incidents). If a term isn't in there and the
 mapping is genuinely ambiguous, ask the user rather than guessing — and
-add the resolved mapping to `GLOSSARY.md` afterward so it doesn't need
+add the resolved mapping to `developer/GLOSSARY.md` afterward so it doesn't need
 asking again.
 
 **Before changing code in a file or area listed in
-[bug-history/README.md](bug-history/README.md)'s index, read that entry
+[developer/bug-history/README.md](developer/bug-history/README.md)'s index, read that entry
 first** — each one ends with a "Lesson" describing a reusable mistake
 pattern (e.g. a specific circular-import shape, a specific stale-path
 bug), not just a one-off incident. After fixing any real bug (a crash, a

@@ -5,7 +5,7 @@ bus — any plugin (or `core/` module) can call
 `core.extensibility.debug_log.log(source, message)` from anywhere at
 runtime and see it show up here immediately, without needing a console
 window (this app is normally launched via `pythonw.exe`, no console at
-all — see `bug-history/2026-07-20-draw-overlay-native-video-widget.md`'s
+all — see `developer/bug-history/2026-07-20-draw-overlay-native-video-widget.md`'s
 own debugging session for why that mattered). Added 2026-07-20 to debug
 `plugins/studio/UkoreShot/`'s "brush doesn't paint" investigation; kept as
 a general-purpose tool since the underlying bus is generic, not

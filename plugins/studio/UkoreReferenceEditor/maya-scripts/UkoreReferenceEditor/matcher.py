@@ -125,7 +125,7 @@ def _repo_name_candidates(repo) -> set[str]:
     """A repo's on-disk folder name (the last segment of its stored
     `local_path`) is what an old absolute path segment usually matches —
     `local_path` is never recomputed after a rename (see
-    bug-history/2026-07-20-repo-path-resolved-from-stale-name.md), so a repo
+    developer/bug-history/2026-07-20-repo-path-resolved-from-stale-name.md), so a repo
     renamed since the old Drive-path days still has its *original* name
     baked into that folder, even though `repo.name` itself has since
     changed. Also matches the repo's current name, for paths written after

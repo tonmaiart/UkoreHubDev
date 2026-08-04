@@ -71,7 +71,7 @@ def resolve_video_root(api, project_id: str, repo_id: str) -> Path | None:
     except NotFoundError:
         return None
     # custom_path["path"] is raw, unsanitized user input (see
-    # bug-history/2026-07-20-playblast-custom-path-leading-slash.md) — a
+    # developer/bug-history/2026-07-20-playblast-custom-path-leading-slash.md) — a
     # leading "/" or "\" makes pathlib treat it as anchored to the current
     # drive, discarding workspace_root/repo.local_path entirely.
     return Path(api.local_config.workspace_root) / repo.local_path / custom_path["path"].lstrip("/\\")

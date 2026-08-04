@@ -22,7 +22,7 @@ most of them irrelevant to any one task:
 - [`images/`](images/README.md) — this plugin's own icon files (not the
   shared `data/icons/` every other plugin uses — see that README for why).
 - [`bug-history/`](bug-history/README.md) — bugs fixed specifically within
-  this plugin's own code, same format as the repo-root `bug-history/`,
+  this plugin's own code, same format as the repo-root `developer/bug-history/`,
   going forward from 2026-07-21.
 - `manifest.json` / `plugin.py` / `__init__.py` — plugin entry point,
   stay at this top level: the plugin loader

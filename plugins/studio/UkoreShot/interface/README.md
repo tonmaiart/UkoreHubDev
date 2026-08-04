@@ -186,7 +186,7 @@ unambiguous despite the shared name.
   + `_CommentAwareSlider` + `_VideoStack`:
   `QMediaPlayer` + `_VideoSurface` (a plain `QWidget`, not `QVideoWidget` —
   see its own docstring and the root
-  `bug-history/2026-07-20-draw-overlay-native-video-widget.md`, which
+  `developer/bug-history/2026-07-20-draw-overlay-native-video-widget.md`, which
   covers both root causes below in full — this plugin's own
   `../bug-history/README.md` points at it too;
   `QVideoWidget` renders through a native OS window handle that always
@@ -527,7 +527,7 @@ unambiguous despite the shared name.
   (insufficient on its own) attempt at fixing the "brush doesn't paint,
   dragging does nothing" bug — the real fix was replacing `QVideoWidget`
   with `player_widget.py`'s `_VideoSurface`, see that bullet and the root
-  `bug-history/2026-07-20-draw-overlay-native-video-widget.md`; the
+  `developer/bug-history/2026-07-20-draw-overlay-native-video-widget.md`; the
   attribute was left on as a harmless, no-longer-load-bearing leftover.
   `mousePressEvent`/`mouseMoveEvent`/`resizeEvent`/the hover-indicator's
   early-return path all call

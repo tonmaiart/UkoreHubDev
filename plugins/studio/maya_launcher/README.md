@@ -268,7 +268,7 @@ resolves; `-prompt false` is the flag that actually stops Maya's own native
 "could not find file" dialog from appearing — `-loadReferenceDepth` alone
 does **not** suppress it (Maya still validates each reference's path
 independently of whether it loads the content — confirmed empirically, see
-`bug-history/2026-08-03-reference-native-dialog-not-suppressed-by-loadreferencedepth.md`).
+`developer/bug-history/2026-08-03-reference-native-dialog-not-suppressed-by-loadreferencedepth.md`).
 `UkoreReferenceEditor`'s `kAfterOpen` callback
 (`plugins/studio/MayaToolkit/maya-plug-ins/ukoreMaya.py`) is what actually
 loads every reference back afterward — redirecting the broken ones first,

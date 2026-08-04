@@ -21,9 +21,9 @@ plugins/local/
 # Forced workspace_root (see launcher.py) — actual cloned target repos live
 # here, per-machine and potentially huge; never tracked.
 /projects/
-# PyInstaller intermediates from packaging/build_exe.py — regenerate every
-# build, never committed. The resulting UkoreHub.exe at the repo root IS
-# committed — a shared studio-wide binary, same pattern as
+# PyInstaller intermediates from developer/packaging/build_exe.py —
+# regenerate every build, never committed. The resulting UkoreHub.exe at
+# the repo root IS committed — a shared studio-wide binary, same pattern as
 # data/thumbnails/ and data/programs.json above.
 /build/
 *.spec

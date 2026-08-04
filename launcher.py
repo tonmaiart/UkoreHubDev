@@ -104,9 +104,9 @@ def main() -> None:
     from PySide6.QtWidgets import QApplication, QMessageBox
 
     app = QApplication(sys.argv)
-    # packaging/icon.ico is only baked into UkoreHub.exe itself (via
+    # developer/packaging/icon.ico is only baked into UkoreHub.exe itself (via
     # PyInstaller's --icon) — that thin exe just spawns `pythonw
-    # launcher.py` detached and exits (see packaging/exe_entry.py), so the
+    # launcher.py` detached and exits (see developer/packaging/exe_entry.py), so the
     # actual GUI process is plain python(w).exe and would otherwise show
     # Windows' generic Python icon in the taskbar/title bar unless the Qt
     # app sets its own window icon here.
@@ -259,7 +259,7 @@ def main() -> None:
     # screen. A second showMaximized() call made synchronously here, still
     # before app.exec() has run a single event, is *also* pre-realization —
     # empirically it did not reliably override a clobbered maximized state
-    # on Windows (see bug-history/2026-07-20-main-window-not-maximizing.md).
+    # on Windows (see developer/bug-history/2026-07-20-main-window-not-maximizing.md).
     # QTimer.singleShot(0, ...) queues this call to run right after the
     # event loop actually starts, once the native window exists — the
     # standard, reliable fix for this Qt/Windows quirk.

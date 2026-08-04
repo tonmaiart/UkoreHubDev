@@ -21,7 +21,7 @@ mostly-binary animation production assets.
 - Python 3.10+
 
 You don't need to install these yourself on Windows — `launcher.py` (git,
-git-lfs) and `UkoreHub.exe` (Python itself, see `packaging/exe_entry.py`)
+git-lfs) and `UkoreHub.exe` (Python itself, see `developer/packaging/exe_entry.py`)
 each auto-install whichever of these is missing via `winget` (Windows'
 built-in package manager) before continuing. If `winget` isn't available or
 an install fails, you'll get a message asking you to install that one
@@ -49,8 +49,9 @@ repo-picker button anymore.
 Alternatively, double-click `UkoreHub.exe` at the repo root (or pin it to
 the taskbar) — a thin native wrapper that launches `launcher.py` with no
 terminal window. Admins rebuild and recommit this exe via
-`python packaging/build_exe.py` only when rebranding the icon (see
-`packaging/README.md`) — routine code updates still flow through
+`python developer/packaging/build_exe.py` on the `dev` branch only when
+rebranding the icon (see `developer/packaging/README.md`) — routine code
+updates still flow through
 **Update and Restart** / `git pull` as plain `.py` changes, exactly as
 before; the exe itself rarely needs to change.
 
@@ -119,8 +120,9 @@ setting instead of attempting to log in.
   `program_icons/` (tracked, shared); `local_config.json` and `github_token.json`
   (gitignored, per-machine).
 - `launcher.py` — entry point.
-- `packaging/` — admin-only tooling to build `UkoreHub.exe` (see
-  `packaging/README.md`); not part of the running app.
+- `developer/` — dev-only tooling (packaging, bug-history, glossary); lives
+  only on the `dev` branch, stripped from `main` by
+  `developer/commit-main.ps1` — see `developer/README.md`.
 - `projects/` — workspace folder (gitignored; actual cloned repos live here).
 
 ## Tests

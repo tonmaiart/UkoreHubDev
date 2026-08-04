@@ -102,7 +102,7 @@ def _classify_path(
         # Maya. A project-level fallback match (matched_repo is None) can
         # never be internal — there's no specific repo to confirm identity
         # against, so it's treated as external (safe default: prompts
-        # rather than silently redirecting). See GLOSSARY.md's "Ukore
+        # rather than silently redirecting). See developer/GLOSSARY.md's "Ukore
         # Reference Editor: 'project' means Repo, not Project" entry.
         is_same_repo = matched_repo is not None and active_repo is not None and matched_repo.id == active_repo.id
         scope = "internal" if is_same_repo else "external"
@@ -152,7 +152,7 @@ def scan_references() -> list[RefEntry]:
     other), or "unmatched" (no known repo/project name found in the path at
     all). Deliberately repo-level, not Project-level: the studio's old
     colloquial "project" (e.g. "KafkaProj") maps onto a UkoreHub *Repo*, not
-    a UkoreHub *Project* — see GLOSSARY.md's "Ukore Reference Editor:
+    a UkoreHub *Project* — see developer/GLOSSARY.md's "Ukore Reference Editor:
     'project' means Repo, not Project" entry.
 
     Also carries `status` ("missing"/"outdated"/"ok"), `version` (the vXXX
@@ -387,8 +387,8 @@ def _connect_input_targets() -> list[Path]:
     before joining — raw user input, and an untouched leading "/" silently
     resets a `WindowsPath` join to the current drive root instead of
     extending it (same bug class as
-    `bug-history/2026-07-20-playblast-custom-path-leading-slash.md` /
-    `bug-history/2026-08-03-publishapi-custom-path-leading-slash.md`, which
+    `developer/bug-history/2026-07-20-playblast-custom-path-leading-slash.md` /
+    `developer/bug-history/2026-08-03-publishapi-custom-path-leading-slash.md`, which
     flagged this exact line as a not-yet-fixed instance)."""
     targets: list[Path] = []
     for ref in repo_paths.get_pipeline_refs():

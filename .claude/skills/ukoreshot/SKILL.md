@@ -18,7 +18,7 @@ token-budget reasoning as staying inside the plugin at all:
   deliberate exception to the rest of the app's `data/icons/` convention).
 - `bug-history/` — bugs fixed specifically in this plugin's own code,
   going forward from 2026-07-21 (older UkoreShot bugs are still at the
-  repo-root `bug-history/` — see that folder's README for the pointers).
+  repo-root `developer/bug-history/` — see that folder's README for the pointers).
 
 **Read that subfolder's own `README.md` before opening its individual
 files** — each is a full, current description of what's inside, written
@@ -126,7 +126,7 @@ root `CLAUDE.md` gives for `data/thumbnails/` etc.) — check
 
 Check `bug-history/README.md`'s index first (plugin-local, going forward
 from 2026-07-21). If it doesn't cover what you're touching, that same
-README points at three repo-root `bug-history/` entries from before this
+README points at three repo-root `developer/bug-history/` entries from before this
 folder existed — a native-video-widget mouse-event bug, a
 draw/text-tool-simultaneously bug, and a Custom-Path leading-slash bug
 shared with `UkorePlayblast`. After fixing any real bug here, add a new
