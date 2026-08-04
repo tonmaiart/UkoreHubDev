@@ -6,12 +6,10 @@ from core.extensibility.loader import DiscoveredPlugin, PluginLoadFailure, plugi
 
 
 class PluginCatalogPage(QWidget):
-    """Read-only diagnostic view of what got discovered under a plugin/add-on
+    """Read-only diagnostic view of what got discovered under the plugins/
     root at startup — no add/edit/save, this just reflects the real
-    core/extensibility/loader.py discovery result. Shared by both the
-    Plugins and Add-ons settings tabs (see core/extensibility/README.md for
-    what distinguishes the two), each feeding it a different catalog and
-    description."""
+    core/extensibility/loader.py discovery result for the Plugins settings
+    tab."""
 
     def __init__(
         self,

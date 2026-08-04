@@ -514,7 +514,8 @@ def clean_up_scene():
         cmds.inViewMessage(
             amg="<hl>Clean Up Rig Complete!.</hl>", pos="botCenter", fade=True
         )
-
+    else:
+        return False
 
 def delete_all_delete_grp():
     if cmds.objExists("deleteThis"):

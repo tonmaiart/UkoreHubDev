@@ -1,7 +1,7 @@
 # data/
 
 Runtime data UkoreHub's `core/` stores read and write — not code. See
-`core/README.md` (`store.py`, `program_store.py`, `addon_store.py`) and
+`core/README.md` (`store.py`, `program_store.py`) and
 `core/extensibility/README.md` (`config_store.py`) for the classes that own
 these files; this README is just what's on disk and whether it's shared.
 
@@ -23,25 +23,20 @@ unless explicitly asked.
   git-tracked, small.
 - `system_config.json` — `SystemConfigStore`, studio-wide settings (GitHub
   OAuth client id). Shared/git-tracked, tiny.
-- `addon_settings.json` — `AddonMetadataStore`, studio-editable overrides
-  layered on a discovered add-on's manifest (icon, description, required
-  Program). Shared/git-tracked.
 - `local_config.json` — `LocalConfigStore`: workspace root, theme, active
   project/repo. **Gitignored, per-machine.**
 - `projects.example.json` — a checked-in sample shape for `projects.json`,
   not read by the app itself.
 - `plugins/studio/*.json`, `plugins/local/*.json` — `PluginConfigStore`
-  files, one per `plugin_id` a plugin/add-on's `register(api)` chose.
-  `studio/` shared/git-tracked, `local/` gitignored/per-machine — mirrors
-  the same split as the top-level stores above.
+  files, one per `plugin_id` a plugin's `register(api)` chose. `studio/`
+  shared/git-tracked, `local/` gitignored/per-machine — mirrors the same
+  split as the top-level stores above.
 
 ## Binary/image directories — not code, skip unless verifying a specific file
 
 - `thumbnails/` — per-repo thumbnail images, filename = `Repo.
   thumbnail_filename`.
 - `program_icons/` — per-`Program` icons, filename = `Program.
-  icon_filename`.
-- `addon_icons/` — per-add-on icons, filename = `AddonMetadata.
   icon_filename`.
 - `browser_link_icons/` — per-`BrowserLink` icon overrides, filename =
   `BrowserLink.icon_filename`. Falls back to `icons/icons8-browser-50.png`

@@ -10,7 +10,7 @@
           "name": "AnimatorTeam",
           "git_url": "https://github.com/tonmaiart/KafkaProj.git",
           "local_path": "MerderaProject/KafkaProj",
-          "last_synced": "2026-07-20T16:53:58.773100+00:00",
+          "last_synced": "2026-08-04T01:37:09.088174+00:00",
           "status": "cloned",
           "thumbnail_filename": "d930b619-2774-4ab4-b381-899e0464e121.png",
           "description": "",
@@ -18,15 +18,20 @@
             "1e4dbbbb-5721-4165-abb1-d7c9db55a9a0",
             "ab07c675-48ef-4f04-8c57-876dced7ddf1"
           ],
-          "enabled_addon_ids": [],
+          "program_version_pins": {
+            "1e4dbbbb-5721-4165-abb1-d7c9db55a9a0": "2026"
+          },
           "active_plugin_ids": [
+            "debug_console",
             "explorer",
             "maya_launcher",
+            "notification",
+            "program_launcher",
             "project_editor",
             "software_linker",
             "submit",
-            "ukore_shot",
-            "ukore_playblast"
+            "ukore_playblast",
+            "ukore_shot"
           ],
           "browser_links": [
             {
@@ -46,7 +51,7 @@
           "thumbnail_filename": "8e92493d-21e1-4833-b6fa-88708a783806.png",
           "description": "",
           "required_program_ids": [],
-          "enabled_addon_ids": [],
+          "program_version_pins": {},
           "active_plugin_ids": [],
           "browser_links": []
         },
@@ -55,14 +60,14 @@
           "name": "AssetTeam",
           "git_url": "https://github.com/tonmaiart/MerderaProject_Assets.git",
           "local_path": "MerderaProject\\AssetTeam",
-          "last_synced": "2026-07-19T16:13:38.577489+00:00",
+          "last_synced": "2026-07-23T14:54:07.151840+00:00",
           "status": "cloned",
           "thumbnail_filename": "b12b523b-031e-42a3-aa3d-ac21955187e4.png",
           "description": "",
           "required_program_ids": [
             "1e4dbbbb-5721-4165-abb1-d7c9db55a9a0"
           ],
-          "enabled_addon_ids": [],
+          "program_version_pins": {},
           "active_plugin_ids": [],
           "browser_links": []
         },
@@ -71,20 +76,25 @@
           "name": "RigTeam",
           "git_url": "https://github.com/tonmaiart/MerderaProject_Rig.git",
           "local_path": "MerderaProject\\RigTeam",
-          "last_synced": "2026-07-19T16:07:59.316961+00:00",
+          "last_synced": "2026-08-03T09:27:31.137698+00:00",
           "status": "cloned",
           "thumbnail_filename": "152a6957-de83-4201-81ae-eab3feabee0a.png",
           "description": "",
           "required_program_ids": [
             "1e4dbbbb-5721-4165-abb1-d7c9db55a9a0"
           ],
-          "enabled_addon_ids": [],
+          "program_version_pins": {
+            "1e4dbbbb-5721-4165-abb1-d7c9db55a9a0": "2026"
+          },
           "active_plugin_ids": [
             "advanced_skeleton",
+            "debug_console",
             "explorer",
             "maya_launcher",
             "maya_ngskin",
             "maya_toolkit",
+            "notification",
+            "program_launcher",
             "project_editor",
             "publish_api",
             "rig_publisher",
@@ -99,14 +109,16 @@
           "name": "UnityTeam",
           "git_url": "https://github.com/tonmaiart/UnityTeam.git",
           "local_path": "MerderaProject\\UnityTeam",
-          "last_synced": "2026-07-19T15:55:58.484813+00:00",
+          "last_synced": "2026-08-03T09:28:24.887998+00:00",
           "status": "cloned",
           "thumbnail_filename": null,
           "description": "",
           "required_program_ids": [
-            "ab07c675-48ef-4f04-8c57-876dced7ddf1"
+            "f279e7c0-e89c-404a-8dfc-dec4477d83cc"
           ],
-          "enabled_addon_ids": [],
+          "program_version_pins": {
+            "1e4dbbbb-5721-4165-abb1-d7c9db55a9a0": "2024"
+          },
           "active_plugin_ids": [],
           "browser_links": []
         },
@@ -115,12 +127,12 @@
           "name": "PublishToUnity",
           "git_url": "https://github.com/tonmaiart/PublishToUnity.git",
           "local_path": "MerderaProject\\PublishToUnity",
-          "last_synced": "2026-07-19T16:14:31.846700+00:00",
+          "last_synced": "2026-08-03T09:28:34.625902+00:00",
           "status": "cloned",
           "thumbnail_filename": null,
           "description": "",
           "required_program_ids": [],
-          "enabled_addon_ids": [],
+          "program_version_pins": {},
           "active_plugin_ids": [],
           "browser_links": []
         },
@@ -129,12 +141,12 @@
           "name": "CHR_Team",
           "git_url": "https://github.com/tonmaiart/CHRTeam.git",
           "local_path": "MerderaProject\\CHR_Team",
-          "last_synced": "2026-07-19T16:14:36.022375+00:00",
+          "last_synced": "2026-08-03T09:27:54.795342+00:00",
           "status": "cloned",
           "thumbnail_filename": null,
           "description": "",
           "required_program_ids": [],
-          "enabled_addon_ids": [],
+          "program_version_pins": {},
           "active_plugin_ids": [],
           "browser_links": []
         },
@@ -143,12 +155,12 @@
           "name": "RigPublish",
           "git_url": "https://github.com/tonmaiart/RigPublish.git",
           "local_path": "MerderaProject\\RigPublish",
-          "last_synced": "2026-07-19T17:06:38.873294+00:00",
+          "last_synced": "2026-08-03T07:32:36.592832+00:00",
           "status": "cloned",
           "thumbnail_filename": null,
           "description": "",
           "required_program_ids": [],
-          "enabled_addon_ids": [],
+          "program_version_pins": {},
           "active_plugin_ids": [],
           "browser_links": []
         },
@@ -157,12 +169,12 @@
           "name": "CHR_Publish",
           "git_url": "https://github.com/tonmaiart/CHRPublish.git",
           "local_path": "MerderaProject\\CHR_Publish",
-          "last_synced": "2026-07-19T16:07:01.603244+00:00",
+          "last_synced": "2026-08-03T09:27:57.335184+00:00",
           "status": "cloned",
           "thumbnail_filename": null,
           "description": "",
           "required_program_ids": [],
-          "enabled_addon_ids": [],
+          "program_version_pins": {},
           "active_plugin_ids": [
             "explorer",
             "maya_launcher",
@@ -177,12 +189,12 @@
           "name": "AssetPublish",
           "git_url": "https://github.com/tonmaiart/AssetPublish.git",
           "local_path": "MerderaProject\\AssetPublish",
-          "last_synced": "2026-07-19T17:06:38.369330+00:00",
+          "last_synced": "2026-07-29T01:30:29.915491+00:00",
           "status": "cloned",
           "thumbnail_filename": null,
           "description": "",
           "required_program_ids": [],
-          "enabled_addon_ids": [],
+          "program_version_pins": {},
           "active_plugin_ids": [
             "explorer",
             "maya_launcher",

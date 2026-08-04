@@ -29,9 +29,7 @@ for the type-specific rebuild.
   record itself, only the on-disk clone.
 - `enable_plugin_page.py` — `EnablePluginPage`: per-repo checkbox list over
   every discovered `plugins/studio`+`plugins/local` entry
-  (`Repo.active_plugin_ids`). **Distinct from Add-ons**
-  (`Repo.enabled_addon_ids`) — see `core/README.md`'s note on the
-  difference; unlike Add-ons, unchecking a plugin here actually hides its
+  (`Repo.active_plugin_ids`). Unchecking a plugin here actually hides its
   sidebar section for this repo (enforced in
   `interface/main_window.py`'s `_apply_plugin_visibility`, wired via a
   plugin-id-to-section-key map built in `launcher.py`). An empty

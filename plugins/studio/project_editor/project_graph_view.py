@@ -1,11 +1,21 @@
 from __future__ import annotations
 
 import math
+from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
 from PySide6.QtCore import QLineF, QPointF, QRectF, Qt, QTimer
-from PySide6.QtGui import QBrush, QColor, QPainter, QPainterPath, QPen, QPixmap, QPolygonF
+from PySide6.QtGui import (
+    QBrush,
+    QColor,
+    QPainter,
+    QPainterPath,
+    QPen,
+    QPixmap,
+    QPolygonF,
+    QRadialGradient,
+)
 from PySide6.QtWidgets import (
     QGraphicsItem,
     QGraphicsPathItem,
@@ -18,11 +28,10 @@ from PySide6.QtWidgets import (
     QMenu,
     QMessageBox,
     QVBoxLayout,
+    QWidget,
 )
 
-from core.addon_store import AddonMetadataStore
 from core.exceptions import NotFoundError, UkoreHubError
-from core.extensibility.loader import DiscoveredPlugin
 from core.models import Project, Repo
 from core.program_store import ProgramStore
 from core.store import LocalConfigStore, MetadataStore
@@ -58,11 +67,19 @@ _EDGE_HIGHLIGHT_COLOR_HEX = "#ffcc00"
 # reads as "on top of everything" while a node is selected.
 _EDGE_Z_VALUE = 1
 _EDGE_HIGHLIGHT_Z_VALUE = 2
-# Darker than the app-wide theme background (core/theme.py's "grey_dark"
+# Radial gradient background (gray center fading to black edges), painted
+# in drawBackground below instead of a flat setBackgroundBrush color —
+# darker than the app-wide theme background (core/theme.py's "grey_dark"
 # background="#1e1f22", inherited by default since this view sets no
 # stylesheet of its own) so the graph reads as its own recessed canvas
-# rather than blending into the surrounding chrome.
-_GRAPH_BACKGROUND_COLOR_HEX = "#141517"
+# rather than blending into the surrounding chrome. Centered on the
+# viewport (not the scene) so panning doesn't drag the glow off-center.
+_GRAPH_BACKGROUND_CENTER_HEX = "#414141"
+_GRAPH_BACKGROUND_EDGE_HEX = "#080808"
+# Faint white grid drawn on top of the radial background, in scene
+# coordinates so it scrolls/pans with the node content like graph paper.
+_GRID_SPACING = 40
+_GRID_LINE_ALPHA = 8
 
 # Clone-status corner icon, drawn top-right on every node — file lives at
 # plugins/studio/project_editor/project_graph_view.py, three parents up is
@@ -82,6 +99,22 @@ def _theme_colors():
     from core.theme import DEFAULT_THEME_NAME, get_theme
 
     return get_theme(DEFAULT_THEME_NAME)
+
+
+def _format_last_synced(last_synced: str | None) -> str:
+    """Repo.last_synced is stored as a UTC isoformat string
+    (core/store.py's _utc_now_iso) — reformatted here to the machine's own
+    local time in a plain day-month-year + time form for the HUD, instead
+    of showing the raw ISO string. Falls back to the raw string if it
+    somehow doesn't parse, rather than hiding a real (if oddly formatted)
+    value."""
+    if not last_synced:
+        return "Never"
+    try:
+        parsed = datetime.fromisoformat(last_synced)
+    except ValueError:
+        return last_synced
+    return parsed.astimezone().strftime("%d %b %Y, %H:%M")
 
 
 def _clone_status_icon(is_cloned: bool) -> QPixmap | None:
@@ -180,7 +213,11 @@ class RepoNodeItem(QGraphicsItem):
         painter.restore()
 
         if self.is_active:
-            border_color, border_width = QColor(colors.accent), 3
+            # Same yellow as PipelineEdgeItem's highlighted-edge color
+            # (_EDGE_HIGHLIGHT_COLOR_HEX) rather than the theme's plain
+            # accent color, so the active node visually matches the
+            # highlighted arrows pointing at/from it.
+            border_color, border_width = QColor(_EDGE_HIGHLIGHT_COLOR_HEX), 3
         elif self._is_hovered:
             border_color, border_width = QColor(colors.accent_hover), 2
         else:
@@ -385,8 +422,6 @@ class ProjectGraphView(QGraphicsView):
         store: MetadataStore,
         local_config_store: LocalConfigStore,
         program_store: ProgramStore,
-        addon_store: AddonMetadataStore,
-        addon_catalog: list[DiscoveredPlugin],
         pipeline_store: PipelineStore,
         settings_tab_registry: SettingsTabRegistry,
     ):
@@ -394,8 +429,6 @@ class ProjectGraphView(QGraphicsView):
         self.store = store
         self.local_config_store = local_config_store
         self.program_store = program_store
-        self.addon_store = addon_store
-        self.addon_catalog = addon_catalog
         self.pipeline_store = pipeline_store
         self.settings_tab_registry = settings_tab_registry
 
@@ -411,27 +444,82 @@ class ProjectGraphView(QGraphicsView):
         self.setScene(self._scene)
         self.setRenderHint(QPainter.Antialiasing)
         self.setDragMode(QGraphicsView.ScrollHandDrag)
-        self.setBackgroundBrush(QColor(_GRAPH_BACKGROUND_COLOR_HEX))
+        # No flat setBackgroundBrush color anymore — drawBackground below
+        # paints the radial gradient + grid instead.
 
-        # Bottom-right HUD, a plain child QLabel positioned by hand in
-        # resizeEvent/_position_overlay rather than a layout — it floats
-        # over the QGraphicsView viewport, not inside the scene, so it
-        # never scrolls/zooms with the graph content.
-        self._overlay = QLabel(self)
+        # Bottom-right HUD — a plain child container positioned by hand in
+        # resizeEvent/_position_overlay rather than a layout of its own, so
+        # it floats over the QGraphicsView viewport, not inside the scene,
+        # and never scrolls/zooms with the graph content. Two stacked
+        # labels, both fully transparent (no boxed background at all as of
+        # 2026-08-03, per the user's own request — this used to be a plain
+        # rgba(0,0,0,150) panel) so the whole HUD reads as text floating
+        # directly over the graph: the project name on its own, oversized,
+        # and the info panel below it for the rest (Repo/Last Sync/Status/
+        # Custom Paths).
+        self._overlay_container = QWidget(self)
+        self._overlay_container.setAttribute(Qt.WA_TransparentForMouseEvents)
+        overlay_layout = QVBoxLayout(self._overlay_container)
+        overlay_layout.setContentsMargins(0, 0, 0, 0)
+        overlay_layout.setSpacing(6)
+
+        self._project_name_label = QLabel(self._overlay_container)
+        self._project_name_label.setObjectName("projectGraphProjectName")
+        self._project_name_label.setAlignment(Qt.AlignRight)
+        self._project_name_label.setAttribute(Qt.WA_TransparentForMouseEvents)
+        self._project_name_label.setStyleSheet(
+            "QLabel#projectGraphProjectName {"
+            " background: transparent;"
+            " color: #ffffff;"
+            " font-size: 22px;"
+            " font-weight: 700;"
+            "}"
+        )
+        overlay_layout.addWidget(self._project_name_label, alignment=Qt.AlignRight)
+
+        self._overlay = QLabel(self._overlay_container)
         self._overlay.setObjectName("projectGraphOverlay")
         self._overlay.setTextFormat(Qt.RichText)
         self._overlay.setAlignment(Qt.AlignRight | Qt.AlignTop)
         self._overlay.setAttribute(Qt.WA_TransparentForMouseEvents)
         self._overlay.setStyleSheet(
             "QLabel#projectGraphOverlay {"
-            " background-color: rgba(0, 0, 0, 150);"
+            " background: transparent;"
             " color: #dcddde;"
-            " padding: 8px 10px;"
-            " border-radius: 6px;"
             " font-size: 11px;"
             "}"
         )
-        self._overlay.hide()
+        overlay_layout.addWidget(self._overlay, alignment=Qt.AlignRight)
+
+        self._overlay_container.hide()
+
+    def drawBackground(self, painter: QPainter, rect: QRectF) -> None:
+        # Radial gradient centered on the viewport (not the scene) so
+        # panning the graph never drags the glow off to one side — mapped
+        # to scene coordinates just so fillRect(rect, ...) (rect is already
+        # in scene coordinates, the area QGraphicsView is asking to redraw)
+        # lines up correctly.
+        viewport_center = self.mapToScene(self.viewport().rect().center())
+        radius = math.hypot(self.viewport().width(), self.viewport().height()) / 2 or 1.0
+        gradient = QRadialGradient(viewport_center, radius)
+        gradient.setColorAt(0.0, QColor(_GRAPH_BACKGROUND_CENTER_HEX))
+        gradient.setColorAt(1.0, QColor(_GRAPH_BACKGROUND_EDGE_HEX))
+        painter.fillRect(rect, QBrush(gradient))
+
+        # Grid lines in scene coordinates — scrolls with the node content
+        # like graph paper, rather than staying fixed to the viewport the
+        # way the gradient above does.
+        painter.setPen(QPen(QColor(255, 255, 255, _GRID_LINE_ALPHA), 1))
+        left = int(math.floor(rect.left() / _GRID_SPACING)) * _GRID_SPACING
+        top = int(math.floor(rect.top() / _GRID_SPACING)) * _GRID_SPACING
+        x = left
+        while x < rect.right():
+            painter.drawLine(QPointF(x, rect.top()), QPointF(x, rect.bottom()))
+            x += _GRID_SPACING
+        y = top
+        while y < rect.bottom():
+            painter.drawLine(QPointF(rect.left(), y), QPointF(rect.right(), y))
+            y += _GRID_SPACING
 
     # -- wiring ---------------------------------------------------------
 
@@ -719,7 +807,7 @@ class ProjectGraphView(QGraphicsView):
         project = self._active_project
         repo = self._active_repo
         if project is None or repo is None:
-            self._overlay.hide()
+            self._overlay_container.hide()
             return
 
         # Split this repo's own pipeline connections (Repository Setting >
@@ -739,25 +827,27 @@ class ProjectGraphView(QGraphicsView):
             (output_labels if ref.direction == "output" else input_labels).append(entry)
 
         lines = [
-            f"<b>Project:</b> {project.name}",
             f"<b>Repo:</b> {repo.name}",
-            f"<b>Last Sync:</b> {repo.last_synced or 'Never'}",
+            f"<b>Last Sync:</b> {_format_last_synced(repo.last_synced)}",
             f"<b>Status:</b> {repo.status}",
             f"<b>Input Custom Path:</b> {', '.join(input_labels) if input_labels else '—'}",
             f"<b>Output Custom Path:</b> {', '.join(output_labels) if output_labels else '—'}",
         ]
+        self._project_name_label.setText(project.name)
+        self._project_name_label.adjustSize()
         self._overlay.setText("<br>".join(lines))
         self._overlay.adjustSize()
-        self._overlay.show()
+        self._overlay_container.adjustSize()
+        self._overlay_container.show()
         self._position_overlay()
 
     def _position_overlay(self) -> None:
-        if not self._overlay.isVisible():
+        if not self._overlay_container.isVisible():
             return
         viewport_rect = self.viewport().rect()
-        x = viewport_rect.right() - self._overlay.width() - _OVERLAY_MARGIN
-        y = viewport_rect.bottom() - self._overlay.height() - _OVERLAY_MARGIN
-        self._overlay.move(max(0, x), max(0, y))
+        x = viewport_rect.right() - self._overlay_container.width() - _OVERLAY_MARGIN
+        y = viewport_rect.bottom() - self._overlay_container.height() - _OVERLAY_MARGIN
+        self._overlay_container.move(max(0, x), max(0, y))
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
@@ -781,9 +871,7 @@ class ProjectGraphView(QGraphicsView):
         if not workspace_root:
             QMessageBox.information(self, "Add Repo", "Set and save a workspace folder in Setting > Common first.")
             return
-        dialog = RepoDialog(
-            self, program_store=self.program_store, addon_catalog=self.addon_catalog, addon_store=self.addon_store
-        )
+        dialog = RepoDialog(self, program_store=self.program_store)
         if not dialog.exec():
             return
         try:
@@ -798,7 +886,7 @@ class ProjectGraphView(QGraphicsView):
             if filename is not None:
                 self.store.set_repo_thumbnail(self._project_id, repo.id, filename)
         self.store.set_repo_requirements(self._project_id, repo.id, dialog.selected_program_ids())
-        self.store.set_repo_enabled_addons(self._project_id, repo.id, dialog.selected_addon_ids())
+        self.store.set_repo_program_version_pins(self._project_id, repo.id, dialog.selected_program_version_pins())
         self.load_project(self._project_id)
 
     # -- node context-menu actions ---------------------------------------

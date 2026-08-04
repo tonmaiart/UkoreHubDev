@@ -5,6 +5,11 @@
         "*": [
           "C:\\Tonmai\\UkoreHub\\plugins\\studio\\AdvancedSkeleton\\maya-scripts"
         ]
+      },
+      "ADVANCEDSKELETON_ROOT": {
+        "*": [
+          "C:\\Tonmai\\UkoreHub\\plugins\\studio\\AdvancedSkeleton\\maya-scripts\\AdvancedSkeleton"
+        ]
       }
     },
     "dreamwall_picker": {
@@ -128,6 +133,14 @@
           "C:\\Tonmai\\UkoreHub\\plugins\\studio\\UkorePlayblast\\maya-scripts"
         ]
       }
+    },
+    "ukore_reference_editor": {
+      "PYTHONPATH": {
+        "*": [
+          "C:\\Tonmai\\UkoreHub\\plugins\\studio\\UkoreReferenceEditor\\maya-scripts",
+          "C:\\Tonmai\\UkoreHub"
+        ]
+      }
     }
   },
   "labels": {
@@ -143,6 +156,7 @@
     "model_publisher": "ModelPublisher",
     "publish_api": "PublishApi",
     "rig_publisher": "RigPublisher",
-    "ukore_playblast": "UkorePlayblast"
+    "ukore_playblast": "UkorePlayblast",
+    "ukore_reference_editor": "UkoreReferenceEditor"
   }
 }

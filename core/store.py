@@ -164,9 +164,9 @@ class MetadataStore:
         repo.required_program_ids = list(program_ids)
         self.save()
 
-    def set_repo_enabled_addons(self, project_id: str, repo_id: str, addon_ids: list[str]) -> None:
+    def set_repo_program_version_pins(self, project_id: str, repo_id: str, pins: dict[str, str]) -> None:
         repo = self.get_repo(project_id, repo_id)
-        repo.enabled_addon_ids = list(addon_ids)
+        repo.program_version_pins = dict(pins)
         self.save()
 
     def set_repo_active_plugin_ids(self, project_id: str, repo_id: str, plugin_ids: list[str]) -> None:

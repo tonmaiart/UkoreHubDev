@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-from interface.settings_tab_registry import CATEGORY_REPO, SettingsTabSpec
-from plugins.studio.RigPublisher.settings_page import RigPublisherSettingsPage
-
 TOOL_ID = "rig_publisher"
 TOOL_LABEL = "RigPublisher"
 # Convention-only string match with plugins/studio/maya_launcher/plugin.py
@@ -28,14 +25,3 @@ def register(api) -> None:
     labels = bridge.get("labels", {})
     labels[TOOL_ID] = TOOL_LABEL
     bridge.set("labels", labels)
-
-    api.register_settings_tab(
-        SettingsTabSpec(
-            key=TOOL_ID,
-            label=TOOL_LABEL,
-            order=122,
-            page_factory=lambda: RigPublisherSettingsPage(api=api),
-            on_activated=lambda page: page.refresh(),
-            category=CATEGORY_REPO,
-        )
-    )

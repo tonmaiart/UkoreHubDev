@@ -20,6 +20,7 @@ MENU_LABEL = "Ukore Studio Tool"
 MENU_PARENT = "MayaWindow"
 
 list_menu_name = []
+_ukore_reference_editor_callback_id = None
 
 
 def maya_useNewAPI():
@@ -73,10 +74,11 @@ def loadMenu():
         parent=MENU_MAIN,
         command="import UkoreMaya; from UkoreMaya.core import menu_utils; menu_utils.save_increment()",
     )
+
     cmds.menuItem(
-        label="Update All Reference and Picker",
+        label="Ukore Reference Editor...",
         parent=MENU_MAIN,
-        command="import UkoreMaya; from UkoreMaya.core import menu_utils; menu_utils.update_references()",
+        command="import UkoreMaya; from UkoreMaya.core import menu_utils; menu_utils.ukore_reference_editor()",
     )
 
     cmds.menuItem(divider=True, dividerLabel="เครื่องมือของแผนก", parent=MENU_MAIN)
@@ -572,9 +574,50 @@ def unloadMenuItem():
 
 
 # --------------------------------------------------------------------
+# Ukore Reference Editor — automatic check on every scene open
+# --------------------------------------------------------------------
+def _on_scene_opened(*_args):
+    """Runs Ukore Reference Editor's automatic check after every file open —
+    File > Open done by hand later in the session, not just the initial
+    launch through MayaLauncher. UkoreReferenceEditor may be disabled for
+    this repo via maya_launcher's RepoToolsStore (which drops it off
+    PYTHONPATH), so the import itself is optional; the check must also
+    never be able to block the artist from having their scene open, so any
+    other failure is swallowed too (after printing, so it's still visible
+    in the Script Editor)."""
+    try:
+        from UkoreReferenceEditor import core as ukore_reference_editor_core
+    except ImportError:
+        return
+
+    try:
+        ukore_reference_editor_core.auto_check_and_redirect()
+    except Exception as exc:
+        cmds.warning(f"Ukore Reference Editor's automatic check failed: {exc}")
+
+
+def _register_ukore_reference_editor_callback():
+    global _ukore_reference_editor_callback_id
+    if _ukore_reference_editor_callback_id is not None:
+        return
+    _ukore_reference_editor_callback_id = om.MSceneMessage.addCallback(
+        om.MSceneMessage.kAfterOpen, _on_scene_opened
+    )
+
+
+def _unregister_ukore_reference_editor_callback():
+    global _ukore_reference_editor_callback_id
+    if _ukore_reference_editor_callback_id is None:
+        return
+    om.MMessage.removeCallback(_ukore_reference_editor_callback_id)
+    _ukore_reference_editor_callback_id = None
+
+
+# --------------------------------------------------------------------
 def _post_load_setup():
     function.auto_launch_ukore_file_browser()
     loadMenu()
+    _register_ukore_reference_editor_callback()
 
 
 def initializePlugin(plugin):
@@ -596,3 +639,4 @@ def initializePlugin(plugin):
 def uninitializePlugin(plugin):
     pluginFn = om.MFnPlugin(plugin)
     unloadMenuItem()
+    _unregister_ukore_reference_editor_callback()

@@ -29,6 +29,10 @@ def publish_browser():
     File.launch("PublishBrowser")
 
 
+def ukore_reference_editor():
+    File.launch("UkoreReferenceEditor")
+
+
 def renamer():
     File.launch("Renamer")
 
@@ -65,7 +69,7 @@ def cfx_tools():
     File.launch("CFXTools")
 
 def quick_script():
-    File.launch("QuickScript")
+    File.launch("PythonReader")
 
 
 # ------------- Scene ----------------------------
@@ -75,12 +79,12 @@ def save_increment():
     File.save_increment()
 
 
-def update_references():
-    print("# Checking for Update References #")
-    update_ref_result = function.update_references()
-
-    if update_ref_result is True:
-        function.import_all_picker()
+# "Update All Reference and Picker" used to live here, calling
+# function.update_references() — removed 2026-08-03, absorbed into Ukore
+# Reference Editor's Maya File tab (per-row "Update Version" button, see
+# plugins/studio/UkoreReferenceEditor/maya-scripts/UkoreReferenceEditor/
+# core.py's update_reference_version, which still calls
+# function.import_all_picker() after a successful update, same as this did).
 
 
 # ------------- General --------------------------

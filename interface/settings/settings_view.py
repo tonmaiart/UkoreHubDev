@@ -18,6 +18,7 @@ from interface.settings_tab_registry import (
     CATEGORY_DEVELOPER,
     CATEGORY_GENERAL,
     CATEGORY_LABELS,
+    CATEGORY_PROJECT,
     SettingsTabRegistry,
     SettingsTabSpec,
 )
@@ -42,10 +43,13 @@ class SettingsView(QWidget):
     page instead in between). Every settings page persists its own changes
     immediately, so there's no Save/Cancel here.
 
-    tab_list renders two sections — General (whole-app/machine settings)
-    and Developer (studio-admin/internal-plumbing tabs) — each with a
-    non-selectable header row, so it's visually clear which kind of setting
-    a tab is before clicking into it. See SettingsTabSpec.category.
+    tab_list renders three sections — General (whole-app/machine settings),
+    Project (the Project registry itself — which project is being viewed,
+    add/rename/delete, added 2026-08-03 when this moved out of Project
+    Editor's always-visible top bar), and Developer (studio-admin/
+    internal-plumbing tabs) — each with a non-selectable header row, so
+    it's visually clear which kind of setting a tab is before clicking
+    into it. See SettingsTabSpec.category.
 
     CATEGORY_REPO tabs are still registered in the same SettingsTabRegistry
     (Explorer's own settings tab included) but are deliberately not
@@ -71,7 +75,7 @@ class SettingsView(QWidget):
 
         first_selectable_row: int | None = None
         is_first_category = True
-        for category in (CATEGORY_GENERAL, CATEGORY_DEVELOPER):
+        for category in (CATEGORY_GENERAL, CATEGORY_PROJECT, CATEGORY_DEVELOPER):
             category_specs = [spec for spec in self._specs if spec.category == category]
             if not category_specs:
                 continue
@@ -155,6 +159,18 @@ class SettingsView(QWidget):
         the dialog but never actually showed it."""
         return self._tab_widgets.get(key)
 
+    def select_tab(self, key: str) -> None:
+        """Jumps straight to one tab by its SettingsTabSpec key — e.g. a
+        plugin page's "Open Setting" button landing directly on Software
+        Linker instead of whatever tab opens by default. A key with no
+        matching row (unknown key, or a CATEGORY_REPO tab that isn't
+        rendered here at all) is a no-op — the dialog just stays on its
+        current row."""
+        for row, spec in enumerate(self._row_specs):
+            if spec is not None and spec.key == key:
+                self.tab_list.setCurrentRow(row)
+                return
+
 
 class SettingsDialog(QDialog):
     """Popup wrapper around SettingsView — opened from Sidebar's footer
@@ -186,3 +202,6 @@ class SettingsDialog(QDialog):
         exposes (CommonSettingsPage.logout_requested) without SettingsView
         needing to know about that page's internals itself."""
         return self.view.get_tab_widget(key)
+
+    def select_tab(self, key: str) -> None:
+        self.view.select_tab(key)

@@ -136,6 +136,37 @@ class ProgramPickerDialog(QDialog):
         return self._selected_path
 
 
+def _linked_key(program, version: str = "") -> str:
+    """Per-machine linked-exe config key. Stays plain program.id for a
+    single/no-version Program (preserves already-linked paths); becomes
+    "<id>:<version>" once a Program has multiple versions, since each
+    needs its own linked executable. Convention-only duplicate of
+    plugins/studio/maya_launcher/link_resolution.py's linked_key() — keep
+    both in sync if this shape ever changes, same discipline as
+    MAYA_ENV_BRIDGE_PLUGIN_ID."""
+    if len(program.versions) <= 1:
+        return program.id
+    return f"{program.id}:{version}"
+
+
+def _link_rows(program_store):
+    """(key, program, version, label) for every linkable (Program, version)
+    slot — one row for a single/no-version Program, one row per version
+    for a multi-version Program (e.g. Maya 2024 and 2026 need separate
+    linked executables)."""
+    rows = []
+    for program in program_store.list_programs():
+        versions = program.versions or [""]
+        if len(versions) <= 1:
+            version = versions[0]
+            label = f"{program.name} (v{version})" if version else program.name
+            rows.append((_linked_key(program, version), program, version, label))
+        else:
+            for version in versions:
+                rows.append((_linked_key(program, version), program, version, f"{program.name} (v{version})"))
+    return rows
+
+
 class SoftwareLinkerPage(QWidget):
     """Lets the user link each Program Database entry to a local executable
     path on this machine — per-machine data (PluginConfigStore, shared=False),
@@ -176,53 +207,52 @@ class SoftwareLinkerPage(QWidget):
         # Best-effort only — checks the system PATH for an executable that
         # looks like the program's name, nothing more. Programs with no
         # match just stay unlinked until the user links one manually.
-        for program in self._program_store.list_programs():
-            if self._config_store.get(program.id):
+        for key, program, _version, _label in _link_rows(self._program_store):
+            if self._config_store.get(key):
                 continue
             guess = shutil.which(program.name.lower().replace(" ", ""))
             if guess:
-                self._config_store.set(program.id, guess)
+                self._config_store.set(key, guess)
 
     def _refresh_list(self) -> None:
         self.list_widget.clear()
-        for program in self._program_store.list_programs():
-            linked_path = self._config_store.get(program.id)
+        for key, _program, _version, label in _link_rows(self._program_store):
+            linked_path = self._config_store.get(key)
             status = linked_path if linked_path else "Not linked"
-            label = f"{program.name} (v{program.version})" if program.version else program.name
             item = QListWidgetItem(f"{label} — {status}")
-            item.setData(Qt.UserRole, program.id)
+            item.setData(Qt.UserRole, key)
             self.list_widget.addItem(item)
 
-    def _selected_program_id(self) -> str | None:
+    def _selected_link_key(self) -> str | None:
         items = self.list_widget.selectedItems()
         if not items:
             return None
         return items[0].data(Qt.UserRole)
 
     def _on_browse_program(self) -> None:
-        program_id = self._selected_program_id()
-        if not program_id:
+        key = self._selected_link_key()
+        if not key:
             return
         dialog = ProgramPickerDialog(self)
         if dialog.exec() and dialog.selected_path():
-            self._config_store.set(program_id, dialog.selected_path())
+            self._config_store.set(key, dialog.selected_path())
             self._refresh_list()
 
     def _on_browse_path(self) -> None:
-        program_id = self._selected_program_id()
-        if not program_id:
+        key = self._selected_link_key()
+        if not key:
             return
         file_path, _filter = QFileDialog.getOpenFileName(self, "Select Executable")
         if not file_path:
             return
-        self._config_store.set(program_id, file_path)
+        self._config_store.set(key, file_path)
         self._refresh_list()
 
     def _on_clear(self) -> None:
-        program_id = self._selected_program_id()
-        if not program_id:
+        key = self._selected_link_key()
+        if not key:
             return
-        self._config_store.set(program_id, None)
+        self._config_store.set(key, None)
         self._refresh_list()
 
 

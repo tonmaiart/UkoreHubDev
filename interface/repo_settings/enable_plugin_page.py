@@ -20,14 +20,13 @@ _DESCRIPTION = (
 
 class EnablePluginPage(BaseRepoSettingsPage):
     """Per-repo toggle for plugins/studio + plugins/local entries
-    (Repo.active_plugin_ids) — distinct from the existing Add-ons concept
-    (Repo.enabled_addon_ids, edited in About > Requirement): unlike Add-ons,
-    this one actually hides the plugin's sidebar section for repos that
-    don't have it checked (see MainWindow._apply_plugin_visibility) — except
-    a plugin flagged manifest.json "core": true (PluginManifest.core), which
-    always renders checked and disabled here and is never actually hideable
-    regardless of what ends up in active_plugin_ids. Active-repo resolution
-    + refresh() preamble live in BaseRepoSettingsPage (interface/shared/)."""
+    (Repo.active_plugin_ids): actually hides the plugin's sidebar section
+    for repos that don't have it checked (see
+    MainWindow._apply_plugin_visibility) — except a plugin flagged
+    manifest.json "core": true (PluginManifest.core), which always renders
+    checked and disabled here and is never actually hideable regardless of
+    what ends up in active_plugin_ids. Active-repo resolution + refresh()
+    preamble live in BaseRepoSettingsPage (interface/shared/)."""
 
     def __init__(
         self,

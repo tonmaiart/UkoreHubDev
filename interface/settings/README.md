@@ -85,13 +85,6 @@ node-graph top-level section rather than a Settings tab — see that
 plugin's README. "Project Status" (read-only per-repo clone/sync status
 tree, `CATEGORY_REPO`) was removed entirely 2026-07-20 — no longer needed.
 
-**Removed:** `addon_settings_page.py`/`AddonSettingsPage` (the "Add-ons"
-tab) — deprecated and removed as of 2026-07-14. It used to be the only UI
-for editing a discovered add-on's icon/description override/required
-Program(s) (`core/addon_store.py`'s `AddonMetadataStore`); no replacement
-UI exists yet, see `add-on/README.md`'s "Icon, description override, and
-required Program" section.
-
 **Working here:** stay inside this folder unless the change needs a new
 `core/` primitive, a `shared/` addition, or touches `main_window.py`'s
 wiring (which opens `SettingsDialog` via `Sidebar.settings_requested`).

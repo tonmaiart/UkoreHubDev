@@ -17,45 +17,33 @@ the way `UkorePublisher` used to.
   `maya_launcher_env_bridge` `PluginConfigStore` (same convention every
   other Maya tool plugin here uses). Relies on `plugins/studio/MayaToolkit`
   (for `UkoreMaya.core.Pipeline`'s export commands) and
-  `plugins/studio/PublishApi` (for path resolution/versioning) also being
-  enabled — not imported directly, just expected on the same merged
-  PYTHONPATH once Maya launches. **Also** registers a `CATEGORY_REPO`
-  Settings tab (`settings_page.py`, see below) — a UkoreHub-side page, not
-  Maya-side, unlike everything else `plugin.py` does.
-- `settings_page.py` — `ModelPublisherSettingsPage`: the "Repo Studio
-  Setting" tab (Repository Setting popup > ModelPublisher) — lets a studio
-  admin pick which of the active repo's declared pipeline **connections**
-  ("Connect Pipeline Input Path...", a `{project_id, repo_id,
-  custom_path_id}` pointing at a specific `CustomPath` inside a target
-  repo — see `plugins/studio/project_editor/pipeline_store.py`) this tool
-  should actually publish into. Falls back to "the repo's only declared
-  connection" automatically when there's exactly one, so a repo only
-  needs an explicit choice here once it has more than one. Persists the
-  choice into this plugin's own `PluginConfigStore`
-  (`data/plugins/studio/model_publisher.json`, key
-  `"repo_publish_target"`), which
-  `PublishApi.repo_paths.get_publish_root("model_publisher")` reads back
-  on the Maya side (see that plugin's README). Same
-  self-resolving-active-repo `refresh()` pattern as
-  `interface/settings/browser_links_settings_page.py`.
+  `plugins/studio/PublishApi` (for path resolution/versioning/tickets)
+  also being enabled — not imported directly, just expected on the same
+  merged PYTHONPATH once Maya launches. **No longer registers a UkoreHub
+  Settings tab** (removed 2026-08-03 — see "What changed" below).
 - `maya-scripts/ModelPublisher/function.py` — `TOOL_ID = "model_publisher"`,
-  `TICKETS = ["Main", "Proxy", "Hi"]`, `publish(ticket)`: resolves the
-  publish root via `PublishApi.repo_paths.get_publish_root(TOOL_ID)` (the
-  chosen pipeline connection, already scoped to its `CustomPath` — see
-  `settings_page.py` above), creates the next version folder via
-  `PublishApi.versioning.get_version_directory()`, then exports
-  `<ticket>_v<NNN>.fbx` (`Pipeline.export_fbx_common`) and
-  `<ticket>_v<NNN>.ma` (`Pipeline.export_maya_common`) into it.
+  `publish(ticket: dict)`: runs the ticket's validation scripts
+  (`PublishApi.tickets.run_validation_scripts`, raising `RuntimeError` on
+  failure), resolves the publish root via
+  `PublishApi.tickets.get_publish_root_for_ticket(TOOL_ID, ticket)` (the
+  ticket's own chosen pipeline connection, already scoped to its
+  `CustomPath`), creates the next version folder via
+  `PublishApi.versioning.get_version_directory()` using the ticket's own
+  `folder_name`, then exports `<folder_name>_v<NNN>.fbx`
+  (`Pipeline.export_fbx_common`) and `<folder_name>_v<NNN>.ma`
+  (`Pipeline.export_maya_common`) into it.
 - `maya-scripts/ModelPublisher/interface.py` — `MainWindow`
   (`tmlib.ui.interface_template.ToolkitWindow`): ticket list, snapshot
-  button, publish/open-folder buttons. **No custom-path input of any
-  kind** — removed 2026-07-19 alongside adding `settings_page.py` above;
-  the artist just picks a ticket, everything else is already decided by
-  the studio in UkoreHub. `refresh_publish_destination()` re-resolves the
-  root and next version live as the ticket changes, showing a clear error
-  message from `PublishApi` (no active repo / no pipeline connection
-  declared / ambiguous choice with nothing picked yet / target repo not
-  cloned) instead of a blank or stale destination.
+  button, publish/open-folder buttons, plus a "Manage Tickets..." button
+  (added 2026-08-03, inserted in code rather than in `ui.ui`) that opens
+  `PublishApi.ticket_manager_dialog.TicketManagerDialog`. Tickets are
+  loaded from `PublishApi.tickets.list_tickets(TOOL_ID)` — no more
+  hardcoded list — and `get_current_selected_ticket()` returns the full
+  ticket dict, not a bare string. `refresh_publish_destination()`
+  re-resolves the root and next version live as the ticket changes,
+  showing a clear error message from `PublishApi.tickets` (no active repo
+  / this ticket has no Publish Path set / target repo not cloned) instead
+  of a blank or stale destination.
 - `maya-scripts/ModelPublisher/ui.ui` — Qt Designer layout, loaded by
   `tmlib.ui.interface_template.ToolkitWindow` via
   `importlib.import_module("ModelPublisher")` + `__path__[0]/ui.ui` (same
@@ -66,19 +54,28 @@ the way `UkorePublisher` used to.
 - Publish root: used to come from string-swapping `.../share/...` for
   `.../publish/...` in the current scene's own file path
   (`UkoreMaya/core/Logic.py`'s `convert_to_publish_path`). Now it's always
-  `PublishApi.repo_paths.get_publish_root("model_publisher")` — the active
-  repo's declared pipeline connection in Project Editor, scoped to a
-  specific `CustomPath` this plugin's own Repo Studio Setting tab picked.
-  (Project Editor also dropped its separate "Set as Pipeline Output..."
-  action the same day — see `plugins/studio/project_editor/README.md`.)
+  `PublishApi.tickets.get_publish_root_for_ticket("model_publisher", ticket)`
+  — a specific ticket's own declared pipeline connection in Project
+  Editor, scoped to a specific `CustomPath`.
 - "Type" selection is gone — this plugin only ever publishes Model, so
   there's no type list, just the ticket list.
 - The free-text "Custom Path" field artists used to type in Maya (added
-  2026-07-19, removed the same day) is gone — replaced by
-  `settings_page.py`'s studio-side picker, since the whole point of
-  `CustomPath` is to be a small, curated, studio-declared catalog
+  2026-07-19, removed the same day) is gone — replaced first by a
+  UkoreHub-side picker, then (2026-08-03) by per-ticket Publish Paths
+  configured entirely in Maya, since the whole point of `CustomPath` is to
+  be a small, curated, studio-declared catalog
   (`plugins/studio/project_editor`'s "Custom Paths" tab), not something an
   artist free-types per publish.
+
+**2026-08-03**: the "which pipeline connection to publish into" choice
+moved from a single per-repo pick in a UkoreHub Settings tab
+(`ModelPublisherSettingsPage`, now deleted) to a **per-ticket** choice made
+entirely in Maya via "Manage Tickets..." — see
+`plugins/studio/PublishApi/README.md`'s "Tickets" section for the full
+shape (user-created tickets, separate name/folder, per-ticket Publish
+Path, per-ticket validation scripts). An existing repo's old single choice
+is auto-migrated into a "Main" ticket the first time its tickets are
+listed, so nothing already configured is lost.
 
 ## Working on this plugin
 

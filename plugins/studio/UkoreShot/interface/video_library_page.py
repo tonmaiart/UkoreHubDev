@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -28,6 +29,18 @@ _UNKNOWN = "Unknown"
 # as interface/login/repo_picker.py's CARD_CORNER_RADIUS) so the painted
 # thumbnail's clip path lines up with the QSS-drawn card border.
 _CARD_CORNER_RADIUS = 6.0
+
+# This plugin's own images/ folder, not the shared data/icons/ every other
+# plugin uses — same _ICONS_DIR convention as player_widget.py (one parent
+# up from this file is UkoreShot/ itself). Icon-setting reuses
+# PlayerWidget._set_button_icon (imported below) instead of duplicating it.
+_ICONS_DIR = Path(__file__).resolve().parents[1] / "images"
+_SORT_AZ_ICON_PATH = _ICONS_DIR / "icons8-alphabetical-sorting-50.png"
+_SORT_ZA_ICON_PATH = _ICONS_DIR / "icons8-alphabetical-sorting-2-50.png"
+_SORT_OLDEST_ICON_PATH = _ICONS_DIR / "icons8-time-machine-32.png"
+_SORT_NEWEST_ICON_PATH = _ICONS_DIR / "icons8-delivery-time-32.png"
+_VIEW_SMALL_ICON_PATH = _ICONS_DIR / "icons8-grid-50.png"
+_VIEW_LARGE_ICON_PATH = _ICONS_DIR / "icons8-grid-2-24.png"
 
 # Two view-mode presets (view_small_button/view_large_button, added
 # 2026-07-20) — _VideoCard used to hard-code these as module constants;
@@ -179,6 +192,11 @@ class UkoreShotPage(QWidget):
         self._commenters_by_video: dict[Path, set] = {}
         self._cards: dict[str, _VideoCard] = {}
         self._selected_card: _VideoCard | None = None
+        # Survives _clear_cards' teardown (unlike _selected_card, a
+        # per-rebuild widget reference) so a filter/sort/view-size change
+        # can restore the same video's selection instead of losing it —
+        # see _restore_or_default_selection.
+        self._selected_video_path: Path | None = None
         self._sort_mode = _DEFAULT_SORT
         self._card_size_mode = _DEFAULT_CARD_SIZE
         self._thumbnail_loader = ThumbnailLoader(self)
@@ -205,13 +223,21 @@ class UkoreShotPage(QWidget):
         self.list_empty_label.setProperty("secondary", True)
 
         # Sort buttons (added 2026-07-20 per the user's own request) —
-        # four plain checkable buttons in one exclusive QButtonGroup
-        # rather than a QComboBox, matching "ปุ่ม sort by a-z, z-a,
-        # oldest, newest" (explicitly "buttons") literally.
-        self.sort_az_button = QPushButton("A-Z")
-        self.sort_za_button = QPushButton("Z-A")
-        self.sort_oldest_button = QPushButton("Oldest")
-        self.sort_newest_button = QPushButton("Newest")
+        # four checkable QToolButtons in one exclusive QButtonGroup rather
+        # than a QComboBox, matching "ปุ่ม sort by a-z, z-a, oldest, newest"
+        # (explicitly "buttons") literally. QToolButton (not QPushButton)
+        # so core/theme.py's existing QToolButton:checked rule (accent
+        # background) shows which single choice is active, same as
+        # player_widget.py's brush/eraser/text toolbox — added 2026-08-03
+        # per the user's own request for a colored toggle state.
+        self.sort_az_button = QToolButton()
+        PlayerWidget._set_button_icon(self.sort_az_button, _SORT_AZ_ICON_PATH, "A-Z")
+        self.sort_za_button = QToolButton()
+        PlayerWidget._set_button_icon(self.sort_za_button, _SORT_ZA_ICON_PATH, "Z-A")
+        self.sort_oldest_button = QToolButton()
+        PlayerWidget._set_button_icon(self.sort_oldest_button, _SORT_OLDEST_ICON_PATH, "Oldest")
+        self.sort_newest_button = QToolButton()
+        PlayerWidget._set_button_icon(self.sort_newest_button, _SORT_NEWEST_ICON_PATH, "Newest")
         self._sort_buttons = {
             _SORT_NAME_ASC: self.sort_az_button,
             _SORT_NAME_DESC: self.sort_za_button,
@@ -228,9 +254,12 @@ class UkoreShotPage(QWidget):
 
         # View-mode (thumbnail size) buttons — same exclusive-button-group
         # shape as the sort buttons above, per the user's own "ปุ่ม view
-        # แบบต่างๆ เช่น thumbnail เล็ก, thumbnail ใหญ่" request.
-        self.view_small_button = QPushButton("Small")
-        self.view_large_button = QPushButton("Large")
+        # แบบต่างๆ เช่น thumbnail เล็ก, thumbnail ใหญ่" request. QToolButton
+        # for the same checked-color reasoning as the sort buttons.
+        self.view_small_button = QToolButton()
+        PlayerWidget._set_button_icon(self.view_small_button, _VIEW_SMALL_ICON_PATH, "Small")
+        self.view_large_button = QToolButton()
+        PlayerWidget._set_button_icon(self.view_large_button, _VIEW_LARGE_ICON_PATH, "Large")
         self._view_buttons = {"small": self.view_small_button, "large": self.view_large_button}
         self._view_button_group = QButtonGroup(self)
         self._view_button_group.setExclusive(True)
@@ -250,18 +279,23 @@ class UkoreShotPage(QWidget):
         controls_row.addWidget(self.view_small_button)
         controls_row.addWidget(self.view_large_button)
 
-        library_content = QWidget()
-        library_content_layout = QVBoxLayout(library_content)
-        library_content_layout.setContentsMargins(0, 0, 0, 0)
-        library_content_layout.addLayout(controls_row)
-        library_content_layout.addWidget(self.cards_scroll, stretch=1)
-        library_content_layout.addWidget(self.list_empty_label)
+        self.library_title = QLabel("Playblast Library")
+        self.library_title.setObjectName("ukoreShotSectionTitle")
 
+        # filter_sidebar now lays out its six categories in a horizontal
+        # row (see filter_sidebar.py) and sits as its own row above
+        # controls_row (changed 2026-08-03 per the user's own request) —
+        # library_panel used to be an HBox split between filter_sidebar
+        # (left) and this content (right); that split is gone, everything
+        # is one vertical stack now.
         library_panel = QWidget()
-        library_layout = QHBoxLayout(library_panel)
-        library_layout.setContentsMargins(0, 0, 0, 0)
-        library_layout.addWidget(self.filter_sidebar)
-        library_layout.addWidget(library_content, stretch=1)
+        library_panel_layout = QVBoxLayout(library_panel)
+        library_panel_layout.setContentsMargins(0, 0, 0, 0)
+        library_panel_layout.addWidget(self.library_title)
+        library_panel_layout.addWidget(self.filter_sidebar)
+        library_panel_layout.addLayout(controls_row)
+        library_panel_layout.addWidget(self.cards_scroll, stretch=1)
+        library_panel_layout.addWidget(self.list_empty_label)
 
         # Edit Comment now lives inside PlayerWidget itself (view mode) as
         # a square icon button next to Show/Hide Comments — moved out of
@@ -274,9 +308,13 @@ class UkoreShotPage(QWidget):
         self.player_widget = PlayerWidget(show_edit_tools=False)
         self.player_widget.editCommentRequested.connect(self._on_edit_comment_clicked)
 
+        self.player_title = QLabel("Playblast Viewer")
+        self.player_title.setObjectName("ukoreShotSectionTitle")
+
         player_panel = QWidget()
         player_layout = QVBoxLayout(player_panel)
         player_layout.setContentsMargins(0, 0, 0, 0)
+        player_layout.addWidget(self.player_title)
         player_layout.addWidget(self.player_widget, stretch=1)
 
         self.content_widget = QWidget()
@@ -303,6 +341,15 @@ class UkoreShotPage(QWidget):
     def _reload_videos(self) -> None:
         self._clear_cards()
         self.player_widget.clear_video()
+        # A genuine repo switch (or the tab regaining focus, which also
+        # calls set_repo -> _reload_videos) means whatever was selected no
+        # longer applies — clearing this here (unlike a plain
+        # filter/sort/view-size change, which goes through _apply_filter
+        # alone and should keep the current selection) is what makes
+        # _restore_or_default_selection fall back to the latest video, per
+        # the user's own request that opening the tab always default to
+        # the most recent playblast.
+        self._selected_video_path = None
         self._video_root = None
         self._all_videos = []
         self._parsed_by_video = {}
@@ -399,6 +446,27 @@ class UkoreShotPage(QWidget):
             self._thumbnail_loader.request(video_path)
         self.list_empty_label.setVisible(not videos)
         self.cards_scroll.setVisible(bool(videos))
+        self._restore_or_default_selection(videos)
+
+    def _restore_or_default_selection(self, videos: list[Path]) -> None:
+        """Keeps whichever video was already selected across a filter/sort/
+        view-size rebuild (_clear_cards always tears down and recreates
+        every _VideoCard) if it's still in the current list; otherwise —
+        most notably right after _reload_videos' first load for a newly
+        opened/refocused repo, which resets _selected_video_path to None —
+        falls back to the most recently modified video, so opening the
+        UkoreShot tab always shows the latest playblast by default, per
+        the user's own request, independent of whatever sort mode happens
+        to be active."""
+        if not videos:
+            self._selected_video_path = None
+            return
+        target = self._selected_video_path
+        if target is None or target not in videos:
+            target = max(videos, key=lambda p: p.stat().st_mtime)
+        card = self._cards.get(str(target))
+        if card is not None:
+            self._select_card(card)
 
     def _on_thumbnail_ready(self, video_path_str: str, pixmap: QPixmap) -> None:
         card = self._cards.get(video_path_str)
@@ -423,6 +491,7 @@ class UkoreShotPage(QWidget):
             self._selected_card.set_selected(False)
         card.set_selected(True)
         self._selected_card = card
+        self._selected_video_path = card.video_path
         self.player_widget.load_video(card.video_path)
 
     def _on_edit_comment_clicked(self) -> None:

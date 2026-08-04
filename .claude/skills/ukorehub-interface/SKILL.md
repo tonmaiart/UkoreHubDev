@@ -1,6 +1,6 @@
 ---
 name: ukorehub-interface
-description: Reference for UkoreHub's interface/ layer (C:\Tonmai\UkoreHub) — the PySide6 GUI, organized by window (sidebar/, login/, explorer/, submit/, about/, settings/, plus a shared/ for multi-window files): MainWindow's left-hand Sidebar / SectionTabList navigation, the four extension registries (SectionRegistry, SettingsTabRegistry, RepoAddonPanelRegistry, FileOpenerRegistry), PluginAPI composition, and the builtin_*.py dogfooding pattern. Use this whenever adding a page, a settings tab, a top-level section, a Repo Add-on panel, or any UI-facing plugin/add-on registration — or whenever the task touches interface/main_window.py, any interface/<window>/ folder, interface/plugin_api.py, or any interface/*_registry.py, even if the user doesn't say "interface" explicitly (e.g. "add a settings page", "show this as its own tab").
+description: Reference for UkoreHub's interface/ layer (C:\Tonmai\UkoreHub) — the PySide6 GUI, organized by window (sidebar/, login/, explorer/, submit/, about/, settings/, plus a shared/ for multi-window files): MainWindow's left-hand Sidebar / SectionTabList navigation, the extension registries (SectionRegistry, SettingsTabRegistry, FileOpenerRegistry), PluginAPI composition, and the builtin_*.py dogfooding pattern. Use this whenever adding a page, a settings tab, a top-level section, or any UI-facing plugin registration — or whenever the task touches interface/main_window.py, any interface/<window>/ folder, interface/plugin_api.py, or any interface/*_registry.py, even if the user doesn't say "interface" explicitly (e.g. "add a settings page", "show this as its own tab").
 ---
 
 # UkoreHub interface/ — architecture reference
@@ -12,9 +12,9 @@ first for the current file listing — this skill is the architecture and the
 
 ## Scoped editing
 
-A task about `interface/` stays inside `interface/` — don't open `core/` or
-`add-on/` files unless the change genuinely needs a new `core/` primitive
-to build on. `interface/` is organized by window, not by suffix convention:
+A task about `interface/` stays inside `interface/` — don't open `core/`
+files unless the change genuinely needs a new `core/` primitive to build
+on. `interface/` is organized by window, not by suffix convention:
 `sidebar/`, `login/`, `explorer/`, `submit/`, `about/`, `settings/` each
 own one area of the app end-to-end (page + its own dialogs + its own
 workers) — a task about one window opens only that folder, plus
@@ -74,12 +74,8 @@ right:
   `MainWindow._on_navigation_changed`, which special-cases
   `key == SETTINGS_KEY` to show the settings view instead of looking it up
   in `_section_view_index`/`_dynamic_view_index`. There is no "Repo"/Project
-  Info section anymore — it was removed; its "Repo Add-on" sub-tab's job
-  (showing each enabled add-on's per-repo panel via `RepoAddonPanelRegistry`)
-  moved into a "Repo About" section next. That section was itself removed
-  2026-07-20 (no longer needed) — `RepoAddonPanelRegistry` currently has no
-  UI consumer at all; a panel registered via `api.register_repo_addon_panel`
-  is stored but never rendered anywhere.
+  Info section anymore, nor a "Repo About" section that briefly replaced it
+  — both were removed (the latter 2026-07-20, no longer needed).
 - **Persistent sections** (`SectionSpec.persistent=True`, currently only
   Project Editor): never a `SectionTabList` row, never added to `view_stack`
   at all — instead `MainWindow._build_main_ui` docks it permanently beside
@@ -102,7 +98,7 @@ right:
   whatever store you're editing the moment the user changes a value, the
   same way every existing settings page does.
 
-## The four registries
+## The registries
 
 All live under `interface/`, except `FileOpenerRegistry` which is Qt-free
 and therefore lives in `core/extensibility/` (see `ukorehub-core` skill) —
@@ -112,12 +108,11 @@ don't go looking for it here, even though it's UI-adjacent in purpose.
 |---|---|---|---|
 | `SectionRegistry` | `SectionSpec` | yes, rejects dup keys | Top-level sections, rendered as rows in Sidebar's `SectionTabList` (Explorer, Submit, ...) — unless `persistent=True` (Project Editor), which docks permanently beside `view_stack` instead of getting a row |
 | `SettingsTabRegistry` | `SettingsTabSpec` | yes | Tabs shown in the "Setting" view |
-| `RepoAddonPanelRegistry` | (factory keyed by addon_id) | yes | Per-add-on per-repo panel — currently has no UI consumer (its only renderer, Repo About, was removed 2026-07-20); a registered panel is stored but never displayed |
-| `FileOpenerRegistry` | `FileOpenerSpec` | **no**, plain list, first-match-wins | Add-on can claim responsibility for opening a file extension (lives in `core/`) |
+| `FileOpenerRegistry` | `FileOpenerSpec` | **no**, plain list, first-match-wins | A plugin can claim responsibility for opening a file extension (lives in `core/`) |
 
-Every registered page/tab factory follows the same **`page_factory: Callable[[], QWidget]`** convention — no arguments, construct-on-demand. This is also why pytest can smoke-test registries without ever instantiating a real `QWidget`: tests register `page_factory=lambda: None` and only assert on registry bookkeeping (duplicate-key rejection, ordering), never call the factory. `RepoAddonPanelRegistry`'s `panel_factory` is the one exception — it takes the active `Repo` directly (`Callable[[Repo], QWidget]`), for whatever future consumer rebuilds these panels fresh on every repo switch rather than constructing once.
+Every registered page/tab factory follows the same **`page_factory: Callable[[], QWidget]`** convention — no arguments, construct-on-demand. This is also why pytest can smoke-test registries without ever instantiating a real `QWidget`: tests register `page_factory=lambda: None` and only assert on registry bookkeeping (duplicate-key rejection, ordering), never call the factory.
 
-Built-ins register into the exact same registries a plugin/add-on would —
+Built-ins register into the exact same registries a plugin would —
 `interface/builtin_settings_tabs.py` calls
 the same `register_*`/`api.register_*` surface as
 `plugins/studio/maya_launcher/plugin.py` does. This "dogfooding" is deliberate: if a
@@ -127,7 +122,7 @@ built-ins with a side channel.
 
 ## `interface/plugin_api.py` — `PluginAPI`
 
-The single object passed to every plugin's/add-on's `register(api)`. It's a
+The single object passed to every plugin's `register(api)`. It's a
 pure composition/facade over already-constructed services — it does not
 construct anything itself, everything is handed in via `launcher.py`.
 Current constructor:
@@ -135,7 +130,7 @@ Current constructor:
 ```python
 def __init__(self, *, store, program_store, local_config_store, git_service, hooks,
              section_registry, settings_tab_registry,
-             repo_addon_panel_registry, file_opener_registry, plugins_data_dir, app_root):
+             file_opener_registry, plugins_data_dir, app_root):
 ```
 
 Notable surface:
@@ -151,21 +146,14 @@ Notable surface:
   (`plugins/README.md`'s "Sharing data with another plugin" section for
   the general write-up).
 - `api.app_root` → `Path` to the UkoreHub install root itself (i.e.
-  `launcher.py`'s own `REPO_ROOT`), for a plugin/add-on that needs to
+  `launcher.py`'s own `REPO_ROOT`), for a plugin that needs to
   reference other paths inside the UkoreHub installation (like
   `plugins/studio/UkoreBrowser/plugin.py` contributing `api.app_root`
   itself onto `PYTHONPATH` so its vendored Maya-side code can
   `import core.store`) without guessing paths from `__file__`.
-- `api.register_repo_addon_panel(addon_id, panel_factory)` — shows up as
-  its own sub-tab (named after the add-on's manifest) inside the About
-  page's left tab bar, for any repo that has that add-on enabled. Only
-  meaningful for a genuine repo-scoped `add-on/` (gated by
-  `Repo.enabled_addon_ids`) — an always-on `plugins/` entry generally
-  shouldn't use this (see `plugins/studio/maya_launcher/README.md` for why
-  it dropped this in favor of its own Settings tab instead).
-- `api.register_file_opener(addon_id, extensions, opener)`,
+- `api.register_file_opener(plugin_id, extensions, opener)`,
   `api.register_section(...)`, `api.register_settings_tab(...)` — one
-  register method per remaining registry above.
+  register method per registry above.
 - `api.settings_tab_registry` → read access to the same `SettingsTabRegistry`
   `register_settings_tab()` writes into, added 2026-07-15 for
   `plugins/studio/project_editor/`'s right panel, which enumerates every
@@ -183,7 +171,7 @@ adding a new page that cares which repo is active, implement this method
 rather than inventing a new callback — it's how every existing page stays
 in sync.
 
-## File-open flow — where an add-on actually intercepts a double-click
+## File-open flow — where a plugin actually intercepts a double-click
 
 This is the one flow worth tracing end-to-end since it crosses several
 files and the naming ("open") appears at every layer:
@@ -199,21 +187,18 @@ files and the naming ("open") appears at every layer:
    ```python
    def _open_file(self, path: Path) -> None:
        if self._active_repo is not None:
-           opener = self._file_opener_registry.find_opener(path, self._active_repo.enabled_addon_ids)
+           opener = self._file_opener_registry.find_opener(path)
            if opener is not None and opener(path, self._active_repo):
                return
        open_with_default_app(path)
    ```
-   Note it tracks `self._active_repo` as the **full `Repo` object** (not
-   just an id string) precisely so it can read `.enabled_addon_ids` here.
-3. `FileOpenerRegistry.find_opener(path, enabled_addon_ids)` only returns a
-   match if the extension matches *and* the registering add-on's id is in
-   the repo's `enabled_addon_ids` — the registry has no notion of "current
-   repo" itself, that gating is entirely the caller's responsibility.
+3. `FileOpenerRegistry.find_opener(path)` returns the first registered spec
+   whose extensions match — a plain list, not a keyed dict, so first
+   registration wins on a collision.
 
 If you add a new file-open entry point, replicate this same
 check-registry-then-fallback shape rather than calling
-`open_with_default_app` directly, so add-on-provided openers stay
+`open_with_default_app` directly, so plugin-provided openers stay
 consistent everywhere a file can be opened from. (Explorer used to also
 have Recent Files and Favorites lists that navigated but never opened a
 file — both were removed entirely for a cleaner Explorer tab; double-click

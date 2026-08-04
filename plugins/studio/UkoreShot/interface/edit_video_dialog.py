@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QDialog, QVBoxLayout
 
 from plugins.studio.UkoreShot.interface.player_widget import PlayerWidget
@@ -17,7 +18,10 @@ class EditVideoDialog(QDialog):
     def __init__(self, video_path: Path, parent=None):
         super().__init__(parent)
         self.setWindowTitle(f"Edit Video - {video_path.name}")
-        self.resize(900, 700)
+        # Opens maximized (2026-08-03 per the user's own request) rather
+        # than a fixed 900x700 — the draw toolbar/comment columns all want
+        # as much screen space as they can get.
+        self.setWindowState(Qt.WindowMaximized)
 
         self.player_widget = PlayerWidget(show_edit_tools=True)
 

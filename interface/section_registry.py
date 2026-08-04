@@ -23,6 +23,14 @@ class SectionHost:
     # node click in plugins/studio/project_editor's graph view) without
     # holding a MainWindow reference — wraps MainWindow._set_active_repo.
     set_active_repo: Callable[[str, str], None]
+    # Lets a section jump straight to one SettingsTabSpec's tab inside the
+    # Setting popup (e.g. plugins/studio/program_launcher/'s "Open Setting"
+    # button for an unlinked Program, landing on Software Linker) without
+    # holding a MainWindow reference. Wraps
+    # MainWindow._on_settings_requested(select_key=...) ->
+    # SettingsDialog.select_tab. A key with no matching tab is a no-op —
+    # the dialog still opens, just on its normal default tab.
+    open_settings_tab: Callable[[str], None]
 
 
 @dataclass(frozen=True)
@@ -39,6 +47,15 @@ class SectionSpec:
     # for this section. A section without one falls back to text-only (e.g.
     # a plugin that hasn't supplied an icon yet).
     icon_path: Path | None = None
+    # Optional: a small widget shown at the right edge of this section's own
+    # row in Sidebar's SectionTabList (e.g. plugins/studio/Notification/'s
+    # unread-count badge) — built once, alongside page_factory, and never
+    # rebuilt by SectionTabList. The plugin that supplies the factory keeps
+    # its own reference to the returned widget and updates it directly
+    # (text/visibility/whatever) — SectionTabList only lays it out, it does
+    # not manage its content. A general "status widget" slot any current or
+    # future section can use, not Notification-specific — added 2026-08-03.
+    trailing_widget_factory: Callable[[], QWidget] | None = None
     # Optional: given the constructed page and a SectionHost, connect
     # whatever signals the page needs wired to app-level services (sidebar
     # status line, cross-section navigation) — lets a plugin page react to

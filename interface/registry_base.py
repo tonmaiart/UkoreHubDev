@@ -18,11 +18,10 @@ class KeyedOrderedRegistry(Generic[T]):
     registries — SectionRegistry, SettingsTabRegistry, and
     SidebarFooterActionRegistry are otherwise identical: register a
     dataclass spec keyed by its own `key` field, reject a duplicate key,
-    expose specs sorted by `(order, key)`. RepoAddonPanelRegistry (keyed,
-    but no ordering concept — just a `get(addon_id)` lookup) and
-    FileOpenerRegistry (unordered, duplicate keys allowed by design — see
-    its own docstring) are deliberately NOT built on this; each solves a
-    different problem than "ordered, unique-key list of specs"."""
+    expose specs sorted by `(order, key)`. FileOpenerRegistry (unordered,
+    duplicate keys allowed by design — see its own docstring) is
+    deliberately NOT built on this; it solves a different problem than
+    "ordered, unique-key list of specs"."""
 
     def __init__(self, *, label: str) -> None:
         self._label = label

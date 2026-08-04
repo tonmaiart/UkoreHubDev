@@ -23,7 +23,7 @@ navigation aids now.)
   it needs to come back.)
 - `repo_browser_page.py` — `RepoBrowserPage`: the top-level Explorer page.
   Owns file-open delegation (`core/extensibility/file_opener.py`'s
-  `FileOpenerRegistry`, so an add-on can claim an extension) and implements
+  `FileOpenerRegistry`, so a plugin can claim an extension) and implements
   the optional `browse_to_path(path)` protocol method (see
   `interface/section_registry.py`'s `SectionHost`) — `plugins/studio/submit/`
   calls into this generically via `MainWindow`'s `navigate_and_focus`, not by
@@ -37,7 +37,20 @@ navigation aids now.)
   semantics, so don't conflate them. Both use icons (`icons8-back-50.png` /
   `icons8-up-50.png`, both at the repo root) with a text fallback if the
   file isn't there (same pattern as `interface/sidebar/sidebar.py`'s
-  Setting button). The file table hides the Type column (redundant with
+  Setting button). `add_folder_button` sits right after `up_button` in the
+  nav row (icon `add_folder.png`, also at the repo root, same fallback
+  convention) and just calls `_create_new_folder(self._current_path)` — a
+  toolbar shortcut for the same "Create New Folder" action described below.
+  Right-clicking a row opens a context menu (Copy Name/Copy
+  File Path/Rename/Delete) via `_on_table_context_menu`; right-clicking
+  blank space in the table (no row under the cursor) falls through to
+  `_on_empty_area_context_menu` instead, whose Create New
+  Folder/Rename Folder/Delete Folder act on the currently open folder
+  (`_current_path`) rather than a selected row — Rename/Delete Folder are
+  disabled while `_current_path` is the repo root, since renaming/deleting
+  it out from under `set_root()`'s `fs_model`/`_last_opened_store` would
+  leave them pointed at a path that no longer exists. The file table hides
+  the Type column (redundant with
   the file's icon/name) and gives Name/Date Modified `Stretch` resize
   priority over Size so they can't get squeezed narrow. `search_edit`
   (width-capped) sits at the end of the same row as the breadcrumb path
@@ -51,9 +64,12 @@ navigation aids now.)
   (`last_opened_store.py`, see below) rather than kept purely in-memory —
   rebuilt from that store on every `set_root()`/repo switch, so it
   survives app restarts. Clicking an entry (`_on_last_opened_clicked`)
-  only navigates to that file's current path — deliberately no
+  navigates to that file's current parent folder and then selects the
+  file's own row in the table (`_select_file_in_table`, via
+  `fs_model.index()`/`proxy.mapFromSource()`) — deliberately no
   double-click-to-open wired up here, so this list can never be a second
-  way to launch a file, only a navigation shortcut back to one.
+  way to launch a file, only a navigation-plus-highlight shortcut back to
+  one.
 - `last_opened_store.py` — `LastOpenedStore`: persists the Last Opened
   Files list to `<repo_root>/.ukorehub/explorer_last_opened_<username>.json`
   — a **local, per-repo, per-OS-user** cache, not team/studio-shared data

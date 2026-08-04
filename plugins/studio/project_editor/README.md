@@ -12,10 +12,12 @@ changed again the same day to the always-visible docked panel it is now.
 Three things bundled into one plugin (originally two, before the
 2026-07-19 CustomPath addition):
 
-1. **Project/Repo CRUD** — Add/Rename/Delete Project (top bar), Add/Rename/
-   Delete/Thumbnail Repo (node context menu) — same `core/store.py`
-   `MetadataStore` calls the old tree page made, just triggered from graph
-   UI instead of tree rows/buttons.
+1. **Project/Repo CRUD** — Add/Rename/Delete Project (Setting > Project,
+   moved there 2026-08-03 from the graph view's own top bar — see
+   `project_settings_page.py` below), Add/Rename/Delete/Thumbnail Repo
+   (node context menu) — same `core/store.py` `MetadataStore` calls the old
+   tree page made, just triggered from Settings/graph UI instead of tree
+   rows/buttons.
 2. **Pipeline connections** — which other repos a given repo has
    connected to, via Repository Setting's "Custom Paths" tab, "Connect
    Input Path" section (moved there 2026-07-19 from a node's right-click
@@ -88,26 +90,53 @@ plugin were ever changed back to a normal section.
   so the Repository Setting popup can enumerate `CATEGORY_REPO` tabs
   generically.
 - `dialogs.py` — `ProjectDialog`/`RepoDialog`/`RequirementsTreeWidget`
-  (the checkable Program/Add-on tree `RepoDialog` embeds for repo
+  (the checkable Program requirements tree `RepoDialog` embeds for repo
   creation) — moved in from `interface/shared/dialogs.py` 2026-07-20 once
   a repo-wide grep confirmed this plugin was the only real consumer left;
   imported as a normal sibling module (`from
   plugins.studio.project_editor.dialogs import ...`, the same
   real-package convention `plugins/README.md`'s "Multi-file plugins"
   section documents), not a relative import. Used by
-  `project_graph_view.py` (`RepoDialog`, node context menu Add/Edit Repo)
-  and `project_editor_page.py` (`ProjectDialog`, top-bar Add/Rename
-  Project).
+  `project_graph_view.py` (`RepoDialog`, node context menu Add/Edit Repo,
+  plus `add_repo` — see below) and `project_settings_page.py`
+  (`ProjectDialog`, "Add New Project..."/Rename Project — moved here from
+  `project_editor_page.py` 2026-08-03, see that file's own bullet).
 - `project_editor_page.py` — `ProjectEditorPage`: the section's top-level
-  widget. Top bar = project `QComboBox` (+ "Add New Project..." as the
-  trailing item), Rename/Delete Project buttons, Add Repo button. Below
-  that, `ProjectGraphView` full width — no right panel here anymore (moved
-  to a popup dialog 2026-07-15, see `repo_settings_panel.py` below).
-  Implements the standard `set_repo()` page protocol purely to keep the
-  graph's active-node highlight in sync when the active repo changes
-  elsewhere — this page only *reacts* to active-repo changes, it never
-  receives a command to make one (that only happens via a node click,
-  through `bind_set_active_repo`).
+  widget. No top bar at all as of 2026-08-03 (second pass — the project
+  `QComboBox`/Rename/Delete Project buttons moved out earlier the same day,
+  then Add Repo followed once the user asked for it too) — just
+  `ProjectGraphView`, full width/height, with zero chrome of its own.
+  Every action that used to be a top-bar button now lives in Setting >
+  **Project** (`project_settings_page.py` below) instead.
+  `current_project_id()`/`set_current_project()`/`add_repo()` are this
+  page's own single source of truth/entry points — `plugin.py` binds these
+  to `ProjectSettingsPage`'s `get_current_project_id`/
+  `set_current_project_id`/`add_repo` callbacks (`add_repo()` itself just
+  delegates to `ProjectGraphView.add_repo`), so a freshly-constructed
+  settings page always reads/writes/acts through to this persistent page
+  (matching every `CATEGORY_REPO` tab's own self-resolving-active-state
+  convention) rather than holding that state itself — picking a different
+  project or clicking Add Repo in Settings takes effect immediately, even
+  while that dialog is still open, since each is a plain synchronous call,
+  not deferred until the dialog closes (Add Repo's own `RepoDialog` opens
+  as a nested modal on top of the already-open Settings dialog, which Qt
+  handles fine). Implements the standard `set_repo()` page
+  protocol purely to keep the graph's active-node highlight (and which
+  project it's showing) in sync when the active repo changes elsewhere —
+  this page only *reacts* to active-repo changes, it never receives a
+  command to make one (that only happens via a node click, through
+  `bind_set_active_repo`).
+- `project_settings_page.py` — `ProjectSettingsPage`: a `CATEGORY_PROJECT`
+  Settings tab ("Project", added 2026-08-03), rendered by
+  `interface/settings/settings_view.py` under its own "PROJECT" header row
+  (alongside General/Developer) rather than in the Repository Setting
+  popup — every action that used to be `ProjectEditorPage`'s top bar: the
+  project `QComboBox` + "Add New Project..." + Rename/Delete Project, plus
+  Add Repo (moved here in a second pass the same day). Holds no state of
+  its own; every read/write/action goes through the
+  `get_current_project_id`/`set_current_project_id`/`add_repo` callbacks
+  `plugin.py` binds to `ProjectEditorPage.current_project_id`/
+  `set_current_project`/`add_repo`.
 - `project_graph_view.py` — `ProjectGraphView` (`QGraphicsView`),
   `RepoNodeItem` (`QGraphicsItem`, one per repo), and `PipelineEdgeItem`
   (`QGraphicsPathItem` with a hand-drawn arrowhead, one per directed
@@ -127,13 +156,22 @@ plugin were ever changed back to a normal section.
   passing near/behind it — with a selected node's connected edges
   highlighted yellow one z-level higher again (`_EDGE_HIGHLIGHT_Z_VALUE`,
   `ProjectGraphView._update_edge_highlights`). The view's own background is
-  `setBackgroundBrush`-ed to `_GRAPH_BACKGROUND_COLOR_HEX` (`#141517`,
-  added 2026-07-20), darker than the app-wide theme background it would
-  otherwise inherit, so the graph reads as its own recessed canvas.
+  painted in an overridden `drawBackground` (changed 2026-08-03 from a flat
+  `setBackgroundBrush` color) — a radial gradient from `_GRAPH_BACKGROUND_CENTER_HEX`
+  (`#3a3b3e`, gray) to `_GRAPH_BACKGROUND_EDGE_HEX` (`#0a0a0b`, near-black),
+  centered on the *viewport* (via `mapToScene(viewport().rect().center())`,
+  not scene coordinates) so panning never drags the glow off-center, plus a
+  faint white grid (`_GRID_SPACING`/`_GRID_LINE_ALPHA`) drawn in scene
+  coordinates on top so the grid itself does scroll/pan with the node
+  content, like graph paper. Darker than the app-wide theme background it
+  would otherwise inherit, so the graph reads as its own recessed canvas.
   - **Node visuals**: paints the repo's thumbnail fill-cropped (same crop
     math as `interface/login/repo_picker.py`'s `_RepoCard.paintEvent`) plus
     a name label; border/overlay react to two independent flags — `is_active`
-    (thick accent border) and `_is_hovered` (medium accent-hover border +
+    (thick border, `_EDGE_HIGHLIGHT_COLOR_HEX` — the same yellow as a
+    highlighted pipeline edge, changed 2026-08-03 from the theme's plain
+    accent color so an active node visually matches the highlighted arrows
+    pointing at/from it) and `_is_hovered` (medium accent-hover border +
     a subtle white wash over the thumbnail, set from `hoverEnterEvent`/
     `hoverLeaveEvent` — `setAcceptHoverEvents(True)` plus the existing
     `PointingHandCursor` together carry the "this is clickable" affordance).
@@ -170,11 +208,22 @@ plugin were ever changed back to a normal section.
     doesn't touch the scene, so it's called directly, no `QTimer` deferral
     needed), then rename/thumbnail/delete — every mutation delegated back
     to `ProjectGraphView`'s own methods rather than duplicated per node.
-  - **Bottom-right overlay HUD** (`ProjectGraphView._overlay`, a plain
-    child `QLabel` positioned by hand in `resizeEvent`/`_position_overlay`
-    rather than a layout, so it floats over the viewport without
-    scrolling/zooming with the graph content — added 2026-07-20):
-    active project name, active repo name, `Repo.last_synced`,
+  - **Bottom-right overlay HUD** (`ProjectGraphView._overlay_container`, a
+    plain child `QWidget` positioned by hand in `resizeEvent`/
+    `_position_overlay` rather than a layout of its own, so it floats over
+    the viewport without scrolling/zooming with the graph content — added
+    2026-07-20): a `QVBoxLayout` stacking two labels, changed 2026-08-03 to
+    split out the project name from the rest, and again 2026-08-03 to drop
+    `_overlay`'s own boxed `rgba(0,0,0,150)` background entirely (per the
+    user's own request — the whole HUD now reads as plain text floating
+    directly over the graph, not a panel) —
+    `_project_name_label` (oversized, bold, transparent background, just
+    the project's name with no "Project:" prefix) above `_overlay` (now
+    also `background: transparent`, no padding/border-radius since there's
+    no box left to pad): active repo name, `Repo.last_synced`
+    (reformatted via `_format_last_synced` — parses the stored UTC
+    isoformat string and renders it in the machine's own local time as
+    `"%d %b %Y, %H:%M"`, rather than showing the raw ISO string),
     `Repo.status`, and this repo's own pipeline connections
     (`pipeline_store.get_inputs`) split into "Input Custom Path"/"Output
     Custom Path" lines by each `RepoRef.direction` — the same wording
@@ -380,3 +429,9 @@ def resolve_pipeline_connection(api, project_id: str, repo_id: str, connection_i
 `SectionHost`/`SectionSpec.persistent`, `interface/plugin_api.py`'s
 `settings_tab_registry` wiring, or `interface/main_window.py`'s persistent-
 panel docking in `_build_main_ui` (all added specifically for this plugin).
+`interface/settings_tab_registry.py`'s `CATEGORY_PROJECT` and
+`interface/settings/settings_view.py`'s category-iteration tuple are the
+one other cross-boundary exception (added 2026-08-03 specifically to give
+`project_settings_page.py` a real "Project" header row in the app-level
+Setting popup) — a genuinely new settings category is framework-level,
+not something this plugin's own folder can add by itself.

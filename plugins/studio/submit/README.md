@@ -3,8 +3,7 @@
 The Submit tab (`SectionRegistry` key `repo_git_status`) — stage/unstage/
 revert, commit → pull → (resolve conflicts) → push, and the whole-repo
 commit log. A real always-on `plugins/studio/` plugin (see
-`core/extensibility/README.md` for the plugins-vs-add-ons distinction and
-`core/extensibility/loader.py` for how `manifest.json`/`plugin.py` are
+`core/extensibility/README.md` for how `manifest.json`/`plugin.py` are
 discovered/loaded) — not special-cased by `interface/`, registers into
 `SectionRegistry` the same way any other plugin would.
 
@@ -51,6 +50,13 @@ discovered/loaded) — not special-cased by `interface/`, registers into
   thread; shares `CommitCard`/`CommitHistoryEntry` with Explorer via
   `interface/shared/commit_history.py` (that shared helper module stays in
   `interface/`, imported normally by both plugins).
+
+`RepoGitStatusPage._on_push_finished` also pushes a
+`core.extensibility.notification_bus` entry (`source="submit"`, scoped to
+the just-pushed repo) once the commit → pull → push workflow actually
+succeeds, so it shows up in `plugins/studio/Notification/`'s tab too — same
+direct-import "socket" convention as `core.extensibility.debug_log`, no
+`api` handle needed (see that plugin's own README for the full contract).
 
 **Working here:** stay inside this folder unless the change needs a new
 `core/` primitive, a `interface/shared/` addition, or touches

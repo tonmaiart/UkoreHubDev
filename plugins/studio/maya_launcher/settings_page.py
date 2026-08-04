@@ -5,6 +5,7 @@ from typing import Callable
 from PySide6.QtWidgets import QCheckBox, QGroupBox, QLabel, QVBoxLayout, QWidget
 
 from core.exceptions import NotFoundError
+from plugins.studio.maya_launcher.link_resolution import linked_key, pinned_version
 from plugins.studio.maya_launcher.repo_tools_store import RepoToolsStore
 
 SOFTWARE_LINKER_PLUGIN_ID = "software_linker"
@@ -115,12 +116,14 @@ class MayaLauncherSettingsPage(QWidget):
         linked = self._api.plugin_config_store(SOFTWARE_LINKER_PLUGIN_ID, shared=False)
         lines = []
         for program in maya_programs:
-            path = linked.get(program.id)
+            version = pinned_version(repo, program)
+            path = linked.get(linked_key(program, version))
+            version_label = f"v{version}" if version else ""
             if path:
-                lines.append(f"✅ {program.name} v{program.version} — linked: {path}")
+                lines.append(f"✅ {program.name} {version_label} — linked: {path}")
             else:
                 lines.append(
-                    f"⚠️ {program.name} v{program.version} — not linked. "
+                    f"⚠️ {program.name} {version_label} — not linked. "
                     "Configure it in Settings > Software Linker."
                 )
         self._link_status_label.setText("\n".join(lines))

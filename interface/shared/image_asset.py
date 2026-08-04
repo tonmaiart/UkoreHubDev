@@ -11,7 +11,7 @@ IMAGE_FILE_FILTER = "Images (*.png *.jpg *.jpeg)"
 def pick_image_file(parent: QWidget, title: str) -> Path | None:
     """Opens a file picker restricted to the image extensions every icon/
     thumbnail chooser in this app uses (repo thumbnail, Browser Link icon,
-    Program icon, Add-on icon). Returns None if cancelled."""
+    Program icon). Returns None if cancelled."""
     file_path, _filter = QFileDialog.getOpenFileName(parent, title, "", IMAGE_FILE_FILTER)
     return Path(file_path) if file_path else None
 

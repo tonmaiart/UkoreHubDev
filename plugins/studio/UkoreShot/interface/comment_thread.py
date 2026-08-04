@@ -9,8 +9,6 @@ from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QLineEdit, QPushButto
 from interface.shared.widget_helpers import wrap_scrollable
 from plugins.studio.UkoreShot.core import comment_store
 
-_THREAD_MAX_HEIGHT = 140
-
 
 class _CommentBubble(QFrame):
     """One comment in the thread — author + timestamp, the text, and a
@@ -73,7 +71,6 @@ class CommentThread(QWidget):
         self.thread_layout.setSpacing(4)
         self.thread_layout.addStretch()
         self.thread_scroll = wrap_scrollable(self.thread_container)
-        self.thread_scroll.setMaximumHeight(_THREAD_MAX_HEIGHT)
 
         self.input_edit = QLineEdit()
         self.input_edit.setPlaceholderText("Write a comment...")
@@ -87,7 +84,7 @@ class CommentThread(QWidget):
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(self.thread_scroll)
+        layout.addWidget(self.thread_scroll, stretch=1)
         layout.addLayout(input_row)
 
     def set_comments(self, comments: list[dict]) -> None:

@@ -32,12 +32,15 @@ class Repo:
     thumbnail_filename: str | None = None
     description: str = ""
     required_program_ids: list[str] = field(default_factory=list)
-    enabled_addon_ids: list[str] = field(default_factory=list)
+    # Which specific version this repo launches for a multi-version Program
+    # in required_program_ids (e.g. {"<maya_program_id>": "2024"}) — see
+    # plugins/studio/maya_launcher/link_resolution.py's pinned_version().
+    # A Program with 0/1 versions needs no entry here.
+    program_version_pins: dict[str, str] = field(default_factory=dict)
     # Which plugins/studio + plugins/local entries actually apply to this
-    # repo — a distinct, brand-new key (not enabled_plugin_ids, which is
-    # already claimed as enabled_addon_ids' own legacy fallback key below).
-    # Empty means "unrestricted" (every discovered plugin stays active),
-    # so existing/unconfigured repos never silently lose functionality.
+    # repo. Empty means "unrestricted" (every discovered plugin stays
+    # active), so existing/unconfigured repos never silently lose
+    # functionality.
     active_plugin_ids: list[str] = field(default_factory=list)
     browser_links: list[BrowserLink] = field(default_factory=list)
 
@@ -56,9 +59,7 @@ class Repo:
             thumbnail_filename=data.get("thumbnail_filename"),
             description=data.get("description", ""),
             required_program_ids=data.get("required_program_ids", []),
-            # enabled_addon_ids replaces the older enabled_plugin_ids key —
-            # fall back to it so repos saved before this rename still load.
-            enabled_addon_ids=data.get("enabled_addon_ids", data.get("enabled_plugin_ids", [])),
+            program_version_pins=data.get("program_version_pins", {}),
             active_plugin_ids=data.get("active_plugin_ids", []),
             browser_links=[BrowserLink.from_dict(bl) for bl in data.get("browser_links", [])],
         )
@@ -68,7 +69,7 @@ class Repo:
 class Program:
     id: str
     name: str
-    version: str = ""
+    versions: list[str] = field(default_factory=list)
     icon_filename: str | None = None
     description: str = ""
 
@@ -77,37 +78,15 @@ class Program:
 
     @classmethod
     def from_dict(cls, data: dict) -> "Program":
+        # versions replaces the older single-string version key — fall back
+        # to it so catalog entries saved before this rename still load.
+        versions = data.get("versions") or ([data["version"]] if data.get("version") else [])
         return cls(
             id=data["id"],
             name=data["name"],
-            version=data.get("version", ""),
+            versions=versions,
             icon_filename=data.get("icon_filename"),
             description=data.get("description", ""),
-        )
-
-
-@dataclass
-class AddonMetadata:
-    """Studio-editable overrides layered on top of an add-on's own
-    manifest.json — icon, description override, and which Program(s) it
-    extends. Keyed by the manifest's own id, not owned by the add-on's
-    folder since add-on/ content is vendored code, not a JSON store."""
-
-    addon_id: str
-    icon_filename: str | None = None
-    description: str = ""
-    required_program_ids: list[str] = field(default_factory=list)
-
-    def to_dict(self) -> dict:
-        return asdict(self)
-
-    @classmethod
-    def from_dict(cls, data: dict) -> "AddonMetadata":
-        return cls(
-            addon_id=data["addon_id"],
-            icon_filename=data.get("icon_filename"),
-            description=data.get("description", ""),
-            required_program_ids=data.get("required_program_ids", []),
         )
 
 

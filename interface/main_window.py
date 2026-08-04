@@ -5,8 +5,17 @@ import sys
 from pathlib import Path
 from typing import Callable
 
-from PySide6.QtCore import QTimer
-from PySide6.QtWidgets import QHBoxLayout, QMainWindow, QMessageBox, QSplitter, QStackedWidget, QWidget
+from PySide6.QtCore import QTimer, Qt
+from PySide6.QtGui import QColor, QPainter
+from PySide6.QtWidgets import (
+    QHBoxLayout,
+    QMainWindow,
+    QMessageBox,
+    QSplitter,
+    QSplitterHandle,
+    QStackedWidget,
+    QWidget,
+)
 
 from core.exceptions import NotFoundError
 from core.extensibility.file_opener import FileOpenerRegistry
@@ -16,6 +25,7 @@ from core.github.token_store import TokenStore
 from core.paths import resolve_repo_path
 from core.program_store import ProgramStore
 from core.store import LocalConfigStore, MetadataStore, SystemConfigStore
+from core.theme import DEFAULT_THEME_NAME, get_theme
 from core.version import APP_NAME, APP_VERSION
 from interface import builtin_settings_tabs
 from interface.browser_links.browser_link_page import BrowserLinkPage
@@ -36,6 +46,51 @@ from interface.sidebar_footer_action_registry import SidebarFooterActionRegistry
 # not something that grows an already-taller window, so _build_main_ui()
 # also force-resizes if the window is currently shorter than this.
 MAIN_WINDOW_MIN_HEIGHT = 600
+
+# Width of the grab bar between view_stack and the persistent-section panel
+# (see _build_main_ui's content_splitter) — wide and hand-painted rather
+# than the default ~1px handle, which was too thin to reliably grab and
+# gave no visual cue it was draggable at all.
+_CONTENT_SPLITTER_HANDLE_WIDTH = 30
+
+
+class _ContentSplitterHandle(QSplitterHandle):
+    """Paints its own background instead of relying on QSS `::handle`/
+    `::handle:hover` selectors — those looked correct on paper but the
+    Windows native style (`windowsvista`) still painted over them, so
+    neither the resting bar color nor the hover highlight ever actually
+    showed up. Tracking hover state by hand (WA_Hover + enter/leaveEvent)
+    and filling the whole rect directly in paintEvent sidesteps that
+    native-style painting entirely, guaranteeing both the bar and its
+    hover highlight actually render."""
+
+    def __init__(self, orientation, parent):
+        super().__init__(orientation, parent)
+        self.setAttribute(Qt.WA_Hover, True)
+        self._hovered = False
+
+    def enterEvent(self, event) -> None:
+        self._hovered = True
+        self.update()
+        super().enterEvent(event)
+
+    def leaveEvent(self, event) -> None:
+        self._hovered = False
+        self.update()
+        super().leaveEvent(event)
+
+    def paintEvent(self, event) -> None:
+        colors = get_theme(DEFAULT_THEME_NAME)
+        painter = QPainter(self)
+        painter.fillRect(self.rect(), QColor(colors.accent if self._hovered else colors.border))
+
+
+class _ContentSplitter(QSplitter):
+    """QSplitter whose handles are _ContentSplitterHandle instead of the
+    plain native one — see that class's docstring for why."""
+
+    def createHandle(self) -> QSplitterHandle:
+        return _ContentSplitterHandle(self.orientation(), self)
 
 
 class MainWindow(QMainWindow):
@@ -153,6 +208,7 @@ class MainWindow(QMainWindow):
             set_status_message=self._set_status_message,
             navigate_and_focus=self._navigate_and_focus,
             set_active_repo=self._set_active_repo,
+            open_settings_tab=lambda key: self._on_settings_requested(select_key=key),
         )
         for spec in section_registry.ordered():
             if spec.wire is not None:
@@ -196,7 +252,8 @@ class MainWindow(QMainWindow):
         # share a user-resizable splitter, so the always-visible panel
         # doesn't permanently steal a fixed chunk of width from whichever
         # section is currently showing.
-        content_splitter = QSplitter()
+        content_splitter = _ContentSplitter()
+        content_splitter.setHandleWidth(_CONTENT_SPLITTER_HANDLE_WIDTH)
         content_splitter.addWidget(self.view_stack)
         for persistent_page in self._persistent_pages:
             content_splitter.addWidget(persistent_page)
@@ -295,13 +352,16 @@ class MainWindow(QMainWindow):
         self.view_stack.setCurrentIndex(index)
         self._apply_to_current_page()
 
-    def _on_settings_requested(self) -> None:
+    def _on_settings_requested(self, select_key: str | None = None) -> None:
         # Setting is its own icon button in Sidebar's footer, opened as a
         # popup dialog (reverted 2026-07-19 from an embedded view_stack
         # page back to a dialog — see SettingsDialog's own docstring) —
         # whatever section is showing behind it stays exactly as it was,
         # so unlike the old view_stack-page version there's no sidebar row
-        # to deselect here.
+        # to deselect here. select_key lets a section's own "Open Setting"
+        # button (via SectionHost.open_settings_tab) land directly on one
+        # tab instead of whatever opens by default — see
+        # interface/section_registry.py's SectionHost.
         dialog = SettingsDialog(self, settings_tab_registry=self.settings_tab_registry)
         common_settings_page = dialog.view.get_tab_widget(builtin_settings_tabs.COMMON)
         if common_settings_page is not None:
@@ -314,6 +374,8 @@ class MainWindow(QMainWindow):
         browser_links_page = dialog.view.get_tab_widget(builtin_settings_tabs.BROWSER_LINKS)
         if browser_links_page is not None:
             browser_links_page.browser_links_changed.connect(self._rebuild_dynamic_tabs)
+        if select_key is not None:
+            dialog.select_tab(select_key)
         dialog.exec()
 
     def _set_status_message(self, message: str) -> None:

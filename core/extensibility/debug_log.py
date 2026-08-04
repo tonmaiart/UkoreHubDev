@@ -1,4 +1,4 @@
-"""In-memory, cross-plugin debug log bus — any plugin/add-on/core module can
+"""In-memory, cross-plugin debug log bus — any plugin/core module can
 call log(source, message) from anywhere at runtime (not just inside
 register(api), unlike most of PluginAPI's registries), no `api` handle
 needed, same "construct/reach directly, convention not import" spirit

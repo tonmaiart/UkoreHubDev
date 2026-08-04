@@ -9,7 +9,7 @@ plugin's icons live in. Resolved from `../interface/player_widget.py` via
 up from `interface/player_widget.py` is `UkoreShot/` itself).
 
 Same reasoning as root `CLAUDE.md`'s "never open the image directories"
-rule for `data/thumbnails/`/`program_icons/`/`addon_icons/` applies here
+rule for `data/thumbnails/`/`program_icons/` applies here
 too — **don't open these PNGs speculatively**; they're binary assets, not
 something a session needs to read to understand or modify this plugin's
 behavior. If you need to know which icon a given button uses, check
@@ -37,6 +37,29 @@ button uses which):
 - `icons8-show-50.png` / `icons8-hide-50.png` — the view-mode Show/Hide
   Comments toggle.
 - `icons8-edit-50.png` — the Edit Comment button.
+
+Added 2026-08-03 for `video_library_page.py`'s library-panel toggle
+buttons (see `../interface/README.md`'s `video_library_page.py` entry):
+- `icons8-alphabetical-sorting-50.png` / `icons8-alphabetical-sorting-2-50.png`
+  — the sort-by-name A-Z / Z-A buttons (`sort_az_button`/`sort_za_button`).
+  The Z-A file was de-duped from a `"... (1).png"` download-suffix name per
+  this folder's own housekeeping rule below.
+- `icons8-time-machine-32.png` / `icons8-delivery-time-32.png` — the
+  sort-by-date Oldest / Newest buttons (`sort_oldest_button`/
+  `sort_newest_button`).
+- `icons8-grid-50.png` / `icons8-grid-2-24.png` — the Small / Large
+  thumbnail view-mode buttons (`view_small_button`/`view_large_button`).
+- `icons8-video-50.png` — the Sidebar tab icon for this whole section, set
+  via `SectionSpec.icon_path` in `../plugin.py` (`_ICON_PATH`), not
+  `player_widget.py`'s `_ICONS_DIR` — this is the one icon in this folder
+  that isn't a `PlayerWidget`/`video_library_page.py` button.
+
+Added 2026-08-03 for `player_widget.py`'s Select tool and Clear Frame
+buttons (`_SELECT_ICON_PATH`/`_CLEAR_ICON_PATH`):
+- `icons8-cursor-24.png` — the Select tool button.
+- `icons8-delete-all-50.png` — the Clear Frame button (replaced the earlier
+  text-label fallback described in `../interface/README.md`'s
+  `player_widget.py` entry).
 
 **Working here:** if a task needs a new icon for this plugin, add the PNG
 directly to this folder (not `data/icons/`) and point a new

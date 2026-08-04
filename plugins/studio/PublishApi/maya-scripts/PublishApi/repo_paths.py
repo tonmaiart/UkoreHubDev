@@ -11,9 +11,10 @@ As of 2026-07-19, Project Editor only has ONE kind of pipeline connection
 to distinguish anymore (see plugins/studio/project_editor/README.md for
 why). Functions/parameters here still talk about "output" from a
 Publisher plugin's own point of view (the destination it publishes into),
-since that's still what get_publish_root() resolves — it's just reading
-the same unified "pipeline_inputs" list Project Editor now stores
-everything in, not a distinct "pipeline_outputs" one."""
+since that's still what tickets.py's get_publish_root_for_ticket()
+resolves through these helpers — it's just reading the same unified
+"pipeline_inputs" list Project Editor now stores everything in, not a
+distinct "pipeline_outputs" one."""
 
 from __future__ import annotations
 
@@ -130,91 +131,12 @@ def get_custom_path(project_id: str, repo_id: str, custom_path_id: str | None) -
     return None
 
 
-def get_chosen_output_ref(tool_id: str) -> dict | None:
-    """The pipeline connection a studio admin picked as `tool_id`'s
-    publish destination on the active repo, via that tool's own Repo
-    Studio Setting tab (e.g. plugins/studio/ModelPublisher's
-    ModelPublisherSettingsPage) — read directly off that tool's own
-    PluginConfigStore file (data/plugins/studio/<tool_id>.json), same
-    "construct the store straight off disk" approach every function here
-    uses. None if nothing has been chosen yet for this repo
-    (get_publish_root falls back to "the repo's only declared
-    connection" in that case, if unambiguous)."""
-    root = find_ukorehub_root()
-    from core.extensibility.config_store import PluginConfigStore
-
-    project, repo, _ = get_active_repo()
-    if project is None:
-        return None
-
-    tool_store = PluginConfigStore(root / "data" / "plugins" / "studio" / f"{tool_id}.json")
-    key = f"{project.id}:{repo.id}"
-    return tool_store.get("repo_publish_target", {}).get(key)
-
-
-def get_publish_root(tool_id: str) -> str:
-    """The publish destination root `tool_id` (e.g. "model_publisher")
-    builds its output path under, for whichever repo is currently active
-    in Maya — the chosen pipeline connection's target repo path, joined
-    with its chosen CustomPath's own relative path.
-
-    Resolution order:
-    1. If a studio admin has explicitly chosen one of the active repo's
-       pipeline connections for this specific tool (get_chosen_output_ref),
-       use that.
-    2. Else, if the active repo has exactly ONE declared pipeline
-       connection, use it — no ambiguity to resolve, so the common case
-       needs no per-tool configuration at all.
-    3. Else, raise: multiple pipeline connections exist and none has been
-       chosen for this tool yet.
-
-    Raises RuntimeError with a human-readable reason in every failure case
-    (no active repo, no pipeline connection declared, ambiguous choice,
-    target repo not cloned yet, chosen CustomPath no longer exists) rather
-    than returning None/falling back to anything else — callers (each
-    Publisher plugin's function.py) should catch this and show the
-    message to the artist directly."""
-    project, repo, _ = get_active_repo()
-    if project is None:
-        raise RuntimeError(
-            "No active repo selected in UkoreHub. Open UkoreHub, pick a project/repo, then try again."
-        )
-
-    connections = get_pipeline_refs()
-    if not connections:
-        raise RuntimeError(
-            "'{}' has no pipeline connection declared in Project Editor. "
-            "Add one under Repository Setting > Custom Paths > Connect Input Path... "
-            "before publishing.".format(repo.name)
-        )
-
-    ref = get_chosen_output_ref(tool_id)
-    if ref is None:
-        if len(connections) == 1:
-            ref = connections[0]
-        else:
-            raise RuntimeError(
-                "'{}' has {} pipeline connections declared and none is chosen for this tool yet. "
-                "Pick one under Repository Setting's Repo Studio Setting tab for this tool.".format(
-                    repo.name, len(connections)
-                )
-            )
-
-    resolved = resolve_ref(ref)
-    if resolved is None:
-        raise RuntimeError(f"'{repo.name}'s chosen pipeline connection's target repo no longer exists.")
-    _target_project, target_repo, target_repo_path = resolved
-
-    if not target_repo_path.is_dir():
-        raise RuntimeError(
-            f"Pipeline connection target repo '{target_repo.name}' hasn't been cloned yet — clone it in UkoreHub first."
-        )
-
-    custom_path = get_custom_path(ref["project_id"], ref["repo_id"], ref.get("custom_path_id"))
-    if custom_path is None:
-        raise RuntimeError(
-            f"'{target_repo.name}'s declared Custom Path for this pipeline connection no longer exists — "
-            "re-pick a target under Repository Setting's Repo Studio Setting tab for this tool."
-        )
-
-    return str(target_repo_path / custom_path["path"])
+# Note: this file used to also have get_chosen_output_ref(tool_id) and
+# get_publish_root(tool_id) — a single Publish Path chosen per tool per
+# repo, read from a UkoreHub-side Repo Studio Setting tab. Removed
+# 2026-08-03 when ModelPublisher/RigPublisher/AnimationPublisher moved to
+# user-managed per-ticket Publish Paths entirely configured in Maya — see
+# tickets.py's get_publish_root_for_ticket(tool_id, ticket), which
+# resolves a specific ticket's own stored ref through the same
+# resolve_ref()/get_custom_path() helpers below instead of one shared
+# per-repo choice.

@@ -17,6 +17,9 @@ def register(api) -> None:
     contributions = bridge.get("contributions", {})
     contributions[TOOL_ID] = {
         "PYTHONPATH": {ANY_VERSION: [str(tool_root / "maya-scripts")]},
+        "ADVANCEDSKELETON_ROOT": {
+            ANY_VERSION: [str(tool_root / "maya-scripts" / "AdvancedSkeleton")]
+        },
     }
     bridge.set("contributions", contributions)
     labels = bridge.get("labels", {})

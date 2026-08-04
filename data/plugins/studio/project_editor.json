@@ -148,6 +148,13 @@
               "project_id": "0e05b23f-3bab-4183-b78c-2d47f46d0c62",
               "repo_id": "15a60116-70f9-436a-9340-57567d105d19"
             }
+          ],
+          "custom_paths": [
+            {
+              "id": "c0df85730c90434ba45e670c6204bd7e",
+              "label": "PrePublishRig",
+              "path": "PrePublish"
+            }
           ]
         },
         "4ce4bf6a-8769-4cff-bdec-58c01442f968": {

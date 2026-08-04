@@ -1,15 +1,15 @@
 ---
 name: ukorehub-plugin
-description: Token-scoping discipline for UkoreHub's plugins/ folder (C:\Tonmai\UkoreHub) — when a task names a specific plugin (Explorer, Submit, SoftwareLinker, MayaLauncher, or a new one) or the target path is under plugins/studio/<Name>/ or plugins/local/<Name>/, read and edit ONLY that plugin's own folder — never open a sibling plugin's source as a side effect. Use this for any plugin-specific task even if the user doesn't say "scope" or "context" explicitly; for how plugins are discovered/authored in general see plugins/README.md, and for the plugin/add-on discovery mechanics see the ukorehub-core skill. For the analogous discipline on add-on/<Name>/ (repo-scoped, opt-in extensions — a different concept from plugins/), see the ukorehub-addon skill instead.
+description: Token-scoping discipline for UkoreHub's plugins/ folder (C:\Tonmai\UkoreHub) — when a task names a specific plugin (Explorer, Submit, SoftwareLinker, MayaLauncher, or a new one) or the target path is under plugins/studio/<Name>/ or plugins/local/<Name>/, read and edit ONLY that plugin's own folder — never open a sibling plugin's source as a side effect. Use this for any plugin-specific task even if the user doesn't say "scope" or "context" explicitly; for how plugins are discovered/authored in general see plugins/README.md, and for the plugin discovery mechanics see the ukorehub-core skill.
 ---
 
 # Working on a single plugin — stay inside its folder
 
 `plugins/studio/` and `plugins/local/` hold UkoreHub's own always-on
 sub-systems, sitting side by side (see `plugins/README.md` for the full
-authoring guide). Same reasoning as `add-on/`'s folders (`ukorehub-addon`
-skill): reading one plugin has **zero information value** for working on a
-different one, even though some plugins are larger, multi-file trees
+authoring guide). Reading one plugin has **zero information value** for
+working on a different one, even though some plugins are larger, multi-file
+trees
 rather than the single-`plugin.py` shape `software_linker` uses —
 `explorer`/`submit` are ordinary multi-file plugins.
 `plugins/studio/maya_launcher/` itself is small (just the launch/env-merge

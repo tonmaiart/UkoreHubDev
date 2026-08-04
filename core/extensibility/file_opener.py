@@ -9,26 +9,18 @@ from core.models import Repo
 
 @dataclass(frozen=True)
 class FileOpenerSpec:
-    addon_id: str
+    plugin_id: str
     extensions: frozenset[str]
     opener: Callable[[Path, Repo], bool]
-    # True for an always-on plugins/ opener (e.g. maya_launcher) that does
-    # its own internal per-repo gating instead of the repo-scoped add-on
-    # opt-in model — see core/extensibility/README.md. False (default)
-    # keeps the normal add-on behavior: only matches when addon_id is in
-    # the caller-supplied enabled_addon_ids.
-    always_enabled: bool = False
 
 
 class FileOpenerRegistry:
-    """Lets a repo-scoped add-on claim responsibility for opening certain
-    file extensions instead of falling back to the OS default association —
+    """Lets a plugin claim responsibility for opening certain file
+    extensions instead of falling back to the OS default association —
     e.g. launching Maya with custom environment variables instead of just
-    `os.startfile()`. Gated by which add-ons the *active repo* has enabled
-    (Repo.enabled_addon_ids), matching the existing Add-on model (per-repo
-    opt-in, not a global always-on toggle like plugins/).
+    `os.startfile()`.
 
-    Plain list, not a key->spec dict like the other registries — an add-on
+    Plain list, not a key->spec dict like the other registries — a plugin
     may register several extension groups, and there's no meaningful
     "duplicate" to reject here."""
 
@@ -38,10 +30,9 @@ class FileOpenerRegistry:
     def register(self, spec: FileOpenerSpec) -> None:
         self._specs.append(spec)
 
-    def find_opener(self, path: Path, enabled_addon_ids: list[str]) -> Callable[[Path, Repo], bool] | None:
+    def find_opener(self, path: Path) -> Callable[[Path, Repo], bool] | None:
         suffix = path.suffix.lower()
-        enabled = set(enabled_addon_ids)
         for spec in self._specs:
-            if (spec.always_enabled or spec.addon_id in enabled) and suffix in spec.extensions:
+            if suffix in spec.extensions:
                 return spec.opener
         return None

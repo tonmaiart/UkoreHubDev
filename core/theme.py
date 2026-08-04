@@ -104,7 +104,7 @@ def build_stylesheet(colors: ThemeColors) -> str:
         font-size: 14px;
     }}
     QListWidget#sectionTabList::item {{
-        padding: 6px 12px;
+        padding: 0;
         border: none;
     }}
     QListWidget#sectionTabList::item:hover {{
@@ -112,7 +112,20 @@ def build_stylesheet(colors: ThemeColors) -> str:
     }}
     QListWidget#sectionTabList::item:selected {{
         background-color: {colors.accent};
+    }}
+    QWidget#sectionTabRow {{
+        background: transparent;
+    }}
+    QLabel#sectionTabLabel[current="true"] {{
         color: white;
+        font-weight: bold;
+    }}
+    QLabel#sectionTabBadge {{
+        background-color: {colors.error};
+        color: white;
+        border-radius: 8px;
+        padding: 1px 6px;
+        font-size: 11px;
         font-weight: bold;
     }}
     QWidget#sidebarFooter {{
@@ -181,6 +194,16 @@ def build_stylesheet(colors: ThemeColors) -> str:
         border: 1px solid {colors.border};
         border-radius: 4px;
     }}
+    QFrame#notificationCard {{
+        background-color: {colors.surface};
+        border: 1px solid {colors.border};
+        border-radius: 6px;
+        padding: 8px 10px;
+        margin-bottom: 6px;
+    }}
+    QFrame#notificationCard[clickable="true"]:hover {{
+        background-color: {colors.hover};
+    }}
     QLabel[status="cloned"] {{
         color: {colors.success};
     }}
@@ -195,6 +218,11 @@ def build_stylesheet(colors: ThemeColors) -> str:
         font-weight: bold;
         padding-bottom: 4px;
         border-bottom: 1px solid {colors.border};
+    }}
+    QLabel#ukoreShotSectionTitle {{
+        font-size: 14px;
+        font-weight: bold;
+        padding-bottom: 2px;
     }}
     QScrollArea#commitHistoryScroll {{
         background-color: {colors.surface_alt};

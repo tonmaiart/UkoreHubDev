@@ -1,9 +1,8 @@
 # plugins/
 
 UkoreHub's own always-on sub-systems — active for **every** project, all the
-time, with no per-repo toggle. Contrast with `add-on/` (repo-scoped, opt-in
-via `Repo.enabled_addon_ids`) — see `core/extensibility/README.md` for the
-full Plugins-vs-Add-ons writeup if you haven't read it yet. This file is the
+time, with no per-repo toggle. See `core/extensibility/README.md` for the
+discovery/loading mechanism if you haven't read it yet — this file is the
 "how do I write one" guide; that one is the "how does discovery/loading
 work" reference.
 
@@ -20,8 +19,7 @@ When a task names a specific plugin (or the target path is under
 `plugins/studio/<Name>/`/`plugins/local/<Name>/`), read and edit **only
 that folder**. Don't open a sibling plugin "just in case" — each one is
 independent, and reading one has zero information value for working on a
-different one (same reasoning as `add-on/`'s folders — see
-`add-on/README.md`). Check the plugin's own `README.md` first if it has one
+different one. Check the plugin's own `README.md` first if it has one
 (same folder-README convention as `core/`/`interface/` — see root
 `CLAUDE.md`).
 
@@ -51,10 +49,9 @@ plugins/studio/YourPluginName/
   "description": "One sentence describing what this plugin registers."
 }
 ```
-`id` must be globally unique across every plugin *and* add-on (both share
-one discovery namespace). `api_version` must match the app's current
-`PLUGIN_API_VERSION` (`interface/plugin_api.py`) or your plugin is skipped
-with a `PluginLoadFailure`, not a crash.
+`id` must be globally unique across every plugin. `api_version` must match
+the app's current `PLUGIN_API_VERSION` (`interface/plugin_api.py`) or your
+plugin is skipped with a `PluginLoadFailure`, not a crash.
 
 `entry_point` (conventionally `plugin.py`) needs exactly one function:
 ```python
@@ -74,9 +71,9 @@ A single-file plugin (`software_linker`) just imports from `interface.*`/
 `core.*` — nothing to coordinate. A **multi-file** plugin (`explorer`,
 `submit` — each 6-8 files) needs its own files to import each other too.
 The loader only ever imports the `entry_point` file directly (via
-`importlib.util.spec_from_file_location`, a standalone load, same mechanism
-`add-on/` uses) — but that entry file's own `import` statements are
-resolved normally, so a multi-file plugin folder is set up as a **real,
+`importlib.util.spec_from_file_location`, a standalone load) — but that
+entry file's own `import` statements are resolved normally, so a
+multi-file plugin folder is set up as a **real,
 plain Python package**: an empty `__init__.py` in the plugin's own folder
 (plus one in `plugins/` and `plugins/studio/` themselves, already present),
 so sibling files import each other with ordinary absolute imports —
@@ -90,8 +87,7 @@ data with another plugin" below instead.
 
 ## `api` — what `register(api)` receives
 
-`api` is a `PluginAPI` instance (`interface/plugin_api.py`), the exact same
-object every add-on gets too:
+`api` is a `PluginAPI` instance (`interface/plugin_api.py`):
 - `api.metadata` — `MetadataStore` (the Project/Repo registry).
 - `api.programs` — the shared Program catalog (`ProgramStore`);
   `.get_program(id)` raises `core.exceptions.NotFoundError`, not
@@ -115,9 +111,14 @@ object every add-on gets too:
   visible instead of a normal switchable sidebar row/tab — a rare need,
   currently only `plugins/studio/project_editor/` (see that plugin's
   README and `interface/main_window.py`'s `_build_main_ui`).
-- `api.register_settings_tab`, `api.register_repo_addon_panel`,
-  `api.register_file_opener`, `api.register_git_hook` — the remaining
-  registries, shared with add-ons too.
+  `trailing_widget_factory` is a further optional field — a small widget
+  built once and shown at the right edge of this section's own sidebar row
+  (e.g. `plugins/studio/Notification/`'s unread-count badge); the plugin
+  keeps its own reference to the returned widget and updates it directly,
+  `SectionTabList` only lays it out. A general status-widget slot, not
+  Notification-specific.
+- `api.register_settings_tab`, `api.register_file_opener`,
+  `api.register_git_hook` — the remaining registries.
 
 ## Sharing data with another plugin: `plugin_config_store`, not imports
 
@@ -127,11 +128,10 @@ unrelated plugins that independently construct a store with the **same
 `plugin_id` string** share the same file — no coupling, no import, just
 agreeing on a string and a JSON shape in advance. `shared=True` writes to
 the git-tracked studio config dir; `shared=False` writes to the gitignored
-per-machine dir. `add-on/MayaLauncher/plugin.py` reading
+per-machine dir. `plugins/studio/maya_launcher/plugin.py` reading
 `plugins/studio/software_linker`'s per-machine `maya.exe` path via
 `api.plugin_config_store("software_linker", shared=False)` is the real
-worked example — see `add-on/README.md`'s "Sharing data with another
-add-on" section (the convention is identical for plugins and add-ons).
+worked example, without importing SoftwareLinker's code at all.
 
 ## `SectionSpec.wire`/`SectionHost`: cross-plugin UI coordination, not imports
 
@@ -151,13 +151,13 @@ focusing a file), don't import the other plugin's page type. Use:
 
 ## Testing
 
-Same as `add-on/`: `plugin.py` files aren't reachable by normal `import` in
-a pytest test *from outside their own package* (the loader always imports
-the `entry_point` standalone via `importlib.util.spec_from_file_location`,
+`plugin.py` files aren't reachable by normal `import` in a pytest test
+*from outside their own package* (the loader always imports the
+`entry_point` standalone via `importlib.util.spec_from_file_location`,
 regardless of whether the folder is also a real package internally). If
 `register(api)` or a helper is worth covering:
 - Pure, Qt-free logic → extract it into a real `core/` module and test it
   normally.
 - Logic that only makes sense inside the plugin → verify with a throwaway
-  scratchpad script, same pattern as `add-on/README.md`'s Testing section
-  describes.
+  scratchpad script that loads the module the same way the real loader
+  does.

@@ -29,6 +29,7 @@ from plugins.studio.UkoreShot.interface.comment_thread import CommentThread
 from plugins.studio.UkoreShot.interface.draw_overlay import (
     TOOL_BRUSH,
     TOOL_ERASER,
+    TOOL_SELECT,
     TOOL_TEXT,
     DrawOverlay,
     ReadOnlyCommentOverlay,
@@ -45,6 +46,8 @@ _ICONS_DIR = Path(__file__).resolve().parents[1] / "images"
 _BRUSH_ICON_PATH = _ICONS_DIR / "icons8-paint-50.png"
 _ERASER_ICON_PATH = _ICONS_DIR / "icons8-eraser-50.png"
 _TEXT_ICON_PATH = _ICONS_DIR / "icons8-text-50.png"
+_SELECT_ICON_PATH = _ICONS_DIR / "icons8-cursor-24.png"
+_CLEAR_ICON_PATH = _ICONS_DIR / "icons8-delete-all-50.png"
 _PREV_FRAME_ICON_PATH = _ICONS_DIR / "icons8-chevron-left-26.png"
 _NEXT_FRAME_ICON_PATH = _ICONS_DIR / "icons8-right-26.png"
 _PREV_COMMENT_ICON_PATH = _ICONS_DIR / "icons8-double-left-26.png"
@@ -57,6 +60,7 @@ _SHOW_ICON_PATH = _ICONS_DIR / "icons8-show-50.png"
 _HIDE_ICON_PATH = _ICONS_DIR / "icons8-hide-50.png"
 _EDIT_COMMENT_ICON_PATH = _ICONS_DIR / "icons8-edit-50.png"
 _EDIT_COMMENT_BUTTON_SIZE = 32
+_COLOR_BUTTON_SIZE = 24  # "1x1" square swatch, no "Color" text label — per the user's own 2026-08-03 request
 
 _MARK_COLOR = QColor(get_theme(DEFAULT_THEME_NAME).warning)
 
@@ -298,17 +302,29 @@ class PlayerWidget(QWidget):
         )
 
         if show_edit_tools:
-            # Tool row — Brush/Eraser/Text, kept as its own strip above the
-            # video (not mixed into draw_row's other controls below) so
-            # which of the three is active reads at a glance, moved here
-            # 2026-07-20 per the user's own request. Three mutually
-            # exclusive modes (QButtonGroup) — not "two modes plus a
-            # one-shot action": Text used to be a plain click action that
-            # left Brush's drawing active underneath, so repositioning a
-            # text box could also draw a stroke at the same time (fixed
+            # Undo/Redo — leftmost in the row (moved there 2026-08-03 per
+            # the user's own request; used to sit at the end of the old
+            # separate draw_row). self.draw_overlay already exists (built
+            # earlier in this constructor) so these wire straight to it.
+            self.undo_button = QPushButton()
+            self._set_button_icon(self.undo_button, _UNDO_ICON_PATH, "Undo")
+            self.undo_button.clicked.connect(self.draw_overlay.undo)
+            self.redo_button = QPushButton()
+            self._set_button_icon(self.redo_button, _REDO_ICON_PATH, "Redo")
+            self.redo_button.clicked.connect(self.draw_overlay.redo)
+
+            # Brush/Eraser/Text/Select — kept as their own cluster in this
+            # row (moved here 2026-07-20 per the user's own request; Select
+            # added 2026-08-03, also per the user's own request, purely for
+            # moving/deleting an existing stroke or text box — see
+            # draw_overlay.py's DrawOverlay/TOOL_SELECT docstring). Four
+            # mutually exclusive modes (QButtonGroup) — not "three modes
+            # plus a one-shot action": Text used to be a plain click action
+            # that left Brush's drawing active underneath, so repositioning
+            # a text box could also draw a stroke at the same time (fixed
             # 2026-07-20 — see draw_overlay.py's DrawOverlay._tool). Icons
-            # expected at data/icons/icons8-{paint,eraser,text}-50.png —
-            # _set_button_icon falls back to a text label instead of a
+            # expected at ../images/icons8-{paint,eraser,text,cursor}-*.png
+            # — _set_button_icon falls back to a text label instead of a
             # blank button when a given icon file isn't there yet.
             # `checked` styling (core/theme.py's QToolButton:checked) is
             # what actually makes the active tool visually obvious, not
@@ -331,21 +347,63 @@ class PlayerWidget(QWidget):
             self.text_tool_button = QToolButton()
             self._set_button_icon(self.text_tool_button, _TEXT_ICON_PATH, "Text")
             self.text_tool_button.setCheckable(True)
-            self.text_tool_button.setToolTip("Text (3) — click the canvas to place a box")
+            self.text_tool_button.setToolTip("Text (3) — click empty canvas to add, click existing text to edit")
             self.text_tool_button.toggled.connect(
                 lambda checked: self.draw_overlay.set_tool(TOOL_TEXT) if checked else None
+            )
+            self.select_tool_button = QToolButton()
+            self._set_button_icon(self.select_tool_button, _SELECT_ICON_PATH, "Select")
+            self.select_tool_button.setCheckable(True)
+            self.select_tool_button.setToolTip("Select (4) — move or Delete an existing stroke/text box")
+            self.select_tool_button.toggled.connect(
+                lambda checked: self.draw_overlay.set_tool(TOOL_SELECT) if checked else None
             )
             self._tool_button_group = QButtonGroup(self)
             self._tool_button_group.setExclusive(True)
             self._tool_button_group.addButton(self.brush_tool_button)
             self._tool_button_group.addButton(self.eraser_tool_button)
             self._tool_button_group.addButton(self.text_tool_button)
+            self._tool_button_group.addButton(self.select_tool_button)
+
+            # Color — a plain 1x1 square swatch, no "Color" text label
+            # (changed 2026-08-03 per the user's own request); the
+            # background-color itself (see _update_color_button) is
+            # already the whole point of the button.
+            self.color_button = QPushButton()
+            self.color_button.setFixedSize(_COLOR_BUTTON_SIZE, _COLOR_BUTTON_SIZE)
+            self.color_button.setToolTip("Brush color")
+            self.color_button.clicked.connect(self._on_pick_color)
+            self._current_color = QColor("#ff3b30")
+            self._update_color_button()
+            # Shared by both Brush (stroke width) and Eraser (hit-test
+            # radius) — see draw_overlay.py's _brush_width docstring. Also
+            # adjustable via the "F" resize gesture on the canvas itself
+            # (DrawOverlay.toolSizeChanged keeps this slider in sync then).
+            self.brush_slider = QSlider(Qt.Horizontal)
+            self.brush_slider.setRange(1, 60)
+            self.brush_slider.setValue(4)
+            self.brush_slider.setMaximumWidth(120)
+            self.brush_slider.valueChanged.connect(self.draw_overlay.set_brush_width)
+
+            # Clear Frame — flush right (changed 2026-08-03 per the user's
+            # own request), an icon button instead of a text button.
+            self.clear_button = QPushButton()
+            self._set_button_icon(self.clear_button, _CLEAR_ICON_PATH, "Clear Frame")
+            self.clear_button.setToolTip("Clear Frame")
+            self.clear_button.clicked.connect(self.draw_overlay.clear_frame)
 
             tool_row = QHBoxLayout()
+            tool_row.addWidget(self.undo_button)
+            tool_row.addWidget(self.redo_button)
             tool_row.addWidget(self.brush_tool_button)
             tool_row.addWidget(self.eraser_tool_button)
             tool_row.addWidget(self.text_tool_button)
+            tool_row.addWidget(self.select_tool_button)
+            tool_row.addWidget(self.color_button)
+            tool_row.addWidget(QLabel("Size"))
+            tool_row.addWidget(self.brush_slider)
             tool_row.addStretch()
+            tool_row.addWidget(self.clear_button)
 
         self.play_button = QPushButton()
         self._set_button_icon(self.play_button, _PLAY_ICON_PATH, "Play")
@@ -487,7 +545,8 @@ class PlayerWidget(QWidget):
             self._redo_shortcut = QShortcut(QKeySequence("Ctrl+Shift+Z"), self)
             self._redo_shortcut.setContext(Qt.WidgetWithChildrenShortcut)
             self._redo_shortcut.activated.connect(self._redo_if_not_typing)
-            # "1"/"2"/"3" select Brush/Eraser/Text — same _is_typing() guard.
+            # "1"/"2"/"3"/"4" select Brush/Eraser/Text/Select — same
+            # _is_typing() guard.
             self._brush_tool_shortcut = QShortcut(QKeySequence(Qt.Key_1), self)
             self._brush_tool_shortcut.setContext(Qt.WidgetWithChildrenShortcut)
             self._brush_tool_shortcut.activated.connect(lambda: self._select_tool_if_not_typing(self.brush_tool_button))
@@ -497,6 +556,9 @@ class PlayerWidget(QWidget):
             self._text_tool_shortcut = QShortcut(QKeySequence(Qt.Key_3), self)
             self._text_tool_shortcut.setContext(Qt.WidgetWithChildrenShortcut)
             self._text_tool_shortcut.activated.connect(lambda: self._select_tool_if_not_typing(self.text_tool_button))
+            self._select_tool_shortcut = QShortcut(QKeySequence(Qt.Key_4), self)
+            self._select_tool_shortcut.setContext(Qt.WidgetWithChildrenShortcut)
+            self._select_tool_shortcut.activated.connect(lambda: self._select_tool_if_not_typing(self.select_tool_button))
 
         # main_column holds everything this widget used to lay out
         # directly on itself — now wrapped so comment_sidebar (below) can
@@ -511,65 +573,26 @@ class PlayerWidget(QWidget):
         layout.addLayout(transport_row)
 
         if show_edit_tools:
-            self.color_button = QPushButton("Color")
-            self.color_button.clicked.connect(self._on_pick_color)
-            self._current_color = QColor("#ff3b30")
-            self._update_color_button()
-            # Shared by both Brush (stroke width) and Eraser (hit-test
-            # radius) — see draw_overlay.py's _brush_width docstring. Also
-            # adjustable via the "F" resize gesture on the canvas itself
-            # (DrawOverlay.toolSizeChanged keeps this slider in sync then).
-            self.brush_slider = QSlider(Qt.Horizontal)
-            self.brush_slider.setRange(1, 60)
-            self.brush_slider.setValue(4)
-            self.brush_slider.setMaximumWidth(120)
-            self.brush_slider.valueChanged.connect(self.draw_overlay.set_brush_width)
-            self.clear_button = QPushButton("Clear Frame")
-            self.clear_button.clicked.connect(self.draw_overlay.clear_frame)
-            self.undo_button = QPushButton()
-            self._set_button_icon(self.undo_button, _UNDO_ICON_PATH, "Undo")
-            self.undo_button.clicked.connect(self.draw_overlay.undo)
-            self.redo_button = QPushButton()
-            self._set_button_icon(self.redo_button, _REDO_ICON_PATH, "Redo")
-            self.redo_button.clicked.connect(self.draw_overlay.redo)
-
-            draw_row = QHBoxLayout()
-            draw_row.addWidget(self.color_button)
-            draw_row.addWidget(QLabel("Size"))
-            draw_row.addWidget(self.brush_slider)
-            draw_row.addWidget(self.clear_button)
-            draw_row.addWidget(self.undo_button)
-            draw_row.addWidget(self.redo_button)
-            draw_row.addStretch()
-
             # Facebook-style multi-user comment thread — replaces the old
             # single note_edit QTextEdit 2026-07-20 per the user's own
             # request ("เหมือนกด comment fb"): any number of comments per
             # frame, each tagged with an author + timestamp, each
-            # individually deletable. See comment_thread.py. Lives in
-            # right_column (below), not main_column — moved out from
-            # under draw_row 2026-07-20 per the user's own request
-            # ("ย้ายช่อง comment ไปทางขวามือ") so the whole right edge of
-            # the widget is comment-related (frame list on top, the
-            # actual thread underneath) instead of being split across
-            # both sides.
+            # individually deletable. See comment_thread.py. Lives in its
+            # own thread_column (below), not main_column, so it gets a
+            # full-height column to itself at the far right — split out
+            # from right_column (which still just holds comment_sidebar)
+            # 2026-08-03 per the user's own request for more comment-box
+            # height and its own rightmost column.
             self.comment_thread = CommentThread()
             self.comment_thread.commentsChanged.connect(self._on_comments_changed)
 
-            layout.addLayout(draw_row)
-
             self.draw_overlay.set_color(self._current_color)
 
-        # Right-hand column — comment_sidebar (frame list, both modes) on
-        # top, comment_thread (edit mode only) underneath it, per the
-        # user's own 2026-07-20 request to move the comment box to the
-        # right side. comment_sidebar itself is used in both modes (per an
-        # earlier 2026-07-20 request: view mode gets "the same" sidebar
-        # edit mode has). comment_sidebar gets the stretch since
-        # comment_thread's own thread_scroll already caps its height
-        # (_THREAD_MAX_HEIGHT in comment_thread.py) — comment_thread
-        # shouldn't stretch to fill leftover space. Populated from
-        # self._frames whenever that data changes — see
+        # Right-hand column — comment_sidebar (frame list, both modes), per
+        # the user's own 2026-07-20 request to move the comment box to the
+        # right side. Used in both modes (per an earlier 2026-07-20
+        # request: view mode gets "the same" sidebar edit mode has).
+        # Populated from self._frames whenever that data changes — see
         # load_video/clear_video/_save_current_frame, all of which call
         # _refresh_comment_indicators().
         self.comment_sidebar = CommentSidebar()
@@ -579,13 +602,24 @@ class PlayerWidget(QWidget):
         right_layout = QVBoxLayout(right_column)
         right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.addWidget(self.comment_sidebar, stretch=1)
-        if show_edit_tools:
-            right_layout.addWidget(self.comment_thread)
 
         outer_layout = QHBoxLayout(self)
         outer_layout.setContentsMargins(0, 0, 0, 0)
         outer_layout.addWidget(main_column, stretch=1)
         outer_layout.addWidget(right_column)
+
+        if show_edit_tools:
+            # comment_thread gets its own full-height column at the far
+            # right (split out from right_column 2026-08-03 per the user's
+            # own request for more comment-box height) — stretch=1 here
+            # plus comment_thread.py's own thread_scroll stretch lets it
+            # fill the column instead of being capped to a short strip
+            # underneath comment_sidebar.
+            thread_column = QWidget()
+            thread_layout = QVBoxLayout(thread_column)
+            thread_layout.setContentsMargins(0, 0, 0, 0)
+            thread_layout.addWidget(self.comment_thread, stretch=1)
+            outer_layout.addWidget(thread_column)
 
         self._set_paused_state(True)
 

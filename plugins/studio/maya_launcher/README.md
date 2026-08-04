@@ -93,7 +93,7 @@ after every plugin has finished registering (see `core/extensibility/loader.py`)
 
 | Tool plugin | Contributes |
 |---|---|
-| `plugins/studio/AdvancedSkeleton` | `PYTHONPATH` |
+| `plugins/studio/AdvancedSkeleton` | `PYTHONPATH` + `ADVANCEDSKELETON_ROOT` (single-directory value, not a search-path list — see that plugin's README) |
 | `plugins/studio/MayaNgskin` | `PYTHONPATH` + versioned `MAYA_PLUG_IN_PATH` |
 | `plugins/studio/MayaToolkit` | `PYTHONPATH` + flat `MAYA_PLUG_IN_PATH` |
 | `plugins/studio/mGear` | `MAYA_MODULE_PATH` + `MGEAR_SHIFTER_COMPONENT_PATH` |
@@ -255,6 +255,30 @@ inside the same MEL string (not a positional CLI arg) so `setProject` is
 guaranteed to run first: `[maya_exe, "-command", mel_command]`, nothing
 else on the command line.
 
+## Deferred reference loading for Ukore Reference Editor
+
+`open_maya_file` opens with two extra flags —
+`-loadReferenceDepth "none" -prompt false`
+(`_set_project_and_open_command`'s `defer_reference_load` param) — whenever
+`plugins/studio/UkoreReferenceEditor`'s tool id (`UKORE_REFERENCE_EDITOR_TOOL_ID
+= "ukore_reference_editor"`, convention-only match with that plugin's own
+`TOOL_ID`) is in this repo's `enabled_tool_ids`. `-loadReferenceDepth "none"`
+leaves every reference in the scene unloaded regardless of whether its file
+resolves; `-prompt false` is the flag that actually stops Maya's own native
+"could not find file" dialog from appearing — `-loadReferenceDepth` alone
+does **not** suppress it (Maya still validates each reference's path
+independently of whether it loads the content — confirmed empirically, see
+`bug-history/2026-08-03-reference-native-dialog-not-suppressed-by-loadreferencedepth.md`).
+`UkoreReferenceEditor`'s `kAfterOpen` callback
+(`plugins/studio/MayaToolkit/maya-plug-ins/ukoreMaya.py`) is what actually
+loads every reference back afterward — redirecting the broken ones first,
+per its own internal/external/Connect-Input-Path rules — so this plugin
+never needs to know anything about *how* references get fixed, only that
+something downstream will load them. This is why the flag is gated on
+`enabled_tool_ids` rather than always on: without UkoreReferenceEditor
+enabled for a repo, there'd be nothing to load the references back, and
+every scene from that repo would open with everything permanently unloaded.
+
 ## Failure mode: repo needs Maya but nothing is linked
 
 `open_maya_file` deliberately does **not** silently fall back to the OS
@@ -265,6 +289,26 @@ Settings → Maya Launcher / Software Linker, and returns `True` (meaning
 `open_with_default_app`). Silent fallback was explicitly rejected because
 it would make missing env injection indistinguishable from a
 working-but-unconfigured setup.
+
+## Standalone launch for plugins/studio/program_launcher/
+
+Added 2026-08-03. `plugins/studio/program_launcher/`'s card grid (one
+square card per Program a repo requires) used to `subprocess.Popen` the
+raw linked exe for every Program, Maya included — which skipped
+`setProject`/env-merge/force-load-plugins entirely. `register(api)` now
+also calls `api.register_program_launcher(ProgramLaunchSpec(match=...,
+launch=launch_maya_standalone))` (`interface/program_launch_registry.py`)
+— `match` is `"maya" in program.name.lower()`, same substring check
+`_maya_programs_for_repo` already used; `launch_maya_standalone(repo)`
+does everything `open_maya_file` does except the `file -open` (just
+`setProject`, no scene). The resolve-linked-exe step (`_find_linked_maya`)
+and the bridge-read/env-merge/force-load-plugin-names step
+(`_prepare_env_and_plugins`) were extracted out of `open_maya_file` so
+both entry points share them rather than duplicating the logic. This is a
+convention-only registration, not a coupling — `program_launcher` never
+imports this plugin; it just checks `api.program_launch_registry.
+find_launcher(program)` before falling back to its own generic exe
+launch, and finds this plugin's spec by Program name match at click time.
 
 ## Adding a new nested tool
 

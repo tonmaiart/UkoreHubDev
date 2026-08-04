@@ -5,7 +5,8 @@ a local executable path on this machine — per-machine data, since "what's
 installed here" is never team-shared. A single-file plugin (unlike
 `plugins/studio/explorer/`/`submit/`, which are multi-file — see
 `plugins/README.md`'s "Multi-file plugins" section for why that's a
-different setup).
+different setup). See `core/extensibility/README.md` for the plugin
+discovery mechanism.
 
 - `manifest.json` — plugin id `software_linker`, entry point `plugin.py`.
 - `plugin.py` — everything in one file:
@@ -21,10 +22,10 @@ different setup).
   - `register(api)` — registers `SoftwareLinkerPage` as a Settings tab via
     `api.register_settings_tab(...)`. The page's `config_store` is
     `api.plugin_config_store(PLUGIN_ID, shared=False)` — per-machine, keyed
-    by Program id. **Other plugins/add-ons read this same mapping** by
+    by Program id. **Other plugins read this same mapping** by
     calling `api.plugin_config_store("software_linker", shared=False)`
-    themselves (e.g. `add-on/MayaLauncher/plugin.py` reading a linked
-    `maya.exe` path) — no coupling API needed, just agreeing on the
+    themselves (e.g. `plugins/studio/maya_launcher/plugin.py` reading a
+    linked `maya.exe` path) — no coupling API needed, just agreeing on the
     `"software_linker"` id string. See `plugins/README.md`'s "Sharing data
     with another plugin" section.
 

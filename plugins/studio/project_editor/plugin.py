@@ -1,14 +1,18 @@
 from __future__ import annotations
 
 from interface.section_registry import SectionHost, SectionSpec
-from interface.settings_tab_registry import CATEGORY_REPO, SettingsTabSpec
+from interface.settings_tab_registry import CATEGORY_PROJECT, CATEGORY_REPO, SettingsTabSpec
 from plugins.studio.project_editor.custom_paths_settings_page import CustomPathsSettingsPage
 from plugins.studio.project_editor.pipeline_store import PipelineStore
 from plugins.studio.project_editor.project_editor_page import ProjectEditorPage
+from plugins.studio.project_editor.project_settings_page import ProjectSettingsPage
+from plugins.studio.project_editor.requirements_settings_page import RequirementsSettingsPage
 
 PLUGIN_ID = "project_editor"
 SECTION_KEY = PLUGIN_ID
+PROJECT_SETTINGS_KEY = "project_editor_project"
 CUSTOM_PATHS_SETTINGS_KEY = "project_editor_custom_paths"
+REQUIREMENTS_SETTINGS_KEY = "project_editor_requirements"
 
 
 def _wire(page: ProjectEditorPage, host: SectionHost) -> None:
@@ -21,8 +25,6 @@ def register(api) -> None:
         store=api.metadata,
         local_config_store=api.local_config,
         program_store=api.programs,
-        addon_store=api.addon_store,
-        addon_catalog=api.addon_catalog,
         pipeline_store=pipeline_store,
         settings_tab_registry=api.settings_tab_registry,
     )
@@ -44,6 +46,21 @@ def register(api) -> None:
     )
     api.register_settings_tab(
         SettingsTabSpec(
+            key=PROJECT_SETTINGS_KEY,
+            label="Project",
+            order=0,
+            page_factory=lambda: ProjectSettingsPage(
+                store=api.metadata,
+                get_current_project_id=page.current_project_id,
+                set_current_project_id=page.set_current_project,
+                add_repo=page.add_repo,
+            ),
+            on_activated=lambda widget: widget.refresh(),
+            category=CATEGORY_PROJECT,
+        )
+    )
+    api.register_settings_tab(
+        SettingsTabSpec(
             key=CUSTOM_PATHS_SETTINGS_KEY,
             label="Custom Paths",
             order=15,
@@ -51,6 +68,20 @@ def register(api) -> None:
                 store=api.metadata,
                 local_config_store=api.local_config,
                 pipeline_store=pipeline_store,
+            ),
+            on_activated=lambda widget: widget.refresh(),
+            category=CATEGORY_REPO,
+        )
+    )
+    api.register_settings_tab(
+        SettingsTabSpec(
+            key=REQUIREMENTS_SETTINGS_KEY,
+            label="Requirements",
+            order=26,
+            page_factory=lambda: RequirementsSettingsPage(
+                store=api.metadata,
+                local_config_store=api.local_config,
+                program_store=api.programs,
             ),
             on_activated=lambda widget: widget.refresh(),
             category=CATEGORY_REPO,

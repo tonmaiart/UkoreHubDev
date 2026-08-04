@@ -35,7 +35,7 @@ context.
 **Every folder should have a `README.md`.** This is a token-budget rule,
 not just documentation: a good folder README lets a session understand
 what's inside without opening every file in it. When you create a new
-folder (a new `add-on/<Name>/`, a new subfolder under `core/` or
+folder (a new `plugins/studio/<Name>/`, a new subfolder under `core/` or
 `interface/`), add a short `README.md` to it in the same style as the
 existing ones (see `core/README.md` for the reference tone/format — a
 short intro paragraph, then a flat bullet list of what each file/subfolder
@@ -43,22 +43,17 @@ does and how they relate).
 
 ## Scoped editing — stay inside the folder the task names
 
-When a task is about one specific area — a single `add-on/<Name>/`, a
-single `plugins/studio/<Name>/` or `plugins/local/<Name>/`, `core/`, or
-`interface/` — read and edit only that folder. Don't open sibling folders
-"just in case" unless the task genuinely crosses the boundary (e.g. a
-`core/` change whose call sites in `interface/` also need updating).
-Concretely:
-- Told to fix/change an add-on → touch only `add-on/<Name>/`. See the
-  `ukorehub-addon` skill and `add-on/README.md` for why sibling add-ons
-  especially shouldn't be opened, and how cross-add-on data sharing works
-  without reading another add-on's source.
+When a task is about one specific area — a single `plugins/studio/<Name>/`
+or `plugins/local/<Name>/`, `core/`, or `interface/` — read and edit only
+that folder. Don't open sibling folders "just in case" unless the task
+genuinely crosses the boundary (e.g. a `core/` change whose call sites in
+`interface/` also need updating). Concretely:
 - Told to fix/change a plugin (Explorer, Submit, SoftwareLinker,
   MayaLauncher, or a new one) → touch only its own
   `plugins/studio/<Name>/`/`plugins/local/<Name>/`
-  folder. See the `ukorehub-plugin` skill and `plugins/README.md` for the
-  same discipline as add-ons — never open a sibling plugin's source, and
-  cross-plugin data/UI coordination goes through the documented
+  folder. See the `ukorehub-plugin` skill and `plugins/README.md` — never
+  open a sibling plugin's source, and cross-plugin data/UI coordination
+  goes through the documented
   `plugin_config_store`/`SectionHost` conventions, not imports.
 - Told to fix/change `core/` → touch only `core/` unless the change
   requires updating an `interface/` call site.
@@ -104,14 +99,11 @@ any change to a shared JSON store is safe to discard or revert.
   thumbnails/icons) plus gitignored per-machine config. See
   [data/README.md](data/README.md) — don't open the JSON stores unless the
   task needs a concrete current value, and never open the image
-  directories (`thumbnails/`, `program_icons/`, `addon_icons/`) at all.
-- `plugins/` vs `add-on/` — Plugins are UkoreHub's own always-on sub-systems
-  (every project, never toggled); Add-ons are per-repo opt-in extensions
-  (`Repo.enabled_addon_ids`, shared team data). Different concepts — see
-  `core/extensibility/README.md` before touching either, and see
-  `plugins/README.md`/`add-on/README.md` plus the `ukorehub-plugin`/
-  `ukorehub-addon` skills for the "stay inside one folder" editing
-  discipline each uses.
+  directories (`thumbnails/`, `program_icons/`) at all.
+- `plugins/` — UkoreHub's own always-on sub-systems (every project, never
+  toggled). See `core/extensibility/README.md` for the discovery mechanism
+  and `plugins/README.md` plus the `ukorehub-plugin` skill for the "stay
+  inside one folder" editing discipline it uses.
 - `projects/` — **the actual workspace root**, pointed to by
   `data/local_config.json`'s `workspace_root`: real cloned production repos
   (Maya/Blender scenes, huge binaries, studio artwork), gitignored. **Never

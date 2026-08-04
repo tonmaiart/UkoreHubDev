@@ -22,6 +22,9 @@ references both.
 - [2026-07-20 — Playblast wrote into C:\<name> instead of the repo's Custom Path](2026-07-20-playblast-custom-path-leading-slash.md) — `plugins/studio/UkoreShotPlayblast/`, `plugins/studio/UkoreShot/video_path_store.py`
 - [2026-07-20 — Draw overlay never received mouse input (two unrelated root causes)](2026-07-20-draw-overlay-native-video-widget.md) — `plugins/studio/UkoreShot/player_widget.py`, `draw_overlay.py`, `plugins/studio/DebugConsole/`, `core/extensibility/debug_log.py`
 - [2026-07-20 — Repositioning a text box also drew a brush stroke at the same time](2026-07-20-text-tool-drew-strokes-simultaneously.md) — `plugins/studio/UkoreShot/draw_overlay.py`, `player_widget.py`
+- [2026-07-30 — "Quick Script..." menu item crashed with ModuleNotFoundError: QuickScript](2026-07-30-quickscript-menu-item-dangling-rename.md) — `plugins/studio/MayaToolkit/maya-scripts/UkoreMaya/core/menu_utils.py`, `maya-plug-ins/ukoreMaya.py`
+- [2026-08-03 — RigPublisher published into C:\<name> instead of the repo's Custom Path](2026-08-03-publishapi-custom-path-leading-slash.md) — `plugins/studio/PublishApi/maya-scripts/PublishApi/repo_paths.py` (same leading-slash pattern as the 2026-07-20 entry above — two more unfixed instances flagged, not yet fixed)
+- [2026-08-03 — Maya's native "could not find file" dialog still appeared despite `-loadReferenceDepth "none"`](2026-08-03-reference-native-dialog-not-suppressed-by-loadreferencedepth.md) — `plugins/studio/maya_launcher/plugin.py` (`_set_project_and_open_command`)
 
 ## Adding a new entry
 

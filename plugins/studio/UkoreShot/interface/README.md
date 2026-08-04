@@ -23,14 +23,20 @@ unambiguous despite the shared name.
   `RigPublisherSettingsPage`, just pointed at `custom_paths` instead of
   `pipeline_inputs` (via `../core/video_path_store.py`).
 - `video_library_page.py` — `UkoreShotPage`, the section's top-level
-  widget, plus `_VideoCard`. `PlayerWidget(show_edit_tools=False)` (top
-  half — `content_layout` gives `player_panel`/`library_panel` equal
-  `stretch=1` so the page always splits 50/50) handles plain playback for
-  whichever video is selected. The "Edit Comment" button used to live in
-  this page's own `player_panel`, right underneath the player — moved
-  *inside* `PlayerWidget` itself (still view-mode only) on 2026-07-20, as
-  a square icon button next to Show/Hide Comments, so this page now just
-  connects to `player_widget.editCommentRequested` and opens
+  widget, plus `_VideoCard`. Its Sidebar tab icon is
+  `icons8-video-50.png` (added 2026-08-03, wired up via
+  `SectionSpec.icon_path` in `../plugin.py`, not from this file).
+  `PlayerWidget(show_edit_tools=False)` (top half — `content_layout` gives
+  `player_panel`/`library_panel` equal `stretch=1` so the page always
+  splits 50/50) handles plain playback for whichever video is selected —
+  labeled `player_title`, a `QLabel("Playblast Viewer")` (objectName
+  `ukoreShotSectionTitle`, styled via `core/theme.py`, added 2026-08-03 per
+  the user's own request) placed above it in `player_panel`. The "Edit
+  Comment" button used to live in this page's own `player_panel`, right
+  underneath the player — moved *inside* `PlayerWidget` itself (still
+  view-mode only) on 2026-07-20, as a square icon button next to
+  Show/Hide Comments, so this page now just connects to
+  `player_widget.editCommentRequested` and opens
   `EditVideoDialog(self._selected_card.video_path, self)` — no button of
   its own anymore. Note the inline `PlayerWidget` here already shows a
   *read-only* rendering of each frame's comments plus the same right-hand
@@ -38,9 +44,11 @@ unambiguous despite the shared name.
   `EditVideoDialog` is only needed to actually *add/edit* a comment now,
   not merely to see one.
 
-  Bottom half (`library_panel`) is `filter_sidebar` (a `FilterSidebar` —
-  see that file, added 2026-07-20) on the left, next to `library_content`
-  on the right: a `controls_row` (Refresh, then the four sort buttons —
+  Bottom half (`library_panel`) is one vertical stack (changed 2026-08-03,
+  see below) headed by `library_title`, a `QLabel("Playblast Library")`
+  (same `ukoreShotSectionTitle` styling as `player_title`), then
+  `filter_sidebar` (a `FilterSidebar` — see that file, added 2026-07-20),
+  then `controls_row` (Refresh, then the four sort buttons —
   `sort_az_button`/`sort_za_button`/`sort_oldest_button`/
   `sort_newest_button`, one exclusive `QButtonGroup`, `_sort_videos`
   applies whichever's checked — then, right-aligned via a stretch, the two
@@ -56,6 +64,45 @@ unambiguous despite the shared name.
   args (one of `_CARD_SIZES["small"]`/`["large"]`, chosen by the view-mode
   buttons) instead of hard-coded module constants, so switching the toggle
   rebuilds the grid at a different size.
+
+  `library_panel` used to be an `QHBoxLayout` split between
+  `filter_sidebar` (a fixed-width left column) and everything else —
+  changed 2026-08-03 per the user's own request
+  ("ตัว filter enum ให้มันเรียงเป็นแนวนอน ขึ้น row ใหม่ ให้อยู่บน row sort file")
+  to one `QVBoxLayout` instead, since `filter_sidebar` itself became a
+  horizontal row of categories that now sits as its own row directly above
+  `controls_row` (see `filter_sidebar.py`'s own entry for that layout
+  change).
+
+  `_selected_video_path` (alongside `_selected_card`, a `_VideoCard`
+  reference torn down and rebuilt by every `_clear_cards()`) survives a
+  `_apply_filter()` rebuild and is what `_restore_or_default_selection`
+  (called at the end of `_apply_filter`, added 2026-08-03) uses to keep
+  whichever video was selected across a filter/sort/view-size change if
+  it's still in the rebuilt list — falling back to the most recently
+  modified video (`p.stat().st_mtime`) whenever there's no prior
+  selection, which is what actually makes "opening the UkoreShot tab
+  always shows the latest playblast" (the user's own request) work:
+  `_reload_videos` (called from `set_repo`, itself called on every repo
+  switch or tab refocus) explicitly resets `_selected_video_path` to
+  `None` before its own `_apply_filter()` call, so that first population
+  after a repo load/refocus always hits the "no prior selection" fallback
+  branch.
+
+  All six of `controls_row`'s sort/view buttons are `QToolButton` (not
+  `QPushButton`, changed 2026-08-03 per the user's own request for a
+  colored toggle state) with an icon from `../images/` set via
+  `PlayerWidget._set_button_icon` (reused rather than duplicated —
+  `PlayerWidget` is already imported here) —
+  `icons8-alphabetical-sorting-50.png`/`icons8-alphabetical-sorting-2-50.png`
+  (A-Z/Z-A), `icons8-time-machine-32.png`/`icons8-delivery-time-32.png`
+  (Oldest/Newest), `icons8-grid-50.png`/`icons8-grid-2-24.png`
+  (Small/Large). `QToolButton` rather than `QPushButton` matters here
+  because `core/theme.py`'s `QToolButton:checked` rule (accent background)
+  is what actually shows which single choice in each exclusive
+  `QButtonGroup` is active — a plain `QPushButton` has no such rule, same
+  reasoning `player_widget.py`'s brush/eraser/text toolbox already relies
+  on.
 
   `_reload_videos` scans `resolve_video_root(...)` (`../core/video_path_store.py`)
   recursively for every `.mov`/`.mp4`/`.avi` file — a video flat-named
@@ -105,18 +152,27 @@ unambiguous despite the shared name.
   `set_repo(project, repo, workspace_root)` page protocol
   (`interface/main_window.py`'s `_apply_to_current_page`).
 - `filter_sidebar.py` — `FilterSidebar`, added 2026-07-20: the library's
-  left-hand filter panel, one multi-select `QListWidget` per category
-  (Sequence, Shot Name, Variation, Index, Version, Commented By —
-  `_CATEGORIES`) inside a `wrap_scrollable` column, plus a `search_edit`
-  free-text box above them. Selecting several values within one category
-  is OR; selecting across categories is AND — this widget only exposes
-  the raw state (`selected_values(category)`, `search_text()`) and a
-  single `filtersChanged` signal, `video_library_page.py`'s
-  `_video_matches_filters` is what actually combines them.
-  `set_available_values(values_by_category)` rebuilds every list from
-  scratch (called after every `_reload_videos()` rescan) while preserving
-  selection for values that still exist, so a Refresh doesn't silently
-  clear an active filter.
+  filter panel, one multi-select `QListWidget` per category (Sequence,
+  Shot Name, Variation, Index, Version, Commented By — `_CATEGORIES`),
+  plus a `search_edit` free-text box above them. Selecting several values
+  within one category is OR; selecting across categories is AND — this
+  widget only exposes the raw state (`selected_values(category)`,
+  `search_text()`) and a single `filtersChanged` signal,
+  `video_library_page.py`'s `_video_matches_filters` is what actually
+  combines them. `set_available_values(values_by_category)` rebuilds
+  every list from scratch (called after every `_reload_videos()` rescan)
+  while preserving selection for values that still exist, so a Refresh
+  doesn't silently clear an active filter.
+
+  Laid out horizontally — one `_COLUMN_WIDTH`-wide column per category,
+  packed left-to-right in a `categories_row` `QHBoxLayout` below
+  `search_edit` — changed 2026-08-03 per the user's own request
+  ("ตัว filter enum ให้มันเรียงเป็นแนวนอน ขึ้น row ใหม่ ให้อยู่บน row sort file")
+  from the original fixed-width (`_WIDTH`) vertical left sidebar that used
+  to sit beside the rest of `library_panel`; `video_library_page.py` now
+  places this whole widget as its own row directly above `controls_row`
+  instead. No longer wrapped in a `wrap_scrollable` — six ~140px columns
+  comfortably fit the library panel's now-full width.
 - `flow_layout.py` — `FlowLayout`, Qt's well-known "Flow Layout" `QLayout`
   recipe (packs children left-to-right, wraps to a new row on overflow,
   `heightForWidth`-driven so a `QScrollArea(widgetResizable=True)` around
@@ -223,7 +279,7 @@ unambiguous despite the shared name.
   `undo_button`/`redo_button` -> `DrawOverlay.undo`/`redo` — the typing
   guard matters more here than most, since `QTextEdit`/`QPlainTextEdit`
   already have their own native Ctrl+Z, which must keep working normally
-  while typing — and "1"/"2"/"3" select Brush/Eraser/Text
+  while typing — and "1"/"2"/"3"/"4" select Brush/Eraser/Text/Select
   (`_select_tool_if_not_typing` checks the corresponding toolbox button
   rather than calling `DrawOverlay.set_tool` directly, so the toolbox's
   own checked-state display stays in sync exactly like a mouse click
@@ -231,30 +287,41 @@ unambiguous despite the shared name.
 
   `show_edit_tools` (constructor kwarg, default `True`) gates the
   interactive drawing machinery: when `True`, builds `DrawOverlay`
-  (stacked over the video by `_VideoStack`) and a `tool_row` —
-  `brush_tool_button`/`eraser_tool_button`/`text_tool_button`
-  (`QToolButton`, all three checkable and mutually exclusive via one
-  `QButtonGroup` — see `draw_overlay.py`'s `DrawOverlay._tool` for why
-  Text became a real exclusive mode 2026-07-20, not a one-shot action,
-  icons from `../images/icons8-{paint,eraser,text}-50.png` via
+  (stacked over the video by `_VideoStack`) and a single merged `tool_row`,
+  laid out left-to-right as: Undo (`icons8-undo-30.png`) / Redo
+  (`icons8-redo-30.png`) leftmost (moved there 2026-08-03 per the user's
+  own request; used to be at the end of a separate `draw_row`) — then
+  `brush_tool_button`/`eraser_tool_button`/`text_tool_button`/
+  `select_tool_button` (`QToolButton`, all four checkable and mutually
+  exclusive via one `QButtonGroup` — see `draw_overlay.py`'s
+  `DrawOverlay._tool` for why Text became a real exclusive mode
+  2026-07-20, not a one-shot action, and `TOOL_SELECT`'s own docstring for
+  why Select was added 2026-08-03; icons from
+  `../images/icons8-{paint,eraser,text,cursor}-*.png` via
   `_set_button_icon`, which falls back to a text label when a given icon
   file isn't there yet either way; `core/theme.py`'s (app's top-level)
   `QToolButton:checked` rule is what actually makes the active tool
   visually obvious, filling it with the accent color) — each button's
   `toggled` connects straight to
-  `DrawOverlay.set_tool(TOOL_BRUSH|TOOL_ERASER|TOOL_TEXT)` (only on
-  `checked=True`, since the exclusive group also fires `toggled(False)`
-  for whichever button just got deselected). `tool_row` is inserted as
-  the *first* item in the main column — above `video_stack_widget`, in
-  its own strip separate from `draw_row`'s other controls below the video
-  — moved there 2026-07-20 per the user's own request, so which of the
-  three tools is active reads at a glance rather than being mixed in
-  among Color/Size/Clear/Undo/Redo. `draw_row` (still below the video)
-  holds Color, a shared Size slider (`brush_slider`, drives both brush
-  width and eraser radius — see `draw_overlay.py` — and stays in sync
-  with the canvas's own "F" resize gesture via
-  `DrawOverlay.toolSizeChanged` -> `_on_tool_size_changed`), Clear Frame,
-  Undo (`icons8-undo-30.png`), Redo (`icons8-redo-30.png`).
+  `DrawOverlay.set_tool(TOOL_BRUSH|TOOL_ERASER|TOOL_TEXT|TOOL_SELECT)`
+  (only on `checked=True`, since the exclusive group also fires
+  `toggled(False)` for whichever button just got deselected) — then Color
+  (`color_button`, a plain `_COLOR_BUTTON_SIZE`x`_COLOR_BUTTON_SIZE` "1x1"
+  square swatch with no "Color" text label, changed 2026-08-03 per the
+  user's own request — the background-color itself, see
+  `_update_color_button`, is already the whole point of the button) and a
+  shared Size slider (`brush_slider`, drives both brush width and eraser
+  radius — see `draw_overlay.py` — and stays in sync with the canvas's
+  own "F" resize gesture via `DrawOverlay.toolSizeChanged` ->
+  `_on_tool_size_changed`) — then a stretch, pushing Clear Frame
+  (`clear_button`, icon `icons8-delete-all-50.png`, changed 2026-08-03
+  from a "Clear Frame" text button, per the user's own request) flush to
+  the row's right edge. Color/Size/Clear/Undo/Redo used to live in their
+  own `draw_row` underneath the video, separate from the tool buttons
+  above it; merged into `tool_row` 2026-08-03 per the user's own request
+  so the whole drawing toolbar reads as a single strip. `tool_row` is
+  inserted as the *first* item in the main column, above
+  `video_stack_widget`.
 
   Since 2026-07-20, edit mode also builds a `CommentThread`
   (`comment_thread.py`, `self.comment_thread`) instead of the single
@@ -262,18 +329,22 @@ unambiguous despite the shared name.
   thread ("เหมือนกด comment fb" — the user's own words), any number of
   comments per frame, each tagged with an author
   (`comment_store.current_username()`, `../core/comment_store.py`) and
-  timestamp, each individually deletable. Unlike `draw_row`, `comment_thread`
-  is *not* laid out inside `main_column` — it lives in `right_column` (see
-  "Right-hand column" below), moved there the same day per the user's own
-  request ("ย้ายช่อง comment ไปทางขวามือ") so the whole right edge of the
-  widget is comment-related. `commentsChanged` -> `_on_comments_changed`
-  -> `_save_current_frame(comments=...)`, owning loading/saving each
-  frame's strokes + comments + text boxes through `../core/comment_store.py`.
-  A frame saved before 2026-07-20 may still only have the old single
-  `"note"` string — `_migrate_comments` (a `@staticmethod` on
-  `PlayerWidget`, called from `_load_current_frame`) wraps that into a
-  one-item comments list for display; saving the thread again (any
-  post/delete) replaces `"note"` with `"comments"` for that frame entirely.
+  timestamp, each individually deletable. `comment_thread` is *not* laid
+  out inside `main_column` at all — it lives in its own `thread_column`
+  (see "Right-hand column" below), a dedicated full-height column at the
+  far right, split out from `right_column` 2026-08-03 per the user's own
+  request for more comment-box height and its own rightmost column
+  (previously it sat underneath `comment_sidebar` inside `right_column`,
+  capped to a short strip by `comment_thread.py`'s own
+  `thread_scroll.setMaximumHeight`, removed the same day). `commentsChanged`
+  -> `_on_comments_changed` -> `_save_current_frame(comments=...)`, owning
+  loading/saving each frame's strokes + comments + text boxes through
+  `../core/comment_store.py`. A frame saved before 2026-07-20 may still
+  only have the old single `"note"` string — `_migrate_comments` (a
+  `@staticmethod` on `PlayerWidget`, called from `_load_current_frame`)
+  wraps that into a one-item comments list for display; saving the thread
+  again (any post/delete) replaces `"note"` with `"comments"` for that
+  frame entirely.
 
   When `show_edit_tools=False` (the library page's inline preview), none
   of that interactive toolbar/canvas machinery is built — but
@@ -302,21 +373,23 @@ unambiguous despite the shared name.
   or `ReadOnlyCommentOverlay.set_frame` from the same
   `self._frames["frames"]` entry.
 
-  **Right-hand column** (`right_column`, a plain `QWidget`) holds
-  `comment_sidebar` (a `CommentSidebar` — see `comment_sidebar.py`) on
-  top, `stretch=1` since its own height should fill whatever
-  `comment_thread` (edit mode only, underneath it, not stretched — its
-  `thread_scroll` already caps its own height, see `comment_thread.py`)
-  doesn't use. `comment_sidebar` is built unconditionally, in both modes,
+  **Right-hand columns** — `self` is an outer `QHBoxLayout` with
+  everything else wrapped in a `main_column` widget instead
+  (`main_column, stretch=1` + `right_column` + `thread_column`, edit mode
+  only) so both right-hand columns sit to the right of the whole player,
+  not just the video. `right_column` (a plain `QWidget`) holds only
+  `comment_sidebar` (a `CommentSidebar` — see `comment_sidebar.py`),
+  `stretch=1`. `comment_sidebar` is built unconditionally, in both modes,
   per the user's own 2026-07-20 request that view mode get "the same"
-  sidebar edit mode has; `comment_thread` only exists in edit mode (see
-  its own entry above) and is only added to `right_column` when
-  `show_edit_tools` is `True` — moved here from underneath `draw_row` the
-  same day per the user's own request ("ย้ายช่อง comment ไปทางขวามือ").
-  `self` is an outer `QHBoxLayout` with everything else wrapped in a
-  `main_column` widget instead (`main_column, stretch=1` + `right_column`)
-  so the whole right-hand column sits to the right of the whole player,
-  not just the video. `comment_sidebar.frameSelected` -> `_jump_to_frame`
+  sidebar edit mode has. `thread_column` (edit mode only) holds only
+  `comment_thread`, also `stretch=1` — split into its own dedicated
+  rightmost column 2026-08-03 per the user's own request
+  ("แยกเป็น column ใหม่ทางขวาสุด") for a taller comment box; before that it
+  sat inside `right_column`, underneath `comment_sidebar`, height-capped
+  by `comment_thread.py`'s own `thread_scroll.setMaximumHeight` (removed
+  the same day — `thread_scroll` now takes `stretch=1` in
+  `CommentThread`'s own layout instead, so it fills whatever height
+  `thread_column` gives it). `comment_sidebar.frameSelected` -> `_jump_to_frame`
   (jumps to an exact frame, unlike `_jump_to_comment_frame`'s "nearest"
   search) is connected once in `__init__`; `_refresh_comment_indicators()`
   (rebuilds `comment_sidebar`'s rows *and* `position_slider`'s tick marks
@@ -333,55 +406,112 @@ unambiguous despite the shared name.
   same day to match `interface/settings/settings_view.py`'s (the app's
   top-level `interface/`) `SettingsView.tab_list` style per the user's own
   request ("ให้ใช้เป็น tab แบบเดียวกับใน setting") instead of the card grid
-  it started as: a plain fixed-width (`_WIDTH`) `QListWidget`, one row per
-  frame with a saved comment, sorted top-to-bottom by frame index, each
-  row just the frame number (no "Frame" label — "คำว่า frame ไม่ต้องเอามา",
-  the user's own words). `set_frames(frames_dict)` rebuilds every row from
-  scratch from `PlayerWidget._frames["frames"]`. Deliberately connects to
-  `currentRowChanged`, not `itemClicked` — `QListWidget`'s native
-  press-and-drag-across-rows selection behavior (the same thing
-  `SettingsView.tab_list` gets for free) then scrubs through commented
-  frames live as you drag, matching the user's own "ลากเลือกได้" (can be
-  drag-selected) request. `set_current_frame(index)` highlights whichever
-  row matches the frame currently playing without emitting
-  `frameSelected` (`_suppress_selection_signal` guards against
+  it started as: a fixed-width (`_WIDTH`, `120` since 2026-08-03, widened
+  from the original `64`) `QListWidget`, one row per frame with a saved
+  comment, sorted top-to-bottom by frame index, each row the frame number
+  (no "Frame" label — "คำว่า frame ไม่ต้องเอามา", the user's own words) plus,
+  since 2026-08-03, a small generated avatar icon (`_avatar_icon`, module-
+  level) for whoever left the first comment on that frame — this app has
+  no real profile pictures, so it's a deterministic colored-circle initial
+  badge (character-sum hash of the username picks one of `_AVATAR_COLORS`,
+  deliberately not Python's own randomized-per-process `hash()`) per the
+  user's own request ("การ์ดแสดง icon username"); a frame whose only entry
+  is a legacy pre-2026-07-20 single `"note"` string (no author on file,
+  see `player_widget.py`'s `_migrate_comments`) gets no avatar rather than
+  a guessed one (`_first_commenter`). `set_frames(frames_dict)` rebuilds
+  every row from scratch from `PlayerWidget._frames["frames"]`.
+  Deliberately connects to `currentRowChanged`, not `itemClicked` —
+  `QListWidget`'s native press-and-drag-across-rows selection behavior
+  (the same thing `SettingsView.tab_list` gets for free) then scrubs
+  through commented frames live as you drag, matching the user's own
+  "ลากเลือกได้" (can be drag-selected) request. `set_current_frame(index)`
+  highlights whichever row matches the frame currently playing without
+  emitting `frameSelected` (`_suppress_selection_signal` guards against
   `PlayerWidget`'s own state echoing back in as a fresh jump request).
-- `draw_overlay.py` — `DrawOverlay`/`Stroke`/`_TextBoxItem`/`_DragHandle`:
-  the transparent freehand canvas. Fixed-shape pen only (color + width), a
+- `draw_overlay.py` — `DrawOverlay`/`Stroke`/`_TextBoxItem`: the
+  transparent freehand canvas. Fixed-shape pen only (color + width), a
   whole-stroke eraser (removes any stroke with a point near the cursor,
-  not pixel-level), and an in-memory (not persisted) snapshot-based
-  undo/redo stack pair scoped to the current frame only — resets whenever
-  a different frame is loaded. `undo()` pushes the pre-undo state onto
-  `_redo_stack` before popping `_undo_stack` (and vice versa for
-  `redo()`); `_push_undo()` (called before any new stroke or
-  `clear_frame()`) clears `_redo_stack`, the standard "a new edit
-  invalidates redo history" rule — added 2026-07-20 alongside a Redo
-  button next to Undo and "Ctrl+Z"/"Ctrl+Shift+Z" shortcuts (see
-  `player_widget.py`). Text boxes are not part of this stack, matching
-  undo's original strokes-only scope. `_tool` (one of module-level
-  `TOOL_BRUSH`/`TOOL_ERASER`/`TOOL_TEXT`, set via `set_tool`) is the single
-  source of truth every mouse handler branches on — fixed 2026-07-20 after
-  a real "repositioning a text box also draws a stroke at the same time"
-  report (see `../bug-history/README.md`'s pointer to the root entry):
-  Text used to be a one-shot `add_text_box()` action that left Brush's
-  drawing active underneath it the whole time, instead of a true exclusive
-  mode. With `_tool == TOOL_TEXT`, `mousePressEvent` places a new
-  `_TextBoxItem` at the click position instead of starting a stroke, and
-  `mouseMoveEvent`/`mouseReleaseEvent` both skip the brush/eraser path
-  entirely — see `player_widget.py`'s toolbox for how the three
-  `QToolButton`s stay mutually exclusive and each call `set_tool`.
-  `_brush_width` is one shared "tool size" (pixels) for *both* the
-  brush's stroke width and the eraser's hit-test radius (`_erase_near`
-  converts it to normalized widget-space at call time via
-  `self._brush_width / self.width()`) — the toolbar's Size slider and the
-  canvas's own "F" resize gesture (below, disabled while `_tool ==
-  TOOL_TEXT` since size doesn't apply to placing a text box) both just
-  adjust this one value, whichever of brush/eraser happens to be active.
-  `setMouseTracking(True)` + a hollow circle painted at the cursor
-  position (`_paint_hover_indicator`, radius = `_brush_width / 2` for the
-  brush or `_brush_width` for the eraser; hidden while drawing is disabled
-  or the cursor leaves the widget) previews the exact brush/eraser size
-  before a stroke is even started.
+  not pixel-level), a Select tool (`TOOL_SELECT`, below) to move or delete
+  an existing stroke/text box, and an in-memory (not persisted)
+  snapshot-based undo/redo stack pair scoped to the current frame only —
+  resets whenever a different frame is loaded. `undo()` pushes the
+  pre-undo state onto `_redo_stack` before popping `_undo_stack` (and vice
+  versa for `redo()`); `_push_undo()` (called before any new stroke,
+  `clear_frame()`, a Select-tool stroke move, or a Select-tool stroke
+  delete) clears `_redo_stack`, the standard "a new edit invalidates redo
+  history" rule — added 2026-07-20 alongside a Redo button next to Undo
+  and "Ctrl+Z"/"Ctrl+Shift+Z" shortcuts (see `player_widget.py`). Text
+  boxes are not part of this stack, matching undo's original strokes-only
+  scope — so a Select-tool text-box move/style change isn't undoable,
+  only a stroke move/delete is. `_tool` (one of module-level
+  `TOOL_BRUSH`/`TOOL_ERASER`/`TOOL_TEXT`/`TOOL_SELECT`, set via
+  `set_tool`) is the single source of truth every mouse handler branches
+  on — fixed 2026-07-20 after a real "repositioning a text box also draws
+  a stroke at the same time" report (see `../bug-history/README.md`'s
+  pointer to the root entry): Text used to be a one-shot `add_text_box()`
+  action that left Brush's drawing active underneath it the whole time,
+  instead of a true exclusive mode. With `_tool == TOOL_TEXT`,
+  `mousePressEvent` places a new `_TextBoxItem` at the click position
+  instead of starting a stroke — but only when the click actually lands on
+  `DrawOverlay` itself; a click on an *existing* box is caught by that
+  box's own `text_edit` first (see `_TextBoxItem.set_mode`), which is
+  what makes "click empty = add, click existing text = edit/rename" (the
+  user's own 2026-08-03 request) work without any extra branching here —
+  and `mouseMoveEvent`/`mouseReleaseEvent` both skip the brush/eraser path
+  entirely while `_tool == TOOL_TEXT`. See `player_widget.py`'s toolbox
+  for how the four `QToolButton`s stay mutually exclusive and each call
+  `set_tool`. `_brush_width` is one shared "tool size" (pixels) for
+  *both* the brush's stroke width and the eraser's hit-test radius
+  (`_erase_near` converts it to normalized widget-space at call time via
+  `self._brush_width / self.width()`, and `_find_stroke_near`'s
+  Select-tool hit test reuses the same math with a `_SELECT_HIT_RADIUS_PX`
+  floor so a thin stroke stays selectable) — the toolbar's Size slider and
+  the canvas's own "F" resize gesture (below, disabled while `_tool` is
+  `TOOL_TEXT` or `TOOL_SELECT` since size doesn't apply to placing a text
+  box or to selecting) both just adjust this one value, whichever of
+  brush/eraser happens to be active. `setMouseTracking(True)` + a hollow
+  circle painted at the cursor position (`_paint_hover_indicator`, radius
+  = `_brush_width / 2` for the brush or `_brush_width` for the eraser;
+  hidden while drawing is disabled, the cursor leaves the widget, or
+  `_tool` is `TOOL_TEXT`/`TOOL_SELECT`) previews the exact brush/eraser
+  size before a stroke is even started.
+
+  **Select tool** (`TOOL_SELECT`, added 2026-08-03 per the user's own
+  request, specifically so moving/deleting an existing stroke or text box
+  doesn't overload what Brush/Eraser/Text already do):
+  `_handle_select_press` (called from `mousePressEvent`) hit-tests
+  `_strokes` via `_find_stroke_near` (topmost/last-drawn first) when the
+  click lands on `DrawOverlay` itself — a click that instead lands on a
+  `_TextBoxItem` is handled by that box's own `mousePressEvent` (its
+  `text_edit` goes `WA_TransparentForMouseEvents` in this mode so the
+  click reaches the outer `QFrame`), which selects+arms *itself* for
+  dragging and emits `selected` so `_on_text_box_selected` can deselect
+  whatever else was selected — `_selected_stroke`/`_selected_text_box` are
+  mutually exclusive, enforced from both directions
+  (`_deselect_text_box()`/`_deselect_stroke()`). Dragging a selected
+  stroke (`mouseMoveEvent`, left button held) translates every point by
+  the per-move delta, lazily calling `_push_undo()` on the *first* move of
+  a given press (`_stroke_move_dirty`) so merely clicking to select
+  without dragging doesn't waste an undo slot; `mouseReleaseEvent` emits
+  `strokesChanged` only if a drag actually happened. `keyPressEvent`
+  handles `Delete`/`Backspace` for a selected stroke (push undo, remove,
+  emit `strokesChanged`); `_TextBoxItem.keyPressEvent` does the same for
+  itself (`deleteRequested` -> `DrawOverlay._remove_text_box`) when it has
+  keyboard focus (`setFocus()` on select, `StrongFocus` policy). Both
+  selections render a highlight per the user's own request ("ต้องแสดง
+  highlight หรือ frame รอบๆ"): a selected stroke gets a dashed
+  accent-colored bounding-box frame (`_paint_stroke_selection`, painted
+  after the strokes themselves in `paintEvent`); a selected text box gets
+  a thicker accent border, computed the same place its normal
+  color/opacity/stroke border already is (`_TextBoxItem._apply_style`).
+  Leaving `TOOL_SELECT` (`set_tool`) clears both selections so a
+  highlight never lingers under a different tool, and propagates the new
+  tool to every `_TextBoxItem.set_mode` so each box's own interactivity
+  stays in sync (readOnly + mouse-transparent `text_edit` in every mode
+  except `TOOL_TEXT`, so a Brush/Eraser click over a text box's area
+  doesn't accidentally land in its text field, and select-mode
+  drag-anywhere doesn't fight with placing a text cursor).
+
   **"F" resize gesture**: `StrongFocus` + `enterEvent` grabbing focus on
   hover (so it works without an explicit click first, like a 3D
   viewport), `keyPressEvent` handling `F` (start, or confirm if already
@@ -408,20 +538,43 @@ unambiguous despite the shared name.
   (this app is normally launched via `pythonw.exe`, no console at all) —
   see that plugin's own README for the general mechanism. Kept as
   permanent light instrumentation, not temporary debug prints.
-  `_TextBoxItem` (`QFrame`, object name `textBoxItem`, styled via the
-  app's top-level `core/theme.py`) is a draggable, editable text
-  annotation — as many as wanted, one per click on the canvas while the
-  Text tool is selected (`mousePressEvent`'s `_tool == TOOL_TEXT` branch,
-  placed exactly at the click position; before 2026-07-20 this was a
-  toolbar button that always added at a cascading default position
-  instead). Dragging only works from the `_DragHandle` ("⋮⋮") strip, never
-  the text field itself, so placing a cursor to type never fights with
-  moving the box. Both strokes and text boxes are keyed to the exact
-  frame index currently loaded (`load_frame(strokes, text_boxes)`) so
-  scrubbing between frames doesn't smear one frame's annotations onto
-  another; position is normalized (0-1, top-left corner) the same way
-  `Stroke.points` already is, so boxes track correctly across resizes
-  (`DrawOverlay.resizeEvent`). Module-level
+
+  `_TextBoxItem` (`QFrame`, object name `textBoxItem`, its own per-instance
+  `setStyleSheet` from `_apply_style`, not `core/theme.py`'s global
+  `QFrame#textBoxItem` rule, which every box's own style now overrides —
+  see below) is an editable text annotation — as many as wanted, one per
+  Text-tool click on empty canvas (`mousePressEvent`'s `_tool == TOOL_TEXT`
+  branch, placed exactly at the click position; before 2026-07-20 this was
+  a toolbar button that always added at a cascading default position
+  instead). Redesigned 2026-08-03 per the user's own request: the old
+  always-visible `_DragHandle` ("⋮⋮" strip) and delete "×" button are
+  gone entirely — moving only works via the Select tool now (the whole
+  box, click-and-drag, not a dedicated handle: `text_edit` goes
+  mouse-transparent in Select mode so the click reaches the outer
+  `QFrame`'s own `mousePressEvent`/`mouseMoveEvent`/`mouseReleaseEvent`),
+  and deleting is Delete/Backspace while selected (`deleteRequested` ->
+  `DrawOverlay._remove_text_box`) rather than a button. A small style
+  mini-toolbar (`style_row_widget`: `color_button` opens `QColorDialog`
+  for `bg_color`, `opacity_slider` (0-255) for `bg_opacity`, `bold_button`/
+  `stroke_button` checkable toggles) is built once but only *shown* while
+  selected (`set_selected`), so plain viewing/typing isn't cluttered with
+  controls the rest of the time — this is the "มี bg ทึบโง่ๆ ที่ปรับสี
+  ปรับความทึบ ปรับ stroke, bold ได้" the user asked for: a deliberately
+  simple solid background (`_apply_style`, no gradients/shadows) with
+  adjustable color/opacity, "stroke" implemented as a colored *box border*
+  rather than true per-glyph text outline (`QPlainTextEdit` has no support
+  for that), and "bold" as a plain `QFont.setBold`. Both strokes and text
+  boxes are keyed to the exact frame index currently loaded
+  (`load_frame(strokes, text_boxes)`) so scrubbing between frames doesn't
+  smear one frame's annotations onto another; position is normalized (0-1,
+  top-left corner) the same way `Stroke.points` already is, so boxes track
+  correctly across resizes (`DrawOverlay.resizeEvent`). Style fields
+  (`bg_color`/`bg_opacity`/`stroke`/`bold`) round-trip through
+  `current_text_boxes()`/`load_frame()` alongside `text`/`x`/`y`, so
+  they're persisted in `../core/comment_store.py`'s sidecar JSON exactly
+  like the rest of a text box's data — a saved box from before 2026-08-03
+  has none of these keys and falls back to `_DEFAULT_BG_COLOR`/
+  `_DEFAULT_BG_OPACITY`/`stroke=False`/`bold=False`. Module-level
   `paint_stroke_points(painter, points, color, width, w, h)` is
   `DrawOverlay._paint_points`'s exact math factored out (added 2026-07-20)
   so `ReadOnlyCommentOverlay` (same file) can paint a stroke
@@ -430,17 +583,23 @@ unambiguous despite the shared name.
   handling at all (`WA_TransparentForMouseEvents`, same reasoning as
   `_FrameNumberOverlay`), just `set_frame(strokes, text_boxes)` ->
   `paintEvent` re-painting strokes via `paint_stroke_points` and text
-  boxes as plain rounded rectangles with the note text drawn inside (no
-  drag handle, no delete button, no editable field — this is display-only).
-  `player_widget.py` stacks it in `DrawOverlay`'s place inside
-  `_VideoStack` when `show_edit_tools=False`, toggled by that plugin's own
+  boxes as rounded rectangles mirroring `_TextBoxItem._apply_style`'s own
+  bg color/opacity/stroke-as-border/bold rendering (updated 2026-08-03
+  alongside the style fields above — this is display-only, no drag
+  handle, no delete button, no editable field, no selection). `player_widget.py`
+  stacks it in `DrawOverlay`'s place inside `_VideoStack` when
+  `show_edit_tools=False`, toggled by that plugin's own
   `toggle_comment_overlay_button`.
 - `edit_video_dialog.py` — `EditVideoDialog` (`QDialog`), opened by
   `PlayerWidget`'s own `editCommentRequested` signal (view mode's
   `edit_comment_button`, connected by `video_library_page.py`): just embeds
   one `PlayerWidget(show_edit_tools=True)` loaded with the selected video,
   so the drawing/comment tools only appear when an artist deliberately
-  opens it instead of always being visible while just watching.
+  opens it instead of always being visible while just watching. Opens
+  maximized (`setWindowState(Qt.WindowMaximized)`, changed 2026-08-03 per
+  the user's own request from a fixed `resize(900, 700)`) — the draw
+  toolbar plus both right-hand columns (`right_column`/`thread_column`,
+  see `player_widget.py`) all want as much screen space as they can get.
 - `comment_thread.py` — `CommentThread` + `_CommentBubble`, added
   2026-07-20: the Facebook-style multi-user comment thread embedded by
   edit-mode `PlayerWidget` (`self.comment_thread`), replacing the old

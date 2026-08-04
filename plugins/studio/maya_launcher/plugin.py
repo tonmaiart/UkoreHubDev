@@ -7,11 +7,13 @@ from pathlib import Path
 from PySide6.QtWidgets import QMessageBox
 
 from core.exceptions import NotFoundError
+from interface.program_launch_registry import ProgramLaunchSpec
 from interface.settings_tab_registry import CATEGORY_REPO, SettingsTabSpec
+from plugins.studio.maya_launcher.link_resolution import linked_key, pinned_version
 from plugins.studio.maya_launcher.repo_tools_store import RepoToolsStore
 from plugins.studio.maya_launcher.settings_page import MayaLauncherSettingsPage
 
-ADDON_ID = "maya_launcher"
+PLUGIN_ID = "maya_launcher"
 # Convention-only string match with plugins/studio/software_linker/plugin.py
 # — both resolve to the same data/plugins/local/software_linker.json via
 # PluginConfigStore, no coupling API needed.
@@ -41,6 +43,11 @@ ANY_VERSION = "*"
 # else is enabled and imports it — `import PublishApi` failing inside
 # Maya for a tool that's supposedly turned on.
 PUBLISH_API_TOOL_ID = "publish_api"
+# Convention-only string match with plugins/studio/UkoreReferenceEditor/plugin.py's
+# own TOOL_ID — used to decide whether to open with -loadReferenceDepth
+# "none" below, not to gate the bridge contribution itself (that's already
+# handled generically via enabled_tool_ids, same as every other tool).
+UKORE_REFERENCE_EDITOR_TOOL_ID = "ukore_reference_editor"
 
 MAYA_FILE_EXTENSIONS = [".ma", ".mb"]
 
@@ -77,7 +84,7 @@ def _mel_string(path: Path) -> str:
     return str(path).replace("\\", "/").replace('"', '\\"')
 
 
-def _set_project_and_open_command(repo_root: Path, scene_path: Path) -> str:
+def _set_project_and_open_command(repo_root: Path, scene_path: Path, defer_reference_load: bool = False) -> str:
     """Pure, testable: the MEL passed to Maya's `-command` flag. Uses the
     real `setProject` MEL command rather than the `-proj` CLI flag — `-proj`'s
     interactive-Maya support turned out unreliable in practice (a repo whose
@@ -85,8 +92,38 @@ def _set_project_and_open_command(repo_root: Path, scene_path: Path) -> str:
     does not exist" project-restore dialog), whereas `setProject` is Maya's
     own always-available, directly-documented command for this. Opening the
     scene via `file -open -force` in the same command (instead of passing it
-    as a positional CLI arg) guarantees setProject runs first."""
-    return f'setProject "{_mel_string(repo_root)}"; file -open -force "{_mel_string(scene_path)}";'
+    as a positional CLI arg) guarantees setProject runs first.
+
+    `defer_reference_load` adds `-loadReferenceDepth "none" -prompt false`.
+    `-loadReferenceDepth "none"` alone leaves every reference unloaded but
+    does **not** stop Maya's own native "could not find file" dialog by
+    itself — Maya still validates each reference's path regardless of
+    whether it's actually told to load the content. `-prompt false`, Maya's
+    own documented flag for suppressing interactive `file`-command dialogs,
+    is what actually stops it — confirmed working against a real broken
+    reference 2026-08-03, see
+    `bug-history/2026-08-03-reference-native-dialog-not-suppressed-by-loadreferencedepth.md`
+    for why `-loadReferenceDepth` alone wasn't enough. Only set when
+    plugins/studio/UkoreReferenceEditor is enabled for the launching repo
+    (see open_maya_file below) — its own kAfterOpen callback
+    (plugins/studio/MayaToolkit/maya-plug-ins/ukoreMaya.py) is what actually
+    loads every reference back afterward, redirecting the broken ones first;
+    without that tool enabled, forcing every reference unloaded would leave
+    them stuck that way with nothing to load them back."""
+    open_flags = ' -loadReferenceDepth "none" -prompt false' if defer_reference_load else ""
+    # Printed inside Maya's own Script Editor (not UkoreHub's console, which
+    # may not even have a visible window) so it's always possible to confirm
+    # which path this launch actually took, regardless of how UkoreHub itself
+    # was started.
+    diagnostic = (
+        'print("[UkoreReferenceEditor] Maya launched with -loadReferenceDepth \\"none\\" -prompt false\\n");'
+        if defer_reference_load
+        else 'print("[UkoreReferenceEditor] Maya launched WITHOUT -loadReferenceDepth (tool not enabled for this repo, or UkoreHub needs a restart to have discovered it)\\n");'
+    )
+    return (
+        f'{diagnostic}setProject "{_mel_string(repo_root)}"; '
+        f'file -open -force{open_flags} "{_mel_string(scene_path)}";'
+    )
 
 
 _PLUGIN_FILE_EXTENSIONS = {".py", ".mll", ".pyd", ".so"}
@@ -157,50 +194,92 @@ def _read_bridge(api) -> tuple[dict, dict]:
     return bridge.get("contributions", {}), bridge.get("labels", {})
 
 
+def _find_linked_maya(api, repo) -> tuple[str, str] | None:
+    """Resolves (exe_path, version) for the repo's required Maya Program
+    from Settings > Software Linker, or None if nothing is linked yet.
+    Shared by open_maya_file and launch_maya_standalone below."""
+    linked = api.plugin_config_store(SOFTWARE_LINKER_PLUGIN_ID, shared=False)
+    for program in _maya_programs_for_repo(api, repo):
+        version = pinned_version(repo, program)
+        candidate = linked.get(linked_key(program, version))
+        if candidate:
+            return candidate, version
+    return None
+
+
+def _prepare_env_and_plugins(api, tools_store, repo, maya_version: str) -> tuple[dict, list[str], set[str]]:
+    """Shared bridge read + env-merge + force-load-plugin-names — every
+    part of a Maya launch that doesn't depend on whether a specific scene
+    is being opened. Shared by open_maya_file and launch_maya_standalone
+    below."""
+    all_contributions, _labels = _read_bridge(api)
+    enabled_tool_ids = set(
+        tools_store.enabled_tool_ids_for(
+            api.local_config.active_project_id, api.local_config.active_repo_id, list(all_contributions)
+        )
+    )
+    contributions = {tid: c for tid, c in all_contributions.items() if tid in enabled_tool_ids}
+    if PUBLISH_API_TOOL_ID in all_contributions:
+        contributions[PUBLISH_API_TOOL_ID] = all_contributions[PUBLISH_API_TOOL_ID]
+    env = _build_maya_env(os.environ.copy(), contributions, maya_version or "")
+    plugin_names = _force_load_plugin_names(contributions, maya_version or "")
+    return env, plugin_names, enabled_tool_ids
+
+
+def _warn_no_linked_maya() -> None:
+    QMessageBox.warning(
+        None,
+        "Maya Launcher",
+        "No linked Maya executable found for this repo's required "
+        "Maya version. Configure it in Settings > Software Linker.",
+    )
+
+
 def register(api) -> None:
-    tools_store = RepoToolsStore(api.plugin_config_store(ADDON_ID, shared=True))
+    tools_store = RepoToolsStore(api.plugin_config_store(PLUGIN_ID, shared=True))
 
     def open_maya_file(path: Path, repo) -> bool:
-        linked = api.plugin_config_store(SOFTWARE_LINKER_PLUGIN_ID, shared=False)
-        maya_exe = None
-        maya_version = None
-        for program in _maya_programs_for_repo(api, repo):
-            candidate = linked.get(program.id)
-            if candidate:
-                maya_exe = candidate
-                maya_version = program.version
-                break
-
-        if not maya_exe:
-            QMessageBox.warning(
-                None,
-                "Maya Launcher",
-                "No linked Maya executable found for this repo's required "
-                "Maya version. Configure it in Settings > Software Linker.",
-            )
+        found = _find_linked_maya(api, repo)
+        if found is None:
+            _warn_no_linked_maya()
             return True  # handled (with a warning) — do not fall back to OS default
+        maya_exe, maya_version = found
 
-        all_contributions, _labels = _read_bridge(api)
-        enabled_tool_ids = set(
-            tools_store.enabled_tool_ids_for(
-                api.local_config.active_project_id, api.local_config.active_repo_id, list(all_contributions)
-            )
-        )
-        contributions = {tid: c for tid, c in all_contributions.items() if tid in enabled_tool_ids}
-        if PUBLISH_API_TOOL_ID in all_contributions:
-            contributions[PUBLISH_API_TOOL_ID] = all_contributions[PUBLISH_API_TOOL_ID]
-        env = _build_maya_env(os.environ.copy(), contributions, maya_version or "")
-
+        env, plugin_names, enabled_tool_ids = _prepare_env_and_plugins(api, tools_store, repo, maya_version)
         repo_root = _repo_root_path(api, repo)
-        plugin_names = _force_load_plugin_names(contributions, maya_version or "")
-        mel_command = _force_load_plugins_command(plugin_names) + _set_project_and_open_command(repo_root, path)
+        defer_reference_load = UKORE_REFERENCE_EDITOR_TOOL_ID in enabled_tool_ids
+        mel_command = _force_load_plugins_command(plugin_names) + _set_project_and_open_command(
+            repo_root, path, defer_reference_load=defer_reference_load
+        )
         subprocess.Popen([maya_exe, "-command", mel_command], env=env)
         return True
 
-    api.register_file_opener(ADDON_ID, MAYA_FILE_EXTENSIONS, open_maya_file, always_enabled=True)
+    def launch_maya_standalone(repo) -> bool:
+        """Launches Maya for `repo` with no scene to open — just the same
+        setProject/env-merge/force-load-plugins wiring open_maya_file
+        uses. Registered below as a ProgramLaunchSpec so
+        plugins/studio/program_launcher/'s card grid launches Maya
+        through this instead of a bare subprocess.Popen of the raw
+        linked exe."""
+        found = _find_linked_maya(api, repo)
+        if found is None:
+            _warn_no_linked_maya()
+            return True
+        maya_exe, maya_version = found
+
+        env, plugin_names, _enabled_tool_ids = _prepare_env_and_plugins(api, tools_store, repo, maya_version)
+        repo_root = _repo_root_path(api, repo)
+        mel_command = _force_load_plugins_command(plugin_names) + f'setProject "{_mel_string(repo_root)}";'
+        subprocess.Popen([maya_exe, "-command", mel_command], env=env)
+        return True
+
+    api.register_file_opener(PLUGIN_ID, MAYA_FILE_EXTENSIONS, open_maya_file)
+    api.register_program_launcher(
+        ProgramLaunchSpec(match=lambda program: "maya" in program.name.lower(), launch=launch_maya_standalone)
+    )
     api.register_settings_tab(
         SettingsTabSpec(
-            key=ADDON_ID,
+            key=PLUGIN_ID,
             label="Maya Launcher",
             order=110,
             page_factory=lambda: MayaLauncherSettingsPage(

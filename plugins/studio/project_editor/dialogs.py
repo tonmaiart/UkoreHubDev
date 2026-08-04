@@ -17,8 +17,6 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from core.addon_store import AddonMetadataStore, group_addon_ids_by_program
-from core.extensibility.loader import DiscoveredPlugin, plugin_source
 from core.program_store import ProgramStore
 from interface.shared.image_asset import pick_image_file
 
@@ -26,38 +24,26 @@ _NODE_KIND_ROLE = Qt.UserRole + 1
 
 
 class RequirementsTreeWidget(QTreeWidget):
-    """One tree instead of two flat lists: each Program is a checkable
-    top-level node (check = required), with the add-ons that declare it as
-    a required program nested underneath as checkable children (check =
-    enabled). An add-on with no declared required program — or whose
-    declared program isn't in the catalog — lands under a trailing "Other
-    Add-ons" node instead of being hidden. Used by RepoDialog (repo
-    creation)."""
+    """Each Program is a checkable top-level node (check = required), with
+    a checkable child per version for a multi-version Program (pin, radio-
+    style). Used by RepoDialog (repo creation)."""
 
     def __init__(
         self,
         parent=None,
         *,
         program_store: ProgramStore,
-        addon_catalog: list[DiscoveredPlugin],
-        addon_store: AddonMetadataStore | None = None,
         selected_program_ids: list[str] | None = None,
-        selected_addon_ids: list[str] | None = None,
+        selected_program_version_pins: dict[str, str] | None = None,
     ):
         super().__init__(parent)
         self.setHeaderHidden(True)
-        self._addon_items: dict[str, list[QTreeWidgetItem]] = {}
 
         selected_program_id_set = set(selected_program_ids or [])
-        selected_addon_id_set = set(selected_addon_ids or [])
-        addon_by_id = {discovered.manifest.id: discovered for discovered in addon_catalog}
-        if addon_store is not None:
-            by_program, ungrouped = group_addon_ids_by_program(list(addon_by_id.keys()), addon_store)
-        else:
-            by_program, ungrouped = {}, list(addon_by_id.keys())
+        version_pins = selected_program_version_pins or {}
 
         for program in program_store.list_programs():
-            version_suffix = f" (v{program.version})" if program.version else ""
+            version_suffix = f" (v{', '.join(program.versions)})" if program.versions else ""
             program_item = QTreeWidgetItem([f"{program.name}{version_suffix}"])
             program_item.setFlags(program_item.flags() | Qt.ItemIsUserCheckable)
             program_item.setCheckState(0, Qt.Checked if program.id in selected_program_id_set else Qt.Unchecked)
@@ -66,45 +52,38 @@ class RequirementsTreeWidget(QTreeWidget):
             icon_path = program_store.resolve_icon_path(program)
             if icon_path and icon_path.exists():
                 program_item.setIcon(0, QIcon(str(icon_path)))
-            for addon_id in by_program.get(program.id, []):
-                addon_item = self._make_addon_tree_item(addon_by_id[addon_id], addon_id in selected_addon_id_set)
-                program_item.addChild(addon_item)
-                self._addon_items.setdefault(addon_id, []).append(addon_item)
+            if len(program.versions) > 1:
+                pinned = version_pins.get(program.id)
+                default_version = pinned if pinned in program.versions else program.versions[0]
+                for version in program.versions:
+                    version_item = QTreeWidgetItem([version])
+                    version_item.setFlags(version_item.flags() | Qt.ItemIsUserCheckable)
+                    version_item.setCheckState(0, Qt.Checked if version == default_version else Qt.Unchecked)
+                    version_item.setData(0, Qt.UserRole, version)
+                    version_item.setData(0, _NODE_KIND_ROLE, "version")
+                    program_item.addChild(version_item)
             self.addTopLevelItem(program_item)
             program_item.setExpanded(True)
 
-        if ungrouped:
-            other_item = QTreeWidgetItem(["Other Add-ons"])
-            other_item.setData(0, _NODE_KIND_ROLE, "group")
-            for addon_id in ungrouped:
-                addon_item = self._make_addon_tree_item(addon_by_id[addon_id], addon_id in selected_addon_id_set)
-                other_item.addChild(addon_item)
-                self._addon_items.setdefault(addon_id, []).append(addon_item)
-            self.addTopLevelItem(other_item)
-            other_item.setExpanded(True)
-
         self.itemChanged.connect(self._on_tree_item_changed)
 
-    def _make_addon_tree_item(self, discovered: DiscoveredPlugin, checked: bool) -> QTreeWidgetItem:
-        manifest = discovered.manifest
-        item = QTreeWidgetItem([f"{manifest.name} ({plugin_source(discovered)})"])
-        item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
-        item.setCheckState(0, Qt.Checked if checked else Qt.Unchecked)
-        item.setData(0, Qt.UserRole, manifest.id)
-        item.setData(0, _NODE_KIND_ROLE, "addon")
-        return item
-
     def _on_tree_item_changed(self, item: QTreeWidgetItem, column: int) -> None:
-        # An add-on that declares multiple required programs appears as a
-        # duplicate leaf under each matching program node — keep every
-        # duplicate's check state in sync so it reads as one toggle.
-        if item.data(0, _NODE_KIND_ROLE) != "addon":
-            return
-        addon_id = item.data(0, Qt.UserRole)
-        state = item.checkState(0)
-        for sibling in self._addon_items.get(addon_id, []):
-            if sibling is not item and sibling.checkState(0) != state:
-                sibling.setCheckState(0, state)
+        kind = item.data(0, _NODE_KIND_ROLE)
+        if kind == "version" and item.checkState(0) == Qt.Checked:
+            # Version children under one Program are exclusive (radio-style)
+            # — picking one is the repo's pin, so uncheck any other version
+            # sibling.
+            parent = item.parent()
+            if parent is None:
+                return
+            for i in range(parent.childCount()):
+                sibling = parent.child(i)
+                if (
+                    sibling is not item
+                    and sibling.data(0, _NODE_KIND_ROLE) == "version"
+                    and sibling.checkState(0) == Qt.Checked
+                ):
+                    sibling.setCheckState(0, Qt.Unchecked)
 
     def selected_program_ids(self) -> list[str]:
         selected = []
@@ -114,12 +93,19 @@ class RequirementsTreeWidget(QTreeWidget):
                 selected.append(item.data(0, Qt.UserRole))
         return selected
 
-    def selected_addon_ids(self) -> list[str]:
-        return [
-            addon_id
-            for addon_id, items in self._addon_items.items()
-            if items and items[0].checkState(0) == Qt.Checked
-        ]
+    def selected_program_version_pins(self) -> dict[str, str]:
+        pins: dict[str, str] = {}
+        for i in range(self.topLevelItemCount()):
+            program_item = self.topLevelItem(i)
+            if program_item.data(0, _NODE_KIND_ROLE) != "program":
+                continue
+            program_id = program_item.data(0, Qt.UserRole)
+            for j in range(program_item.childCount()):
+                child = program_item.child(j)
+                if child.data(0, _NODE_KIND_ROLE) == "version" and child.checkState(0) == Qt.Checked:
+                    pins[program_id] = child.data(0, Qt.UserRole)
+                    break
+        return pins
 
 
 class ProjectDialog(QDialog):
@@ -154,10 +140,10 @@ class RepoDialog(QDialog):
     """Full Name/URL/Thumbnail/Requirements editor, used as-is for **Add**
     Repo (one-step bootstrap of a new repo record). For **editing** an
     existing repo, Project Editor's node context menu now only asks for
-    Name/Git URL here (show_thumbnail=False, no program_store/addon_catalog)
-    — Thumbnail has its own "Change Thumbnail..." context menu action;
-    editing Requirements/Add-ons on an existing repo has no UI entry point
-    since Repo About was removed."""
+    Name/Git URL here (show_thumbnail=False, no program_store) — Thumbnail
+    has its own "Change Thumbnail..." context menu action; editing
+    Requirements on an existing repo has no UI entry point since Repo About
+    was removed."""
 
     def __init__(
         self,
@@ -169,9 +155,7 @@ class RepoDialog(QDialog):
         thumbnail_path: Path | None = None,
         program_store: ProgramStore | None = None,
         selected_program_ids: list[str] | None = None,
-        addon_catalog: list[DiscoveredPlugin] | None = None,
-        addon_store: AddonMetadataStore | None = None,
-        selected_addon_ids: list[str] | None = None,
+        selected_program_version_pins: dict[str, str] | None = None,
     ):
         super().__init__(parent)
         self.setWindowTitle("Edit Repo" if name else "Add Repo")
@@ -199,18 +183,16 @@ class RepoDialog(QDialog):
             thumbnail_row.addWidget(choose_image_btn)
             form.addRow("Thumbnail:", thumbnail_row)
 
-        # See RequirementsTreeWidget for the tree shape (Program nodes with
-        # nested Add-on children, checkable both levels).
+        # See RequirementsTreeWidget for the tree shape (checkable Program
+        # nodes with checkable per-version children).
         self.requirements_tree: RequirementsTreeWidget | None = None
-        if program_store is not None and addon_catalog is not None:
+        if program_store is not None:
             self.requirements_tree = RequirementsTreeWidget(
                 program_store=program_store,
-                addon_catalog=addon_catalog,
-                addon_store=addon_store,
                 selected_program_ids=selected_program_ids,
-                selected_addon_ids=selected_addon_ids,
+                selected_program_version_pins=selected_program_version_pins,
             )
-            form.addRow("Requirements / Add-ons:", self.requirements_tree)
+            form.addRow("Requirements:", self.requirements_tree)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         buttons.accepted.connect(self._on_accept)
@@ -244,5 +226,5 @@ class RepoDialog(QDialog):
     def selected_program_ids(self) -> list[str]:
         return self.requirements_tree.selected_program_ids() if self.requirements_tree else []
 
-    def selected_addon_ids(self) -> list[str]:
-        return self.requirements_tree.selected_addon_ids() if self.requirements_tree else []
+    def selected_program_version_pins(self) -> dict[str, str]:
+        return self.requirements_tree.selected_program_version_pins() if self.requirements_tree else {}

@@ -1,11 +1,17 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from interface.section_registry import SectionSpec
 from interface.settings_tab_registry import CATEGORY_REPO, SettingsTabSpec
 from plugins.studio.UkoreShot.interface.repo_video_settings_page import RepoVideoSettingsPage
 from plugins.studio.UkoreShot.interface.video_library_page import UkoreShotPage
 
 PLUGIN_ID = "ukore_shot"
+# This plugin's own images/ folder, not the shared data/icons/ every other
+# plugin's SectionSpec.icon_path points at (see images/README.md's own
+# note on this deliberate exception).
+_ICON_PATH = Path(__file__).resolve().parent / "images" / "icons8-video-50.png"
 
 
 def register(api) -> None:
@@ -21,6 +27,7 @@ def register(api) -> None:
             label="UkoreShot",
             order=50,
             page_factory=lambda: UkoreShotPage(api=api),
+            icon_path=_ICON_PATH,
         )
     )
     api.register_settings_tab(

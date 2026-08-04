@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 )
 
 from core.exceptions import GitOperationError, UkoreHubError
+from core.extensibility import notification_bus
 from core.extensibility.hooks import GitHookContext
 from core.git_service import GitService
 from core.models import Project, Repo, RepoStatus
@@ -477,6 +478,13 @@ class RepoGitStatusPage(QWidget):
     def _on_push_finished(self) -> None:
         self._set_workflow_running(False)
         self.log_panel.append_line("--- Push done ---")
+        if self._project is not None and self._repo is not None:
+            notification_bus.push(
+                source="submit",
+                project_id=self._project.id,
+                repo_id=self._repo.id,
+                label=f"Committed: {self._pending_commit_message}",
+            )
         self.refresh_status()
 
     def _on_push_failed(self, message: str) -> None:

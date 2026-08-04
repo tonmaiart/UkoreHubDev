@@ -3,18 +3,14 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Callable
 
-from PySide6.QtWidgets import QWidget
-
-from core.addon_store import AddonMetadataStore
 from core.extensibility.config_store import PluginConfigStore
 from core.extensibility.file_opener import FileOpenerRegistry, FileOpenerSpec
 from core.extensibility.hooks import GitHookEvent, HookHandler, HookRegistry
-from core.extensibility.loader import DiscoveredPlugin
 from core.git_service import GitService
 from core.models import Repo
 from core.program_store import ProgramStore
 from core.store import LocalConfigStore, MetadataStore
-from interface.repo_addon_panel_registry import RepoAddonPanelRegistry, RepoAddonPanelSpec
+from interface.program_launch_registry import ProgramLaunchRegistry, ProgramLaunchSpec
 from interface.section_registry import SectionRegistry, SectionSpec
 from interface.settings_tab_registry import SettingsTabRegistry, SettingsTabSpec
 from interface.sidebar_footer_action_registry import SidebarFooterActionRegistry, SidebarFooterActionSpec
@@ -43,13 +39,11 @@ class PluginAPI:
         hooks: HookRegistry,
         section_registry: SectionRegistry,
         settings_tab_registry: SettingsTabRegistry,
-        repo_addon_panel_registry: RepoAddonPanelRegistry,
         file_opener_registry: FileOpenerRegistry,
+        program_launch_registry: ProgramLaunchRegistry,
         sidebar_footer_action_registry: SidebarFooterActionRegistry,
         plugins_data_dir: Path,
         app_root: Path,
-        addon_store: AddonMetadataStore,
-        addon_catalog: list[DiscoveredPlugin],
     ):
         self._store = store
         self._program_store = program_store
@@ -58,13 +52,11 @@ class PluginAPI:
         self._hooks = hooks
         self._section_registry = section_registry
         self._settings_tab_registry = settings_tab_registry
-        self._repo_addon_panel_registry = repo_addon_panel_registry
         self._file_opener_registry = file_opener_registry
+        self._program_launch_registry = program_launch_registry
         self._sidebar_footer_action_registry = sidebar_footer_action_registry
         self._plugins_data_dir = Path(plugins_data_dir)
         self._app_root = Path(app_root)
-        self._addon_store = addon_store
-        self._addon_catalog = addon_catalog
 
     @property
     def metadata(self) -> MetadataStore:
@@ -90,6 +82,15 @@ class PluginAPI:
         return self._file_opener_registry
 
     @property
+    def program_launch_registry(self) -> ProgramLaunchRegistry:
+        """Read access to the same registry register_program_launcher()
+        writes into — for plugins/studio/program_launcher/'s card grid to
+        look up a plugin-contributed launch behavior (e.g. maya_launcher's
+        setProject/env-merge wiring) for a given Program, rather than
+        always subprocess.Popen-ing the raw linked exe itself."""
+        return self._program_launch_registry
+
+    @property
     def settings_tab_registry(self) -> SettingsTabRegistry:
         """Read access to the same registry register_settings_tab() writes
         into — for a page (plugins/studio/project_editor/'s right panel)
@@ -98,26 +99,11 @@ class PluginAPI:
         return self._settings_tab_registry
 
     @property
-    def addon_store(self) -> AddonMetadataStore:
-        """Studio-editable overrides for discovered add-ons (icon,
-        description, required Program(s)) — data/addon_settings.json. Used
-        alongside addon_catalog by anything building the same
-        Program/Add-on requirements picker RepoDialog already uses
-        (interface/shared/dialogs.py)."""
-        return self._addon_store
-
-    @property
-    def addon_catalog(self) -> list[DiscoveredPlugin]:
-        """Every discovered add-on (the add-on/ catalog, distinct from this
-        plugin's own plugins/ catalog) — fixed at app startup."""
-        return self._addon_catalog
-
-    @property
     def app_root(self) -> Path:
-        """UkoreHub's own repo root — for plugins/add-ons that need to
-        reference other paths inside the UkoreHub installation itself
-        (e.g. the vendored plugins/MayaToolkit/ tree), without guessing
-        their own nesting depth from __file__."""
+        """UkoreHub's own repo root — for plugins that need to reference
+        other paths inside the UkoreHub installation itself (e.g. the
+        vendored plugins/MayaToolkit/ tree), without guessing their own
+        nesting depth from __file__."""
         return self._app_root
 
     def register_section(self, spec: SectionSpec) -> None:
@@ -126,25 +112,22 @@ class PluginAPI:
     def register_settings_tab(self, spec: SettingsTabSpec) -> None:
         self._settings_tab_registry.register(spec)
 
-    def register_repo_addon_panel(self, addon_id: str, panel_factory: Callable[[Repo], QWidget]) -> None:
-        self._repo_addon_panel_registry.register(RepoAddonPanelSpec(addon_id=addon_id, panel_factory=panel_factory))
-
     def register_file_opener(
         self,
-        addon_id: str,
+        plugin_id: str,
         extensions: list[str],
         opener: Callable[[Path, Repo], bool],
-        *,
-        always_enabled: bool = False,
     ) -> None:
         self._file_opener_registry.register(
             FileOpenerSpec(
-                addon_id=addon_id,
+                plugin_id=plugin_id,
                 extensions=frozenset(e.lower() for e in extensions),
                 opener=opener,
-                always_enabled=always_enabled,
             )
         )
+
+    def register_program_launcher(self, spec: ProgramLaunchSpec) -> None:
+        self._program_launch_registry.register(spec)
 
     def register_sidebar_footer_action(self, spec: SidebarFooterActionSpec) -> None:
         self._sidebar_footer_action_registry.register(spec)

@@ -48,7 +48,7 @@ class RepoBrowserPage(QWidget):
         # (e.g. env injection) only ever apply to opens UkoreHub itself
         # triggered.
         if self._active_repo is not None:
-            opener = self._file_opener_registry.find_opener(path, self._active_repo.enabled_addon_ids)
+            opener = self._file_opener_registry.find_opener(path)
             if opener is not None and opener(path, self._active_repo):
                 return
         open_with_default_app(path)

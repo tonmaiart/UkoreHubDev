@@ -17,29 +17,29 @@ the way `UkorePublisher` used to.
   `maya_launcher_env_bridge` `PluginConfigStore` (same convention every
   other Maya tool plugin here uses). Relies on `plugins/studio/MayaToolkit`
   (for `UkoreMaya.core.Pipeline`'s export commands) and
-  `plugins/studio/PublishApi` (for path resolution/versioning) also being
-  enabled — not imported directly, just expected on the same merged
-  PYTHONPATH once Maya launches. **Also** registers a `CATEGORY_REPO`
-  Settings tab (`settings_page.py`, see below) — a UkoreHub-side page, not
-  Maya-side, unlike everything else `plugin.py` does.
-- `settings_page.py` — `RigPublisherSettingsPage`: the "Repo Studio
-  Setting" tab (Repository Setting popup > RigPublisher) — same shape as
-  `plugins/studio/ModelPublisher/`'s own `settings_page.py`: lets a studio
-  admin pick which of the active repo's declared pipeline **connections**
-  this tool should actually publish into, persisted into
-  `data/plugins/studio/rig_publisher.json`.
+  `plugins/studio/PublishApi` (for path resolution/versioning/tickets)
+  also being enabled — not imported directly, just expected on the same
+  merged PYTHONPATH once Maya launches. **No longer registers a UkoreHub
+  Settings tab** (removed 2026-08-03 — see "What changed" below).
 - `maya-scripts/RigPublisher/function.py` — `TOOL_ID = "rig_publisher"`,
-  `TICKETS = ["Main", "Proxy", "Hi"]`, `publish(ticket)`: resolves the
-  publish root via `PublishApi.repo_paths.get_publish_root(TOOL_ID)` (the
-  chosen pipeline connection, already scoped to its `CustomPath`), creates
-  the next version folder via `PublishApi.versioning.get_version_directory()`,
-  then exports `<ticket>_v<NNN>.ma` (`Pipeline.export_maya_common`) into
-  it.
+  `publish(ticket: dict)`: runs the ticket's validation scripts
+  (`PublishApi.tickets.run_validation_scripts`, raising `RuntimeError` on
+  failure), resolves the publish root via
+  `PublishApi.tickets.get_publish_root_for_ticket(TOOL_ID, ticket)` (the
+  ticket's own chosen pipeline connection, already scoped to its
+  `CustomPath`), creates the next version folder via
+  `PublishApi.versioning.get_version_directory()` using the ticket's own
+  `folder_name`, then exports `<folder_name>_v<NNN>.ma`
+  (`Pipeline.export_maya_common`) into it.
 - `maya-scripts/RigPublisher/interface.py` — `MainWindow`
   (`tmlib.ui.interface_template.ToolkitWindow`): same shape as
   `plugins/studio/ModelPublisher/`'s own `interface.py` — ticket list +
-  snapshot/publish/open-folder buttons, no custom-path input of any kind
-  (removed 2026-07-19, see "What changed" below). `refresh_publish_destination()`
+  snapshot/publish/open-folder buttons, plus a "Manage Tickets..." button
+  (added 2026-08-03, inserted in code rather than in `ui.ui`) that opens
+  `PublishApi.ticket_manager_dialog.TicketManagerDialog`. Tickets are
+  loaded from `PublishApi.tickets.list_tickets(TOOL_ID)` — no more
+  hardcoded list — and `get_current_selected_ticket()` returns the full
+  ticket dict, not a bare string. `refresh_publish_destination()`
   re-resolves the root/version live as the ticket changes.
 - `maya-scripts/RigPublisher/ui.ui` — Qt Designer layout, loaded via
   `importlib.import_module("RigPublisher")` + `__path__[0]/ui.ui`.
@@ -48,11 +48,19 @@ the way `UkorePublisher` used to.
 
 Same as `plugins/studio/ModelPublisher/README.md`'s "What changed" section
 — publish root now always comes from `PublishApi`'s pipeline-connection
-resolution instead of the old `share`/`publish` scene-path convention
-(Project Editor also dropped its separate "Set as Pipeline Output..."
-action the same day), no more Type selection, and the free-text "Custom
-Path" field artists used to type in Maya is gone in favor of
-`settings_page.py`'s studio-side picker.
+resolution instead of the old `share`/`publish` scene-path convention, no
+more Type selection, and the free-text "Custom Path" field artists used to
+type in Maya is gone.
+
+**2026-08-03**: the "which pipeline connection to publish into" choice
+moved from a single per-repo pick in a UkoreHub Settings tab
+(`RigPublisherSettingsPage`, now deleted) to a **per-ticket** choice made
+entirely in Maya via "Manage Tickets..." — see
+`plugins/studio/PublishApi/README.md`'s "Tickets" section for the full
+shape (user-created tickets, separate name/folder, per-ticket Publish
+Path, per-ticket validation scripts). An existing repo's old single choice
+is auto-migrated into a "Main" ticket the first time its tickets are
+listed, so nothing already configured is lost.
 
 ## Working on this plugin
 

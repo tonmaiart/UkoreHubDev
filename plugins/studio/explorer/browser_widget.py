@@ -40,6 +40,7 @@ _ROOT_DIR = Path(__file__).resolve().parent.parent.parent.parent
 # button) if a file isn't there.
 BACK_ICON_PATH = _ROOT_DIR / "icons8-back-50.png"
 UP_ICON_PATH = _ROOT_DIR / "icons8-up-50.png"
+ADD_FOLDER_ICON_PATH = _ROOT_DIR / "add_folder.png"
 NAV_ICON_SIZE = QSize(18, 18)
 
 
@@ -86,6 +87,13 @@ class RepoBrowserWidget(QWidget):
         self.up_button = QPushButton()
         _apply_nav_icon(self.up_button, UP_ICON_PATH, "Up")
         self.up_button.clicked.connect(self._on_up)
+        # Creates a new folder inside whichever folder is currently open —
+        # same action as the file table's empty-area "Create New Folder"
+        # context menu entry (_create_new_folder), just reachable without a
+        # right-click.
+        self.add_folder_button = QPushButton()
+        _apply_nav_icon(self.add_folder_button, ADD_FOLDER_ICON_PATH, "New Folder")
+        self.add_folder_button.clicked.connect(self._on_add_folder_clicked)
         self.breadcrumb = QLineEdit()
         self.breadcrumb.returnPressed.connect(self._on_breadcrumb_entered)
         self.search_edit = QLineEdit()
@@ -100,6 +108,7 @@ class RepoBrowserWidget(QWidget):
         nav_row = QHBoxLayout()
         nav_row.addWidget(self.history_back_button)
         nav_row.addWidget(self.up_button)
+        nav_row.addWidget(self.add_folder_button)
         nav_row.addWidget(self.breadcrumb, stretch=1)
         nav_row.addWidget(self.search_edit)
 
@@ -249,6 +258,11 @@ class RepoBrowserWidget(QWidget):
         self._navigate_to(previous_path, _record_history=False)
         self.history_back_button.setEnabled(bool(self._back_stack))
 
+    def _on_add_folder_clicked(self) -> None:
+        if self._current_path is None:
+            return
+        self._create_new_folder(self._current_path)
+
     def _on_breadcrumb_entered(self) -> None:
         typed_path = Path(self.breadcrumb.text().strip())
         if typed_path.exists():
@@ -343,9 +357,22 @@ class RepoBrowserWidget(QWidget):
     def _on_last_opened_clicked(self, item) -> None:
         # Deliberately navigation-only — see the comment where
         # last_opened_list is constructed for why this list never wires up
-        # a double-click-to-open path.
+        # a double-click-to-open path. Selecting the file's row after
+        # navigating just highlights where it is; it doesn't open it.
         path = Path(item.data(Qt.UserRole))
         self._navigate_to(path.parent)
+        self._select_file_in_table(path)
+
+    def _select_file_in_table(self, path: Path) -> None:
+        source_index = self.fs_model.index(str(path))
+        if not source_index.isValid():
+            return
+        proxy_index = self.proxy.mapFromSource(source_index)
+        if not proxy_index.isValid():
+            return
+        self.table.setCurrentIndex(proxy_index)
+        self.table.selectRow(proxy_index.row())
+        self.table.scrollTo(proxy_index)
 
     def _show_opening_popup(self, path: Path) -> None:
         # Non-modal and self-closing — just a quick acknowledgement that the
@@ -376,6 +403,7 @@ class RepoBrowserWidget(QWidget):
     def _on_table_context_menu(self, pos) -> None:
         proxy_index = self.table.indexAt(pos)
         if not proxy_index.isValid():
+            self._on_empty_area_context_menu(pos)
             return
         source_index = self.proxy.mapToSource(proxy_index)
         path = Path(self.fs_model.filePath(source_index))
@@ -396,6 +424,72 @@ class RepoBrowserWidget(QWidget):
             self._rename(path)
         elif action == act_delete:
             self._delete(path)
+
+    def _on_empty_area_context_menu(self, pos) -> None:
+        # Right-click on blank space in the file table (no row under the
+        # cursor) — acts on the currently open folder itself rather than a
+        # selected row, since there is no row to target here.
+        if self._current_path is None:
+            return
+        is_root = self._root is not None and self._current_path == self._root
+
+        menu = QMenu(self)
+        act_new_folder = menu.addAction("Create New Folder")
+        menu.addSeparator()
+        act_rename_folder = menu.addAction("Rename Folder")
+        act_delete_folder = menu.addAction("Delete Folder")
+        # Renaming/deleting the repo root out from under the browser would
+        # leave set_root()'s fs_model/_last_opened_store pointed at a path
+        # that no longer exists, so those two are disabled while sitting at
+        # the root.
+        act_rename_folder.setEnabled(not is_root)
+        act_delete_folder.setEnabled(not is_root)
+
+        action = menu.exec(self.table.viewport().mapToGlobal(pos))
+        if action == act_new_folder:
+            self._create_new_folder(self._current_path)
+        elif action == act_rename_folder:
+            self._rename_current_folder()
+        elif action == act_delete_folder:
+            self._delete_current_folder()
+
+    def _create_new_folder(self, parent_dir: Path) -> None:
+        name, ok = QInputDialog.getText(self, "New Folder", "Folder name:")
+        if not ok or not name.strip():
+            return
+        try:
+            (parent_dir / name.strip()).mkdir()
+        except OSError as exc:
+            QMessageBox.warning(self, "Create Folder Failed", str(exc))
+
+    def _rename_current_folder(self) -> None:
+        if self._current_path is None or self._root is None or self._current_path == self._root:
+            return
+        old_path = self._current_path
+        new_name, ok = QInputDialog.getText(self, "Rename Folder", "New name:", text=old_path.name)
+        if not ok or not new_name.strip():
+            return
+        new_path = old_path.parent / new_name.strip()
+        try:
+            old_path.rename(new_path)
+        except OSError as exc:
+            QMessageBox.warning(self, "Rename Failed", str(exc))
+            return
+        self._navigate_to(new_path, _record_history=False)
+
+    def _delete_current_folder(self) -> None:
+        if self._current_path is None or self._root is None or self._current_path == self._root:
+            return
+        folder = self._current_path
+        confirm = QMessageBox.question(self, "Delete Folder", f"Delete '{folder.name}' and all its contents?")
+        if confirm != QMessageBox.Yes:
+            return
+        try:
+            shutil.rmtree(folder)
+        except OSError as exc:
+            QMessageBox.warning(self, "Delete Failed", str(exc))
+            return
+        self._navigate_to(folder.parent, _record_history=False)
 
     def _rename(self, path: Path) -> None:
         new_name, ok = QInputDialog.getText(self, "Rename", "New name:", text=path.name)

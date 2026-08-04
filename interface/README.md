@@ -7,13 +7,13 @@ operations — widgets here handle layout, user interaction, and background
 Organized by domain rather than by suffix convention: each of `sidebar/`,
 `login/`, `browser_links/`, `repo_settings/`, `settings/` owns one feature
 area end-to-end (page + its dialogs + its workers), the same discipline
-`plugins/`/`add-on/` already enforce for their own folders. Explorer and
-Submit used to live here too (`explorer/`, `submit/`) but are now real
-always-on plugins under `plugins/studio/explorer/` and
-`plugins/studio/submit/` — registered into `SectionRegistry` via
-`register(api)` exactly like any other plugin, not special-cased by
-`interface/` — see their own `README.md`s and
-`core/extensibility/README.md` for the plugins-vs-add-ons distinction.
+`plugins/` already enforces for its own folders. Explorer and Submit used
+to live here too (`explorer/`, `submit/`) but are now real always-on
+plugins under `plugins/studio/explorer/` and `plugins/studio/submit/` —
+registered into `SectionRegistry` via `register(api)` exactly like any
+other plugin, not special-cased by `interface/` — see their own
+`README.md`s and `core/extensibility/README.md` for how plugin discovery
+works.
 `about/` was dissolved 2026-07-20 the same way, once its one remaining
 file turned out to belong to the Browser Links domain, not an "about"
 concept — see `browser_links/README.md`. `shared/` holds the handful of
@@ -52,33 +52,27 @@ a new top-level section that needs `section_registry.py`).
   `section_registry.py`/`settings_tab_registry.py`/
   `sidebar_footer_action_registry.py` below, each otherwise an identical
   keyed-with-duplicate-rejection, sorted-by-`(order, key)` collection.
-  `repo_addon_panel_registry.py` (no ordering concept, just a
-  `get(addon_id)` lookup) and `core/extensibility/file_opener.py`'s
-  `FileOpenerRegistry` (unordered, duplicate keys allowed by design) are
-  deliberately not built on this — see `registry_base.py`'s own docstring
-  for why forcing them into the same shape would fight their design.
+  `core/extensibility/file_opener.py`'s `FileOpenerRegistry` (unordered,
+  duplicate keys allowed by design) is deliberately not built on this —
+  see `registry_base.py`'s own docstring for why forcing it into the same
+  shape would fight its design.
 - `section_registry.py` / `settings_tab_registry.py` /
   `sidebar_footer_action_registry.py` — open, ordered registries (built on
   `registry_base.py`) that top-level sections, Settings tabs, and Sidebar
-  footer widgets register into (built-in and plugin-provided alike).
-  `repo_addon_panel_registry.py` is a fourth, simpler one — a plain
-  `addon_id -> panel_factory` lookup an add-on registers a per-repo panel
-  into via `api.register_repo_addon_panel`; it currently has no UI
-  consumer rendering those panels (Repo About, the only page that ever
-  did, was removed 2026-07-20). All four stay at this root level rather
-  than moving into a domain folder because they're cross-cutting
-  infrastructure with no single domain owner — and
-  `settings_tab_registry.py` specifically is imported directly by an
-  external add-on (`plugins/studio/software_linker/plugin.py`), so keeping
-  it at a stable path avoids touching that add-on's source.
+  footer widgets register into (built-in and plugin-provided alike). All
+  three stay at this root level rather than moving into a domain folder
+  because they're cross-cutting infrastructure with no single domain
+  owner — and `settings_tab_registry.py` specifically is imported directly
+  by `plugins/studio/software_linker/plugin.py`, so keeping it at a stable
+  path avoids touching that plugin's source.
 - `builtin_settings_tabs.py` — constructs the built-in Settings tabs
   (pulling from `settings/`, `browser_links/`, `repo_settings/` —
   Explorer and Submit register themselves from `plugins/studio/`, not from
   here) and registers them into `settings_tab_registry.py`, exactly as a
   plugin would register its own.
-- `plugin_api.py` — `PluginAPI`, the object passed to every plugin's/
-  add-on's `register(api)` entry point; composes `core/` services with the
-  section/settings-tab/repo-addon-panel/sidebar-footer-action registries.
+- `plugin_api.py` — `PluginAPI`, the object passed to every plugin's
+  `register(api)` entry point; composes `core/` services with the
+  section/settings-tab/sidebar-footer-action registries.
 - `theme_apply.py` — applies a `core.theme` stylesheet to the
   `QApplication`; used only by `launcher.py`.
 
