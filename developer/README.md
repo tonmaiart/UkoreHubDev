@@ -1,9 +1,10 @@
 # developer/
 
 Dev-only tooling and docs, grouped together so they can be stripped as one
-unit when publishing to `main`. Lives only on the `dev` branch - `main`
-never has a `developer/` folder (nor `.claude/`), only the plain app code
-artists actually run.
+unit when publishing to the release repo's `main`. Lives only in this repo
+(`UkoreHubDev`, remote `origin`) - the published `main` on the separate
+`UkoreHubRelease` repo never has a `developer/` folder (nor `.claude/`),
+only the plain app code artists actually run.
 
 - [`packaging/`](packaging/README.md) - admin-only tooling to build
   `UkoreHub.exe`.
@@ -14,41 +15,68 @@ artists actually run.
   this codebase, with reusable "Lesson" entries.
 - [`GLOSSARY.md`](GLOSSARY.md) - maps casual/colloquial terms used in this
   project onto their actual feature/file.
-- `commit-main.ps1` - publishes the current `dev` branch onto `main`,
-  stripping `.claude/` and `developer/` itself in the process. See below.
+- `commit-main.ps1` - publishes this repo's current `main` onto the
+  `UkoreHubRelease` repo's `main`, stripping `.claude/` and `developer/`
+  itself in the process. See below.
 
-Because `main` never has a `developer/` folder, publishing also drops the
-`tests/` suite from `main` - it only exists on `dev`. `build/` never ships
-either way (gitignored).
+Because the release repo's `main` never has a `developer/` folder,
+publishing also drops the `tests/` suite - it only exists here, in
+UkoreHubDev. `build/` never ships either way (gitignored).
 
-## Branch workflow
+## Repo split
 
-All day-to-day work (features, fixes, edits, `.claude/` skills, this
-folder) happens on `dev`. `main` is kept as a clean mirror of `dev` minus
-the folders above - the branch artists actually clone/pull from.
+Two separate GitHub repos, not two branches of one repo:
+- **`UkoreHubDev`** (this repo, remote `origin`) - all day-to-day work
+  (features, fixes, edits, `.claude/` skills, this folder) happens directly
+  on its `main` branch. There is no `dev` branch here - this repo's `main`
+  *is* the working branch, unrelated to (and never pushed directly to) the
+  other repo's `main` below.
+- **`UkoreHubRelease`** (remote `release`, added automatically by
+  `commit-main.ps1` if missing) - holds only `main`, a clean mirror of this
+  repo's `main` minus the folders above. This is the repo artists actually
+  clone/pull from (see the pre-launch updater in
+  [`packaging/updater.py`](packaging/updater.py)).
 
-To publish `dev`'s current state to `main`:
+To publish this repo's current state to `UkoreHubRelease`'s `main`:
 
 ```powershell
 developer/commit-main.ps1
 ```
 
 Requirements:
-- Must be run from the `dev` branch.
-- `dev`'s working tree must be clean (commit or stash first) - the script
+- Must be run from this repo's `main` branch.
+- The working tree must be clean (commit or stash first) - the script
   refuses to run otherwise, so it never syncs uncommitted work.
 
-What it does: checks out `main` into a temporary `git worktree`, replaces
-its tracked files with `dev`'s current tree, deletes `.claude/` and
-`developer/` from that copy, commits the result to `main`, and **pushes
-`main` to `origin`** - all without touching your `dev` working directory
-or switching your current branch. If the push fails (network, diverged
-remote, etc.) the commit still lands locally; the script warns you to
-push manually once resolved.
+What it does: fetches the `release` remote (`UkoreHubRelease`) and checks
+its `main` out into a temporary `git worktree` on a throwaway local branch
+(`release-sync`) - or starts an orphan branch if `release/main` doesn't
+exist yet - replaces its tracked files with this repo's current `main`
+tree, deletes `.claude/` and `developer/` from that copy, commits the
+result, and **pushes `release-sync` to `release/main`** - all without
+touching your working directory or switching your current branch. If the
+push fails (network, diverged remote, etc.) the commit still lands locally
+on `release-sync`; the script warns you to push manually once resolved.
 
 Pass `-Message "..."` to use a custom commit message instead of the
-default (which references the `dev` commit being synced). Pass `-NoPush`
-to commit to local main only and push it yourself later.
+default (which references the commit being synced). Pass `-NoPush` to
+commit to the local `release-sync` branch only and push it yourself later.
+
+### Shortcut: `git commit-release`
+
+The `-ExecutionPolicy Bypass -File ...` invocation below is wordy enough
+that it's worth a git alias instead. This is a per-machine setting stored
+in `.git/config`, not tracked by the repo, so each dev who wants the
+shortcut runs this once:
+
+```bash
+git config alias.commit-release '!powershell -ExecutionPolicy Bypass -File "$(git rev-parse --show-toplevel)/developer/commit-main.ps1"'
+```
+
+After that, `git commit-release` (from anywhere inside the repo, Git Bash
+or PowerShell) does the same thing as the invocation below - and extra
+args pass straight through, e.g. `git commit-release -NoPush` or
+`git commit-release -Message "..."`.
 
 ### Running it from Git Bash / MINGW64
 

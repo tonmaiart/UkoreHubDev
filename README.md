@@ -59,8 +59,9 @@ active repo by clicking its node in Project Editor — there is no separate
 sidebar repo-picker button.
 
 Admins rebuild and recommit `UkoreHub.exe` via
-`python developer/packaging/build_exe.py` on the `dev` branch when
-rebranding the icon, or when changing `developer/packaging/exe_entry.py`/
+`python developer/packaging/build_exe.py` on this repo's (UkoreHubDev)
+`main` branch when rebranding the icon, or when changing
+`developer/packaging/exe_entry.py`/
 `updater.py` themselves (see `developer/packaging/README.md`) — routine
 code updates elsewhere still flow through **Update and Restart** / `git
 pull` as plain `.py` changes, exactly as before; the exe itself rarely
@@ -132,8 +133,9 @@ setting instead of attempting to log in.
   (gitignored, per-machine).
 - `launcher.py` — entry point.
 - `developer/` — dev-only tooling (packaging, bug-history, glossary); lives
-  only on the `dev` branch, stripped from `main` by
-  `developer/commit-main.ps1` — see `developer/README.md`.
+  only in this repo (UkoreHubDev), stripped when publishing to the separate
+  UkoreHubRelease repo's `main` by `developer/commit-main.ps1` — see
+  `developer/README.md`.
 - `projects/` — workspace folder (gitignored; actual cloned repos live here).
 
 ## Tests

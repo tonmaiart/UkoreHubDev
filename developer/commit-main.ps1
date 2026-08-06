@@ -1,21 +1,29 @@
 <#
 .SYNOPSIS
-    Mirrors the dev branch onto main, stripping dev-only tooling, and pushes.
+    Mirrors this repo's main branch onto the UkoreHubRelease repo's main
+    branch, stripping dev-only tooling, and pushes.
 
 .DESCRIPTION
-    Publishes the current state of `dev` to `main`, excluding folders that
-    should never ship to artists: `.claude/` and `developer/` (packaging,
-    bug-history, GLOSSARY.md). Run from the dev branch with a clean working
-    tree. Commits the result to local main and pushes it to origin/main,
-    unless -NoPush is passed.
+    This repo (UkoreHubDev, remote `origin`) is a dev repo through and
+    through - its `main` branch IS the working branch (there's no separate
+    `dev` branch here anymore). This script publishes the current state of
+    that `main` to `main` on the separate UkoreHubRelease repo (remote
+    `release`), excluding folders that should never ship to artists:
+    `.claude/` and `developer/` (packaging, bug-history, GLOSSARY.md). Run
+    from `main` with a clean working tree. Commits the result to a
+    throwaway local branch (`release-sync`) built on top of the release
+    remote's current main, and pushes that to release/main, unless -NoPush
+    is passed. Auto-adds the `release` remote (pointing at
+    $ReleaseRemoteUrl) if it isn't already configured.
 
 .PARAMETER Message
-    Commit message for the sync commit on main. Defaults to a message that
-    references the dev commit being synced.
+    Commit message for the sync commit. Defaults to a message that
+    references the commit being synced.
 
 .PARAMETER NoPush
-    Commit to local main but skip pushing to origin - review it yourself
-    (git log main / git show main) and push manually when ready.
+    Commit to the local `release-sync` branch but skip pushing to the
+    release remote - review it yourself (git log release-sync / git show
+    release-sync) and push manually when ready.
 
 .EXAMPLE
     developer/commit-main.ps1
@@ -30,46 +38,81 @@ param(
 $ErrorActionPreference = "Stop"
 
 $excludePaths = @(".claude", "developer")
+$SourceBranch = "main"
+$ReleaseRemoteName = "release"
+$ReleaseRemoteUrl = "https://github.com/tonmaiart/UkoreHub.git"
+$ReleaseBranch = "main"
+$SyncBranch = "release-sync"
 
 $repoRoot = git rev-parse --show-toplevel
 if (-not $repoRoot) { throw "Not inside a git repository." }
 
 $currentBranch = git rev-parse --abbrev-ref HEAD
-if ($currentBranch -ne "dev") {
-    throw "commit-main.ps1 must be run from the dev branch (currently on '$currentBranch')."
+if ($currentBranch -ne $SourceBranch) {
+    throw "commit-main.ps1 must be run from this repo's '$SourceBranch' branch (currently on '$currentBranch')."
 }
 
 $statusOutput = git status --porcelain
 if ($statusOutput) {
-    throw "dev has uncommitted or untracked changes - commit or stash them first:`n$statusOutput"
+    throw "$SourceBranch has uncommitted or untracked changes - commit or stash them first:`n$statusOutput"
 }
 
-$devHead = git rev-parse --short HEAD
-$devSubject = git log -1 --pretty=%s
+$sourceHead = git rev-parse --short HEAD
+$sourceSubject = git log -1 --pretty=%s
 if (-not $Message) {
-    $Message = "Sync from dev @ ${devHead}: $devSubject"
+    $Message = "Sync from ${SourceBranch} @ ${sourceHead}: $sourceSubject"
 }
 
-$worktreePath = Join-Path ([System.IO.Path]::GetTempPath()) "ukorehub-main-sync"
+$configuredRemotes = git remote
+if ($configuredRemotes -notcontains $ReleaseRemoteName) {
+    Write-Host "Adding '$ReleaseRemoteName' remote ($ReleaseRemoteUrl)..."
+    git remote add $ReleaseRemoteName $ReleaseRemoteUrl | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "git remote add $ReleaseRemoteName failed." }
+}
+else {
+    $existingReleaseUrl = git remote get-url $ReleaseRemoteName
+    if ($existingReleaseUrl -ne $ReleaseRemoteUrl) {
+        throw "Remote '$ReleaseRemoteName' already points to '$existingReleaseUrl', expected '$ReleaseRemoteUrl'."
+    }
+}
+
+Write-Host "Fetching $ReleaseRemoteName..."
+git fetch $ReleaseRemoteName | Out-Null
+if ($LASTEXITCODE -ne 0) { throw "git fetch $ReleaseRemoteName failed." }
+
+$hasRemoteMain = [bool](& { $ErrorActionPreference = "SilentlyContinue"; git rev-parse --verify --quiet "refs/remotes/$ReleaseRemoteName/$ReleaseBranch" 2>$null })
+
+$worktreePath = Join-Path ([System.IO.Path]::GetTempPath()) "ukorehub-release-sync"
 if (Test-Path $worktreePath) {
-    git worktree remove --force $worktreePath 2>$null
+    & { $ErrorActionPreference = "SilentlyContinue"; git worktree remove --force $worktreePath 2>$null }
     if (Test-Path $worktreePath) { Remove-Item -Recurse -Force $worktreePath }
 }
+& { $ErrorActionPreference = "SilentlyContinue"; git branch -D $SyncBranch 2>$null } | Out-Null
 
-Write-Host "Checking out main into a temporary worktree..."
-git worktree add $worktreePath main | Out-Null
-if ($LASTEXITCODE -ne 0) { throw "git worktree add failed." }
+if ($hasRemoteMain) {
+    Write-Host "Checking out $ReleaseRemoteName/$ReleaseBranch into a temporary worktree..."
+    git worktree add -B $SyncBranch $worktreePath "$ReleaseRemoteName/$ReleaseBranch" | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "git worktree add failed." }
+}
+else {
+    Write-Host "$ReleaseRemoteName has no '$ReleaseBranch' yet - starting it fresh from this sync..."
+    git worktree add --detach $worktreePath $sourceHead | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "git worktree add failed." }
+    git -C $worktreePath checkout --orphan $SyncBranch | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "git checkout --orphan $SyncBranch failed." }
+}
 
 try {
-    # Clear main's currently tracked files (index + working tree), keep .git.
+    # Clear the sync worktree's currently tracked files (index + working
+    # tree), keep .git.
     git -C $worktreePath rm -r -q --cached . | Out-Null
     Get-ChildItem $worktreePath -Force |
         Where-Object { $_.Name -ne ".git" } |
         Remove-Item -Recurse -Force
 
-    # Repopulate everything from dev's tree.
-    git -C $worktreePath checkout dev -- .
-    if ($LASTEXITCODE -ne 0) { throw "git checkout dev -- . failed." }
+    # Repopulate everything from this repo's main.
+    git -C $worktreePath checkout $SourceBranch -- .
+    if ($LASTEXITCODE -ne 0) { throw "git checkout $SourceBranch -- . failed." }
 
     # Strip dev-only tooling.
     foreach ($p in $excludePaths) {
@@ -82,29 +125,33 @@ try {
     $hasChanges = ($LASTEXITCODE -ne 0)
 
     if (-not $hasChanges) {
-        Write-Host "main is already up to date with dev (minus excluded paths). Nothing to commit."
+        Write-Host "$ReleaseRemoteName/$ReleaseBranch is already up to date with $SourceBranch (minus excluded paths). Nothing to commit."
     }
     else {
         git -C $worktreePath commit -m $Message | Out-Null
-        $mainHead = git -C $worktreePath rev-parse --short HEAD
-        Write-Host "Committed to main: $mainHead"
+        $syncHead = git -C $worktreePath rev-parse --short HEAD
+        Write-Host "Committed to ${SyncBranch}: $syncHead"
     }
 
     if ($NoPush) {
-        Write-Host "Skipping push (-NoPush). Review with 'git log main' / 'git show main', then push yourself:"
-        Write-Host "  git push origin main"
+        Write-Host "Skipping push (-NoPush). Review with 'git log $SyncBranch' / 'git show $SyncBranch', then push yourself:"
+        Write-Host "  git push $ReleaseRemoteName ${SyncBranch}:$ReleaseBranch"
     }
     else {
-        Write-Host "Pushing main to origin..."
-        git -C $worktreePath push origin main
+        Write-Host "Pushing $SyncBranch to $ReleaseRemoteName/$ReleaseBranch..."
+        git -C $worktreePath push $ReleaseRemoteName "${SyncBranch}:$ReleaseBranch"
         if ($LASTEXITCODE -ne 0) {
-            Write-Warning "Push failed - main was committed locally but NOT published. Resolve (e.g. 'git pull --rebase origin main' or check your connection) and push manually: git push origin main"
+            Write-Warning "Push failed - the sync commit exists locally on '$SyncBranch' but was NOT published. Resolve (e.g. 'git fetch $ReleaseRemoteName' and rebase, or check your connection) and push manually: git push $ReleaseRemoteName ${SyncBranch}:$ReleaseBranch"
         }
         else {
-            Write-Host "Pushed to origin/main."
+            Write-Host "Pushed to $ReleaseRemoteName/$ReleaseBranch."
+            $pushedOk = $true
         }
     }
 }
 finally {
-    git worktree remove --force $worktreePath 2>$null
+    & { $ErrorActionPreference = "SilentlyContinue"; git worktree remove --force $worktreePath 2>$null }
+    if ($pushedOk) {
+        & { $ErrorActionPreference = "SilentlyContinue"; git branch -D $SyncBranch 2>$null } | Out-Null
+    }
 }
