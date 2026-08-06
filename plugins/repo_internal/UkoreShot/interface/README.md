@@ -144,8 +144,8 @@ unambiguous despite the shared name.
   confirmed with the user. Each `_VideoCard` (`QFrame`, object name
   `videoCard`, styled via `core/theme.py`'s `QFrame#videoCard` rules — the
   app's top-level `core/theme.py`, same card-with-QSS-plus-hand-painted-
-  thumbnail idiom `interface/login/repo_picker.py`'s `_RepoCard`
-  established) paints its best-effort thumbnail (`thumbnail_loader.py`)
+  thumbnail idiom used elsewhere in the app) paints its best-effort
+  thumbnail (`thumbnail_loader.py`)
   fill-cropped into a fixed-height top strip, with the video's path
   relative to the video root (filename bold, parent folder secondary/gray)
   underneath as normal child labels. Implements the standard
@@ -621,5 +621,4 @@ The `_VideoCard`/`_TextBoxItem`/`_CommentBubble` QSS rules
 (`QFrame#videoCard`, `QFrame#textBoxItem`, `QFrame#commentBubble` +
 friends) were added to the app's top-level `core/theme.py`'s shared
 stylesheet rather than a local `setStyleSheet` — that's the "needs a new
-`core/` primitive" exception, matching the existing `QFrame#repoCard`
-rules `interface/login/repo_picker.py` already relies on.
+`core/` primitive" exception.

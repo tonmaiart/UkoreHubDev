@@ -4,10 +4,14 @@ import maya.cmds as cmds
 import importlib.util
 import tmlib
 
-import ngSkinTools2
-from ngSkinTools2.api import import_export
-from ngSkinTools2.operations import removeLayerData
-from ngSkinTools2.api import transfer
+try:
+    import ngSkinTools2
+    from ngSkinTools2.api import import_export
+    from ngSkinTools2.operations import removeLayerData
+    from ngSkinTools2.api import transfer
+    NGSKINTOOLS_AVAILABLE = True
+except ImportError:
+    NGSKINTOOLS_AVAILABLE = False
 
 
 def create_quick_data_folder_template():
@@ -208,7 +212,9 @@ def import_skin_quick(enable_transfer=False, import_ng=True):
 
 
         # import ng skin
-        if import_ng:
+        if import_ng and not NGSKINTOOLS_AVAILABLE:
+            cmds.displayWarning("ngSkinTools2 not installed, skipping SkinNG import.")
+        elif import_ng:
             ng_path = json_file.replace("Skin", "SkinNG")
             print("ng_path : ", ng_path)
 
@@ -288,7 +294,9 @@ def export_skin_quick(export_ng=True):
         )
 
         # export ngskin tools weight
-        if export_ng:
+        if export_ng and not NGSKINTOOLS_AVAILABLE:
+            cmds.displayWarning("ngSkinTools2 not installed, skipping SkinNG export.")
+        elif export_ng:
             ng_save_name = os.path.join(ng_file_path, mesh_name)
 
             mesh_main_name = cmds.ls("*{}".format(mesh_name),"*:{}".format(mesh_name))[0]

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 TOOL_ID = "maya_ngskin"
 TOOL_LABEL = "MayaNgSkin"
 # Convention-only string match with plugins/repo_internal/maya_launcher/plugin.py
@@ -11,7 +13,7 @@ ANY_VERSION = "*"
 
 
 def register(api) -> None:
-    tool_root = api.app_root / "plugins" / "core" / "MayaNgskin"
+    tool_root = Path(__file__).resolve().parent
 
     # ngSkinTools2.mll is a compiled plug-in shipped once per Maya version
     # (maya-plug-ins/2018, .../2024, ...) — unlike a flat MAYA_PLUG_IN_PATH

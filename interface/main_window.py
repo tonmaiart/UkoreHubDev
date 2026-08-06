@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import os
+import subprocess
 import sys
 from pathlib import Path
-from typing import Callable
 
 from PySide6.QtCore import QTimer, Qt
 from PySide6.QtGui import QColor, QPainter
 from PySide6.QtWidgets import (
+    QApplication,
     QHBoxLayout,
     QMainWindow,
     QMessageBox,
@@ -24,20 +25,22 @@ from core.git_service import GitService
 from core.github.token_store import TokenStore
 from core.paths import resolve_repo_path
 from core.program_store import ProgramStore
-from core.store import LocalConfigStore, MetadataStore, SystemConfigStore
+from core.store import LocalConfigStore, MetadataStore
 from core.theme import DEFAULT_THEME_NAME, get_theme
 from core.version import APP_NAME, APP_VERSION
 from interface import builtin_settings_tabs
 from interface.browser_links.browser_link_page import BrowserLinkPage
 from interface.browser_links.web_engine_profile import make_persistent_browser_link_profile
-from interface.login.login_gate import LoginGate
-from interface.login.repo_picker import RepoPickerDialog
 from interface.section_registry import SectionHost, SectionRegistry
 from interface.settings.settings_view import SettingsDialog
 from interface.settings_tab_registry import SettingsTabRegistry
 from interface.sidebar.sidebar import Sidebar
 from interface.sidebar_footer_action_registry import SidebarFooterActionRegistry
 
+# interface/main_window.py -> interface/ -> repo root — used only to find
+# UkoreHub.exe for _relaunch_to_login (the launcher exe built at the repo
+# root by developer/packaging/build_exe.py).
+_REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # Explicit floor rather than a computed one (minimumSizeHint() right after
 # setCentralWidget() is unreliable — layout isn't fully activated yet, and
@@ -98,7 +101,6 @@ class MainWindow(QMainWindow):
         self,
         store: MetadataStore,
         local_config_store: LocalConfigStore,
-        system_config_store: SystemConfigStore,
         program_store: ProgramStore,
         git_service: GitService,
         token_store: TokenStore,
@@ -116,18 +118,11 @@ class MainWindow(QMainWindow):
         self.local_config_store = local_config_store
         self.program_store = program_store
         self.git_service = git_service
+        # Only used for logout (clearing the cached token) — login itself
+        # happens entirely in the launcher exe now, see
+        # developer/packaging/updater.py and _on_logout_requested below.
+        self._token_store = token_store
         self.hook_registry = hook_registry
-        # Login mechanics (LoginOverlay construction, token/session
-        # restore-on-launch, logout) live in interface/login/login_gate.py —
-        # MainWindow only drives *when* to show/teardown it (see
-        # _show_login_gate/_teardown_login_gate) and owns setCentralWidget,
-        # which is a window-layout concern, not a login one.
-        self._login_gate = LoginGate(
-            system_config_store=system_config_store,
-            local_config_store=local_config_store,
-            token_store=token_store,
-            git_service=git_service,
-        )
         self.section_registry = section_registry
         self.settings_tab_registry = settings_tab_registry
         self.file_opener_registry = file_opener_registry
@@ -156,18 +151,12 @@ class MainWindow(QMainWindow):
 
         self._active_project = None
         self._active_repo = None
-        # The real main UI (sidebar + view_stack) is only ever constructed
-        # once we know the user is logged in — see _build_main_ui(). Until
-        # then these all stay at these empty/None defaults, and closeEvent()
-        # guards on that (the window can still be closed while the login
-        # gate is up, before any of this exists).
         self.pages: dict[str, QWidget] = {}
         self.sidebar: Sidebar | None = None
         self.view_stack: QStackedWidget | None = None
         self._section_view_index: dict[str, int] = {}
         self._persistent_pages: list[QWidget] = []
         self._dynamic_view_index: dict[str, int] = {}
-        self._main_content: QWidget | None = None
         # Shared across every Browser Link tab so a login persists across
         # app restarts — see interface/web_engine_profile.py.
         self._web_engine_profile = make_persistent_browser_link_profile(
@@ -179,27 +168,22 @@ class MainWindow(QMainWindow):
         # No show()/showMaximized() call here on purpose — see
         # developer/bug-history/2026-07-20-main-window-not-maximizing.md. Nothing is
         # ever actually painted on screen until app.exec() starts running
-        # the event loop, so building the whole widget tree first (whichever
-        # branch below) and only then showing it, once, deferred via
-        # launcher.py's QTimer.singleShot(0, window.showMaximized), is what
-        # makes the window reliably come up maximized with no flash of a
-        # smaller window first — a widget that's never been shown has no
-        # "size" for the user to glimpse.
+        # the event loop, so building the whole widget tree first and only
+        # then showing it, once, deferred via launcher.py's
+        # QTimer.singleShot(0, window.showMaximized), is what makes the
+        # window reliably come up maximized with no flash of a smaller
+        # window first — a widget that's never been shown has no "size" for
+        # the user to glimpse.
         #
-        # GitHub login is mandatory — the real main UI (sidebar, every
-        # section's page, Settings) is never even constructed until we know
-        # the user is logged in, so there's nothing for the login gate to
-        # cover/hide: it's simply the central widget by itself first, then
-        # _build_main_ui() replaces it once login succeeds. This avoids the
-        # z-order/paint issues an always-on-top overlay had when drawn over
-        # an already-built main UI.
-        if self._login_gate.is_logged_in():
-            self._build_main_ui()
-            self._start_app_after_login()
-        else:
-            self._show_login_gate(self._on_initial_login_completed)
+        # GitHub login now happens in the launcher exe before this process
+        # is even spawned (see developer/packaging/updater.py) — by the time
+        # MainWindow is constructed, GitService already has whatever token
+        # was cached (see launcher.py's main()), so there's no in-app login
+        # gate to show first.
+        self._build_main_ui()
+        self._start_app()
 
-    # -- main UI construction (deferred until logged in) -------------------
+    # -- main UI construction -----------------------------------------------
 
     def _build_main_ui(self) -> None:
         section_registry = self.section_registry
@@ -279,13 +263,12 @@ class MainWindow(QMainWindow):
             # the larger side.
             content_splitter.setSizes([1000, 900] + [0] * (len(self._persistent_pages) - 1))
         central_layout.addWidget(content_splitter, stretch=1)
-        self._main_content = central
         self.setCentralWidget(central)
 
         self.setMinimumHeight(MAIN_WINDOW_MIN_HEIGHT)
-        # This runs synchronously inside __init__ on the cached-login path
-        # (see the branch above) — safe to resize() unconditionally here
-        # because, as of developer/bug-history/2026-07-20-main-window-not-maximizing.md,
+        # This runs synchronously inside __init__ — safe to resize()
+        # unconditionally here because, as of
+        # developer/bug-history/2026-07-20-main-window-not-maximizing.md,
         # nothing ever calls show()/showMaximized() before this point
         # anymore (that's now deferred to launcher.py's single
         # QTimer.singleShot(0, window.showMaximized), after app.exec()
@@ -295,61 +278,13 @@ class MainWindow(QMainWindow):
         if not self.isMaximized() and self.height() < MAIN_WINDOW_MIN_HEIGHT:
             self.resize(self.width(), MAIN_WINDOW_MIN_HEIGHT)
 
-    # -- login gate ----------------------------------------------------
-
-    def _show_login_gate(self, on_completed: Callable[[], None]) -> None:
-        """Shows the login gate (LoginGate.show, which constructs
-        LoginOverlay) as the central widget itself — replaces whatever was
-        there (nothing yet on first launch; the real main UI,
-        detached-but-kept-alive via takeCentralWidget(), on a relogin after
-        logout — see _on_logout_requested) rather than being drawn on top of
-        it, so there's no overlay/z-order fighting with already-built
-        content."""
-        self.setCentralWidget(self._login_gate.show(self, on_completed))
-
-    def _teardown_login_gate(self) -> None:
-        if self._login_gate.overlay is not None:
-            self.takeCentralWidget()
-            self._login_gate.teardown()
-
-    def _offer_repo_pick_after_login(self) -> None:
-        # Auto-opens right after every successful login (first launch or a
-        # relogin after logout) — same RepoPickerDialog used everywhere
-        # else, just with its Cancel button relabeled "Skip" since there's
-        # nothing being cancelled, just deferred.
-        dialog = RepoPickerDialog(
-            self,
-            store=self.store,
-            selected_project_id=self.local_config_store.active_project_id,
-            selected_repo_id=self.local_config_store.active_repo_id,
-            cancel_button_text="Skip",
-        )
-        if dialog.exec():
-            self.local_config_store.set_active_repo(dialog.selected_project_id(), dialog.selected_repo_id())
-
-    def _start_app_after_login(self) -> None:
+    def _start_app(self) -> None:
+        self.sidebar.set_account_username(self.local_config_store.github_username)
         self._restore_active_repo()
         self._apply_to_current_page()
         self._apply_to_persistent_pages()
-        self._login_gate.restore_session_state(self.sidebar.github_auth_widget)
         QTimer.singleShot(0, self._start_auto_sync)
         self._fire_app_started()
-
-    def _on_initial_login_completed(self) -> None:
-        self._teardown_login_gate()
-        self._build_main_ui()
-        self._offer_repo_pick_after_login()
-        self._start_app_after_login()
-
-    def _on_relogin_completed(self) -> None:
-        self._teardown_login_gate()
-        self.setCentralWidget(self._main_content)
-        self._offer_repo_pick_after_login()
-        self._restore_active_repo()
-        self._apply_to_current_page()
-        self._apply_to_persistent_pages()
-        self._login_gate.restore_session_state(self.sidebar.github_auth_widget)
-        self._start_auto_sync()
 
     # -- navigation (Explorer / Submit / About / Setting / Browser Links) ---
 
@@ -376,9 +311,9 @@ class MainWindow(QMainWindow):
         common_settings_page = dialog.view.get_tab_widget(builtin_settings_tabs.COMMON)
         if common_settings_page is not None:
             common_settings_page.logout_requested.connect(self._on_logout_requested)
-            # Logging out tears down the main UI behind this dialog (see
-            # _on_logout_requested) — close the dialog itself too rather
-            # than leaving it floating over the login gate afterward.
+            # Logging out closes the whole app (see _on_logout_requested) —
+            # close the dialog itself too rather than leaving it floating
+            # over nothing.
             common_settings_page.logout_requested.connect(dialog.accept)
             common_settings_page.restart_requested.connect(self._on_restart_requested)
         browser_links_page = dialog.view.get_tab_widget(builtin_settings_tabs.BROWSER_LINKS)
@@ -571,16 +506,55 @@ class MainWindow(QMainWindow):
             if callable(sync_active_repo):
                 sync_active_repo(self._active_project, self._active_repo, workspace_root)
 
-    # -- GitHub login -------------------------------------------------------
+    # -- GitHub logout ----------------------------------------------------
 
     def _on_logout_requested(self) -> None:
-        self._login_gate.logout(self.sidebar.github_auth_widget)
-        # GitHub login is mandatory — logout goes straight back to the same
-        # gate shown at startup. Detach (not delete) the real main UI first,
-        # so _on_relogin_completed can restore it as-is afterward instead of
-        # rebuilding everything from scratch.
-        self._main_content = self.takeCentralWidget()
-        self._show_login_gate(self._on_relogin_completed)
+        # Login/token-caching moved entirely to the launcher exe (see
+        # developer/packaging/updater.py) — there's no in-app login gate to
+        # send the user back to, so "logout" here means: clear the cached
+        # token + username, then close this app and reopen the launcher
+        # exe, whose own login step will show the GitHub login screen again
+        # since the token is now gone.
+        self._token_store.clear_token()
+        self.local_config_store.set_github_username(None)
+        self.sidebar.set_account_username(None)
+        self._relaunch_to_login()
+
+    @staticmethod
+    def _relaunch_to_login() -> None:
+        exe_path = _REPO_ROOT / "UkoreHub.exe"
+        if exe_path.is_file():
+            # This process's own environment still carries PyInstaller
+            # onefile bootloader variables (_PYI_APPLICATION_HOME_DIR,
+            # _PYI_ARCHIVE_FILE, _PYI_PARENT_PROCESS_LEVEL) inherited all
+            # the way down from the original UkoreHub.exe launch — Popen
+            # inherits the full environment by default, and nothing along
+            # this process chain (updater.py's own _launch(), this one)
+            # clears them. A onefile bootloader treats a nonempty
+            # _PYI_APPLICATION_HOME_DIR as "reuse this already-extracted
+            # payload instead of extracting a fresh one" (its
+            # multiprocessing-in-a-frozen-app support) — but that directory
+            # belonged to the *original* exe process, long since exited and
+            # cleaned up, so the new bootloader fails with "Failed to load
+            # Python DLL ... LoadLibrary: The specified module could not be
+            # found" trying to load a DLL from a folder that no longer
+            # exists. Confirmed 100% reproducible via a captured env dump
+            # from a real logout — see developer/bug-history/ for the full
+            # writeup. Stripping every _PYI_-prefixed var forces a genuine
+            # fresh self-extraction.
+            clean_env = {k: v for k, v in os.environ.items() if not k.startswith("_PYI_")}
+            subprocess.Popen([str(exe_path)], cwd=str(_REPO_ROOT), env=clean_env)
+        else:
+            # Dev environment running via `python launcher.py` directly,
+            # with no built exe next to it — there's no login UI left in
+            # the plain-Python app to fall back to (see root README.md's
+            # "Running" section), so just tell the user what to do.
+            QMessageBox.information(
+                None,
+                "Logout",
+                "Logged out. Run UkoreHub.exe to log back in.",
+            )
+        QApplication.quit()
 
     # -- restart --------------------------------------------------------------
 
@@ -603,11 +577,9 @@ class MainWindow(QMainWindow):
         # closes the window) — terminate and wait for any live worker first.
         # Built-in and plugin sections alike opt into this via
         # SectionSpec.background_threads, so main_window.py never needs to
-        # know a section's internals. Guarded throughout since the window can
-        # be closed before the main UI is even built (login gate still up).
+        # know a section's internals.
         workers: list = []
         if self.sidebar is not None:
-            workers.append(self.sidebar.github_auth_widget._avatar_worker)
             for spec in self.sidebar_footer_action_registry.ordered():
                 if spec.background_threads is not None:
                     workers.extend(spec.background_threads(self.sidebar.footer_action_widgets[spec.key]))

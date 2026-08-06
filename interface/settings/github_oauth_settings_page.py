@@ -21,8 +21,9 @@ class GithubOAuthSettingsPage(QWidget):
         form = QFormLayout(self)
         form.addRow("GitHub OAuth Client ID:", self.client_id_edit)
         hint = QLabel(
-            "Optional — needed only for the mandatory GitHub login gate to work.\n"
-            "Register a public OAuth App and enable \"Device Flow\" to get one."
+            "Optional — needed only for the mandatory GitHub login step in the\n"
+            "launcher (UkoreHub.exe) to work. Register a public OAuth App and\n"
+            "enable \"Device Flow\" to get one."
         )
         hint.setProperty("secondary", True)
         hint.setWordWrap(True)

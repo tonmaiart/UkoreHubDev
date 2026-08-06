@@ -22,20 +22,45 @@
     "maya_ngskin": {
       "PYTHONPATH": {
         "*": [
-          "C:\\Tonmai\\UkoreHub\\plugins\\core\\MayaNgskin\\maya-scripts"
+          "C:\\Tonmai\\UkoreHub\\plugins\\repo_internal\\MayaNgskin\\maya-scripts"
         ]
       },
-      "MAYA_PLUG_IN_PATH": {}
+      "MAYA_PLUG_IN_PATH": {
+        "2018": [
+          "C:\\Tonmai\\UkoreHub\\plugins\\repo_internal\\MayaNgskin\\maya-plug-ins\\2018"
+        ],
+        "2019": [
+          "C:\\Tonmai\\UkoreHub\\plugins\\repo_internal\\MayaNgskin\\maya-plug-ins\\2019"
+        ],
+        "2020": [
+          "C:\\Tonmai\\UkoreHub\\plugins\\repo_internal\\MayaNgskin\\maya-plug-ins\\2020"
+        ],
+        "2022": [
+          "C:\\Tonmai\\UkoreHub\\plugins\\repo_internal\\MayaNgskin\\maya-plug-ins\\2022"
+        ],
+        "2023": [
+          "C:\\Tonmai\\UkoreHub\\plugins\\repo_internal\\MayaNgskin\\maya-plug-ins\\2023"
+        ],
+        "2024": [
+          "C:\\Tonmai\\UkoreHub\\plugins\\repo_internal\\MayaNgskin\\maya-plug-ins\\2024"
+        ],
+        "2025": [
+          "C:\\Tonmai\\UkoreHub\\plugins\\repo_internal\\MayaNgskin\\maya-plug-ins\\2025"
+        ],
+        "2026": [
+          "C:\\Tonmai\\UkoreHub\\plugins\\repo_internal\\MayaNgskin\\maya-plug-ins\\2026"
+        ]
+      }
     },
     "maya_toolkit": {
       "PYTHONPATH": {
         "*": [
-          "C:\\Tonmai\\UkoreHub\\plugins\\core\\MayaToolkit\\maya-scripts"
+          "C:\\Tonmai\\UkoreHub\\plugins\\repo_internal\\MayaToolkit\\maya-scripts"
         ]
       },
       "MAYA_PLUG_IN_PATH": {
         "*": [
-          "C:\\Tonmai\\UkoreHub\\plugins\\core\\MayaToolkit\\maya-plug-ins"
+          "C:\\Tonmai\\UkoreHub\\plugins\\repo_internal\\MayaToolkit\\maya-plug-ins"
         ]
       }
     },
@@ -61,7 +86,7 @@
     "ukore_browser": {
       "PYTHONPATH": {
         "*": [
-          "C:\\Tonmai\\UkoreHub\\plugins\\core\\UkoreBrowser\\maya-scripts",
+          "C:\\Tonmai\\UkoreHub\\plugins\\repo_internal\\UkoreBrowser\\maya-scripts",
           "C:\\Tonmai\\UkoreHub"
         ]
       }
@@ -76,21 +101,21 @@
     "animation_publisher": {
       "PYTHONPATH": {
         "*": [
-          "C:\\Tonmai\\UkoreHub\\plugins\\studio\\AnimationPublisher\\maya-scripts"
+          "C:\\Tonmai\\UkoreHub\\plugins\\repo_internal\\AnimationPublisher\\maya-scripts"
         ]
       }
     },
     "model_publisher": {
       "PYTHONPATH": {
         "*": [
-          "C:\\Tonmai\\UkoreHub\\plugins\\core\\ModelPublisher\\maya-scripts"
+          "C:\\Tonmai\\UkoreHub\\plugins\\repo_internal\\ModelPublisher\\maya-scripts"
         ]
       }
     },
     "publish_api": {
       "PYTHONPATH": {
         "*": [
-          "C:\\Tonmai\\UkoreHub\\plugins\\core\\PublishApi\\maya-scripts",
+          "C:\\Tonmai\\UkoreHub\\plugins\\repo_internal\\PublishApi\\maya-scripts",
           "C:\\Tonmai\\UkoreHub"
         ]
       }
@@ -98,22 +123,29 @@
     "rig_publisher": {
       "PYTHONPATH": {
         "*": [
-          "C:\\Tonmai\\UkoreHub\\plugins\\core\\RigPublisher\\maya-scripts"
+          "C:\\Tonmai\\UkoreHub\\plugins\\repo_internal\\RigPublisher\\maya-scripts"
         ]
       }
     },
     "ukore_playblast": {
       "PYTHONPATH": {
         "*": [
-          "C:\\Tonmai\\UkoreHub\\plugins\\core\\UkorePlayblast\\maya-scripts"
+          "C:\\Tonmai\\UkoreHub\\plugins\\repo_internal\\UkorePlayblast\\maya-scripts"
         ]
       }
     },
     "ukore_reference_editor": {
       "PYTHONPATH": {
         "*": [
-          "C:\\Tonmai\\UkoreHub\\plugins\\core\\UkoreReferenceEditor\\maya-scripts",
+          "C:\\Tonmai\\UkoreHub\\plugins\\repo_internal\\UkoreReferenceEditor\\maya-scripts",
           "C:\\Tonmai\\UkoreHub"
+        ]
+      }
+    },
+    "maya_publisher": {
+      "PYTHONPATH": {
+        "*": [
+          "C:\\Tonmai\\UkoreHub\\plugins\\repo_internal\\MayaPublisher\\maya-scripts"
         ]
       }
     }
@@ -132,6 +164,7 @@
     "publish_api": "PublishApi",
     "rig_publisher": "RigPublisher",
     "ukore_playblast": "UkorePlayblast",
-    "ukore_reference_editor": "UkoreReferenceEditor"
+    "ukore_reference_editor": "UkoreReferenceEditor",
+    "maya_publisher": "MayaPublisher"
   }
 }

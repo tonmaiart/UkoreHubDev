@@ -69,23 +69,32 @@ navigation aids now.)
   `fs_model.index()`/`proxy.mapFromSource()`) — deliberately no
   double-click-to-open wired up here, so this list can never be a second
   way to launch a file, only a navigation-plus-highlight shortcut back to
-  one.
+  one. `open_directory_button` ("Open Directory") sits on its own row below
+  the file table — opens `_current_path` in the OS file explorer via
+  `core/os_utils.py`'s `open_in_file_explorer`. Kept out of `nav_row`
+  deliberately: it hands off to the OS rather than navigating within the
+  app, unlike every other nav_row button.
 - `last_opened_store.py` — `LastOpenedStore`: persists the Last Opened
-  Files list to `<repo_root>/.ukorehub/explorer_last_opened_<username>.json`
+  Files list to **this app's own**
+  `<UkoreHub_root>/cache/explorer/last_opened_<repo_id>_<username>.json`
   — a **local, per-repo, per-OS-user** cache, not team/studio-shared data
   (never goes through `PluginConfigStore`/`api.plugin_config_store`).
-  Mirrors `plugins/repo_internal/UkoreBrowser/maya-scripts/UkoreBrowser/core/browser_config.py`'s
-  `BrowserConfig` — same `.ukorehub/` convention, same repo-relative path
-  storage (survives a different drive letter machine to machine) — but
-  additionally scoped by OS username (`getpass.getuser()`, sanitized to a
-  safe filename), since this is a genuinely per-artist working list, not
-  something meant to be shared even between two people using the same
-  clone. `get_last_opened()` also prunes (and persists the removal of) any
-  entry whose file no longer exists on disk, so deleted files don't
-  linger in the list forever. Like `BrowserConfig`'s own file, keeping
-  this out of a production repo's git history is that repo's own
-  `.gitignore`'s job — this file lives inside whatever repo is being
-  browsed, not inside UkoreHub's own.
+  Stores repo-relative paths (survives a different drive letter machine to
+  machine), scoped by both the repo's id and OS username (`getpass.getuser()`,
+  sanitized to a safe filename). Used to live at
+  `<browsed_repo_root>/.ukorehub/explorer_last_opened_<username>.json`
+  instead (same convention as
+  `plugins/repo_internal/UkoreBrowser/maya-scripts/UkoreBrowser/core/browser_config.py`'s
+  `BrowserConfig`) but that put the file inside whatever production repo was
+  being browsed, at the mercy of *that* repo's own `.gitignore` — several
+  studio repos didn't exclude `.ukorehub/`, so this list kept getting
+  committed to their history. `cache/` is this app's own repo, already
+  wholesale gitignored (`/cache/` in this app's `.gitignore`, same directory
+  `cache/plugins/` repo plugins live under), so this sidesteps the problem
+  entirely rather than depending on every browsed repo's `.gitignore` being
+  correct. `get_last_opened()` also prunes (and persists the removal of) any
+  entry whose file no longer exists on disk, so deleted files don't linger
+  in the list forever.
 - `path_commit_history_panel.py` — `PathCommitHistoryPanel`: commit
   history scoped to whichever path is currently being viewed — narrower
   than the whole-repo log on `plugins/core/submit/repo_git_status_page.py`.

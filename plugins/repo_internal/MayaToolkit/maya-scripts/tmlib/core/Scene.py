@@ -514,6 +514,8 @@ def clean_up_scene():
         cmds.inViewMessage(
             amg="<hl>Clean Up Rig Complete!.</hl>", pos="botCenter", fade=True
         )
+
+        return True
     else:
         return False
 

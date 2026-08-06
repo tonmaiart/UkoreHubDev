@@ -19,9 +19,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from core.exceptions import GitOperationError, UkoreHubError
+from core.exceptions import GitHubAuthError, GitOperationError, UkoreHubError
 from core.extensibility.hooks import GitHookContext
 from core.git_service import GitService
+from core.github.repo_access import check_repo_access
 from core.models import Project, Repo, RepoStatus
 from core.paths import resolve_repo_path
 from core.store import LocalConfigStore, MetadataStore
@@ -57,6 +58,7 @@ class RepoGitStatusPage(QWidget):
         self._git_worker: GitStreamWorker | None = None
         self._status_worker: RepoStatusWorker | None = None
         self._stream_worker: GitStreamWorker | None = None
+        self._stage_worker: GitStreamWorker | None = None
         self._pending_commit_message = ""
         self._pending_amend = False
         self._last_status: RepoStatus | None = None
@@ -86,7 +88,9 @@ class RepoGitStatusPage(QWidget):
             lambda pos: self._show_inspect_menu(self.modified_list, pos)
         )
         self.select_all_button = QPushButton("Select All")
-        self.select_all_button.clicked.connect(self._on_select_all_clicked)
+        self.select_all_button.clicked.connect(
+            lambda: self._on_select_all_clicked(self.modified_list)
+        )
         self.stage_button = QPushButton("Stage")
         self.stage_button.clicked.connect(self._on_stage_clicked)
         self.revert_button = QPushButton("Revert")
@@ -102,20 +106,36 @@ class RepoGitStatusPage(QWidget):
         lists_row.addWidget(modified_group)
 
         self.staged_list = QListWidget()
-        self.staged_list.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.staged_list.setSelectionMode(QAbstractItemView.NoSelection)
         self.staged_list.setContextMenuPolicy(Qt.CustomContextMenu)
         self.staged_list.customContextMenuRequested.connect(
             lambda pos: self._show_inspect_menu(self.staged_list, pos)
+        )
+        self.staged_select_all_button = QPushButton("Select All")
+        self.staged_select_all_button.clicked.connect(
+            lambda: self._on_select_all_clicked(self.staged_list)
         )
         self.restore_button = QPushButton("Restore")
         self.restore_button.clicked.connect(self._on_restore_clicked)
         self.pull_push_button = QPushButton("Pull and Push")
         self.pull_push_button.clicked.connect(self._on_pull_and_push_clicked)
         staged_button_row = QHBoxLayout()
+        staged_button_row.addWidget(self.staged_select_all_button)
         staged_button_row.addWidget(self.restore_button)
         staged_button_row.addWidget(self.pull_push_button)
+        # Indeterminate busy bar shown while a stage runs on _stage_worker
+        # (off the UI thread — a large "Select All" batch can take a while
+        # with core.git_service's chunked git-add calls) — same widget/idiom
+        # as self.progress_bar below for Sync, just scoped to this group.
+        self.staged_progress_bar = QProgressBar()
+        self.staged_progress_bar.setRange(0, 0)
+        self.staged_progress_bar.setFixedHeight(4)
+        self.staged_progress_bar.setTextVisible(False)
+        self.staged_progress_bar.setVisible(False)
+
         staged_group = QGroupBox("Staged")
         staged_layout = QVBoxLayout(staged_group)
+        staged_layout.addWidget(self.staged_progress_bar)
         staged_layout.addWidget(self.staged_list)
         staged_layout.addLayout(staged_button_row)
         lists_row.addWidget(staged_group)
@@ -214,7 +234,11 @@ class RepoGitStatusPage(QWidget):
             item.setCheckState(Qt.Unchecked)
             self.modified_list.addItem(item)
         self.staged_list.clear()
-        self.staged_list.addItems(status.staged)
+        for path in sorted(status.staged):
+            item = QListWidgetItem(path)
+            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+            item.setCheckState(Qt.Unchecked)
+            self.staged_list.addItem(item)
         if status.is_clean:
             self.status_dot.set_state("fresh")
             self._freshness_timer.start(FRESHNESS_WINDOW_MS)
@@ -236,36 +260,58 @@ class RepoGitStatusPage(QWidget):
 
     # -- stage / unstage / revert --------------------------------------------
 
-    def _checked_modified_paths(self) -> list[str]:
+    def _checked_paths(self, list_widget: QListWidget) -> list[str]:
         return [
-            self.modified_list.item(i).text()
-            for i in range(self.modified_list.count())
-            if self.modified_list.item(i).checkState() == Qt.Checked
+            list_widget.item(i).text()
+            for i in range(list_widget.count())
+            if list_widget.item(i).checkState() == Qt.Checked
         ]
 
-    def _on_select_all_clicked(self) -> None:
+    def _checked_modified_paths(self) -> list[str]:
+        return self._checked_paths(self.modified_list)
+
+    def _on_select_all_clicked(self, list_widget: QListWidget) -> None:
         # Toggle: if everything's already checked, the button clears
         # instead — one button covers both directions rather than needing
-        # a separate "Deselect All".
-        count = self.modified_list.count()
-        all_checked = count > 0 and len(self._checked_modified_paths()) == count
+        # a separate "Deselect All". Shared by both the Modified and Staged
+        # panels' Select All buttons.
+        count = list_widget.count()
+        all_checked = count > 0 and len(self._checked_paths(list_widget)) == count
         new_state = Qt.Unchecked if all_checked else Qt.Checked
         for i in range(count):
-            self.modified_list.item(i).setCheckState(new_state)
+            list_widget.item(i).setCheckState(new_state)
 
     def _on_stage_clicked(self) -> None:
         selected = self._checked_modified_paths()
         if not selected or self._repo is None:
             return
-        try:
-            self.git_service.stage_paths(self._dest_path(), selected)
-        except GitOperationError as exc:
-            QMessageBox.warning(self, "Stage Failed", str(exc))
+        if self._stage_worker is not None and self._stage_worker.isRunning():
+            # Same "don't orphan an in-flight worker" guard as start_sync /
+            # refresh_status — a rapid second click would otherwise crash the
+            # app when this QThread object gets garbage collected mid-run.
             return
+        dest_path = self._dest_path()
+        self.stage_button.setEnabled(False)
+        self.staged_progress_bar.setVisible(True)
+        self._stage_worker = GitStreamWorker(
+            lambda on_output: self.git_service.stage_paths(dest_path, selected)
+        )
+        self._stage_worker.finished_ok.connect(self._on_stage_finished)
+        self._stage_worker.failed.connect(self._on_stage_failed)
+        self._stage_worker.start()
+
+    def _on_stage_finished(self, _result: object) -> None:
+        self.stage_button.setEnabled(True)
+        self.staged_progress_bar.setVisible(False)
         self.refresh_status()
 
+    def _on_stage_failed(self, message: str) -> None:
+        self.stage_button.setEnabled(True)
+        self.staged_progress_bar.setVisible(False)
+        QMessageBox.warning(self, "Stage Failed", message)
+
     def _on_restore_clicked(self) -> None:
-        selected = [item.text() for item in self.staged_list.selectedItems()]
+        selected = self._checked_paths(self.staged_list)
         if not selected or self._repo is None:
             return
         try:
@@ -323,9 +369,59 @@ class RepoGitStatusPage(QWidget):
         dest_path = self._dest_path()
         self.sync_button.setEnabled(False)
         self.progress_bar.setVisible(True)
-        self.log_panel.append_line(f"--- Syncing '{self._repo.name}' ---")
         self.sync_started.emit()
 
+        if not self.git_service.is_cloned(dest_path):
+            # Only relevant before the very first clone — once a repo is
+            # cloned, ordinary pull/push failures already surface through
+            # _on_sync_failed. Checking here means a private repo the
+            # current GitHub account can't see gets a clear "contact your
+            # admin" dialog up front instead of git's own opaque clone
+            # error after it's already tried and failed.
+            owner_repo = self.git_service.parse_github_owner_repo(self._repo.git_url)
+            if owner_repo is not None:
+                self.log_panel.append_line(f"--- Checking access to '{self._repo.name}' ---")
+                self._begin_access_check(owner_repo, dest_path)
+                return
+        self._begin_sync_worker(dest_path)
+
+    def _begin_access_check(self, owner_repo: tuple[str, str], dest_path: Path) -> None:
+        owner, name = owner_repo
+        token = self.git_service.get_github_token()
+
+        def action(_on_output):
+            try:
+                return check_repo_access(owner, name, token)
+            except GitHubAuthError:
+                # Can't verify (network hiccup, rate limit, ...) — don't
+                # block the sync on an unrelated failure, just fall through
+                # to the real clone attempt as before this check existed.
+                return True
+
+        self._git_worker = GitStreamWorker(action)
+        self._git_worker.finished_ok.connect(
+            lambda has_access: self._on_access_checked(has_access, owner, name, dest_path)
+        )
+        self._git_worker.failed.connect(self._on_sync_failed)
+        self._git_worker.start()
+
+    def _on_access_checked(self, has_access: bool, owner: str, name: str, dest_path: Path) -> None:
+        if not has_access:
+            self.sync_button.setEnabled(True)
+            self.progress_bar.setVisible(False)
+            self.log_panel.append_line(f"--- Access denied to '{owner}/{name}' ---")
+            QMessageBox.warning(
+                self,
+                "Access Denied",
+                f"Your GitHub account doesn't have access to '{owner}/{name}'.\n\n"
+                "Please contact your admin to request access to this repository.",
+            )
+            self.sync_failed.emit(f"No access to {owner}/{name}")
+            return
+        self._begin_sync_worker(dest_path)
+
+    def _begin_sync_worker(self, dest_path: Path) -> None:
+        self.log_panel.append_line(f"--- Syncing '{self._repo.name}' ---")
         self._git_worker = GitStreamWorker(
             lambda on_output: self.git_service.open_or_sync(
                 self._repo.git_url, dest_path, on_output=on_output, context=self._hook_context(dest_path)

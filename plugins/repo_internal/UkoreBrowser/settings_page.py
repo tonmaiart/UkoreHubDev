@@ -12,9 +12,9 @@ def _ref_key(ref: dict) -> str:
 
 
 class UkoreBrowserSettingsPage(QWidget):
-    """Repo Studio Setting for UkoreBrowser — unlike ModelPublisher/
-    RigPublisher/AnimationPublisher's single-select "which pipeline
-    connection does this tool publish into" pickers, UkoreBrowser
+    """Repo Studio Setting for UkoreBrowser — unlike MayaPublisher's
+    per-ticket "which pipeline connection does this ticket publish into"
+    picker (chosen entirely in Maya via Manage Tickets...), UkoreBrowser
     genuinely shows several root tabs at once (its whole point is
     browsing multiple pipeline-connected repos side by side), so this is
     a **multi-select** checkbox list instead — one row per active-repo
@@ -24,9 +24,7 @@ class UkoreBrowserSettingsPage(QWidget):
     admin hide ones that would just clutter the tab bar rather than
     picking exactly one.
 
-    Stores the HIDDEN set (opt-out), not the shown set — same reasoning
-    plugins/repo_internal/maya_launcher/repo_tools_store.py's RepoToolsStore was
-    changed to opt-out storage for: a brand-new pipeline ref (or a
+    Stores the HIDDEN set (opt-out): a brand-new pipeline ref (or a
     brand-new tool version state entirely) should default to shown/
     enabled rather than requiring someone to notice and re-check it.
     Persists into this plugin's own PluginConfigStore

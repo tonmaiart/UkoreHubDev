@@ -1,9 +1,9 @@
 # plugins/repo_internal/UkorePlayblast/
 
 Configurable Maya playblast — **entirely a Maya-side tool** (confirmed with
-the user 2026-07-19: no UkoreHub desktop UI at all, unlike
-`RigPublisher`/`ModelPublisher`/`AnimationPublisher`, which each pair a
-Maya package with their own Repository Setting tab). This plugin's own
+the user 2026-07-19: no UkoreHub desktop UI at all, unlike `MayaPublisher`,
+which pairs a Maya package with a Repository Setting tab of its own —
+picking Publish Mode). This plugin's own
 `plugin.py` only contributes `PYTHONPATH` to the shared
 `maya_launcher_env_bridge` so Maya can import its
 `maya-scripts/UkorePlayblast/` package — see
@@ -119,7 +119,7 @@ it.
 - `manifest.json` — plugin id `ukore_playblast`.
 - `plugin.py` — `register(api)`: contributes
   `{"PYTHONPATH": {"*": [.../maya-scripts]}}` to the shared
-  `maya_launcher_env_bridge` (same convention `RigPublisher/plugin.py`
+  `maya_launcher_env_bridge` (same convention `MayaPublisher/plugin.py`
   uses for its own package — no changes needed to `maya_launcher` itself,
   it already reads whatever any tool contributes). That's its entire
   UkoreHub-facing surface — pure infrastructure, same "no artist-facing
@@ -157,7 +157,7 @@ it.
   `PlayblastOptionsDialog` (`QDialog`, via `tmlib.module.PySide`'s
   version-aware PySide2/PySide6 shim and `tmlib.ui.interface_template
   .get_maya_window` for correct Maya-parented behavior — same Qt access
-  pattern `RigPublisher/maya-scripts/RigPublisher/interface.py` uses). A
+  pattern `MayaPublisher/maya-scripts/MayaPublisher/interface.py` uses). A
   new "Naming / Output" group (added 2026-07-20, sits above Resolution
   since it's now core naming metadata, not a minor detail) holds
   `variation_combo` (`options_store.get_variations`) + an "Add..." button
@@ -220,8 +220,8 @@ it.
 `plugins/repo_internal/MayaToolkit/maya-scripts/UkoreMaya/core/menu_utils.py` has
 two functions for this tool: `playblast()` (lazily imports and calls this
 plugin's `function.py`, the same lazy-import-a-separate-package pattern
-`rig_publisher()`/`model_publisher()` already use there for their own
-separate plugins) and `playblast_options()` (lazily imports and calls
+`maya_publisher()` already uses there for its own separate plugin) and
+`playblast_options()` (lazily imports and calls
 `options_dialog.show()`). `plugins/repo_internal/MayaToolkit/maya-plug-ins/ukoreMaya.py`
 wires both into the Animation menu — "Playblast" plus a Maya-native
 option-box (`cmds.menuItem(optionBox=True, ...)`, the small square icon

@@ -69,7 +69,7 @@ class RepoBrowserPage(QWidget):
         # away and back re-invokes set_repo() with the SAME repo, and we
         # must not reset the user's current folder/selection in that case.
         if repo.id != self._last_repo_id:
-            self.browser.set_root(abs_path)
+            self.browser.set_root(abs_path, repo_id=repo.id)
             self._last_repo_id = repo.id
 
     def browse_to_path(self, path: Path) -> None:

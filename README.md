@@ -20,40 +20,51 @@ mostly-binary animation production assets.
 - [git-lfs](https://git-lfs.com/)
 - Python 3.10+
 
-You don't need to install these yourself on Windows — `launcher.py` (git,
-git-lfs) and `UkoreHub.exe` (Python itself, see `developer/packaging/exe_entry.py`)
-each auto-install whichever of these is missing via `winget` (Windows'
-built-in package manager) before continuing. If `winget` isn't available or
-an install fails, you'll get a message asking you to install that one
-yourself instead. On other platforms, or if you'd rather install everything
-by hand up front, use the links above.
+`UkoreHub.exe` checks for `git` and Python itself on startup and won't
+auto-install either — if one's missing, it shows a "Download" button
+linking straight to the official installer and stops there until you
+install it and restart. Use the links above if you'd rather install
+everything by hand up front (or need `git-lfs`, which is optional and
+only warned about, never blocking).
 
 ## Running
+
+Double-click `UkoreHub.exe` at the repo root (or pin it to the taskbar) —
+this is the normal way to run UkoreHub, and the only way to complete a
+first-time GitHub login (see below). In order: it checks `git` is present
+(showing a Download button and stopping if not), brings this folder up to
+date with `origin/main` (even converting a plain GitHub "Download ZIP"
+extract into a real git clone in place, if that's how you got this
+folder) — before anything else, so a pending update is never skipped —
+then checks Python is present (same Download-button treatment) and
+`git-lfs` (optional), handles GitHub login and caches the token, then
+launches the real app — see `developer/packaging/README.md` for the full
+breakdown (`exe_entry.py`/`updater.py`).
+
+Once logged in, you can also run the app directly:
 
 ```bash
 python launcher.py
 ```
 
-On first run, UkoreHub checks for its Python package dependencies (PySide6,
-keyring) and installs any that are missing automatically — no manual
-`pip install` step required. The workspace folder (where cloned repos live)
-is fixed to `<this repo>/projects`. If you're not logged in yet, a Quick
-Start dialog offers GitHub login and picking a project up front — every
-field is optional and a single Continue skips all of it. Managers add
-Projects/Repos via the Project Editor section (a node graph, 1 node = 1
-repo); anyone can check sync status read-only via Setting > Project Status.
-Whatever's added there becomes available to pick as the active repo by
-clicking its node in Project Editor — there is no separate sidebar
-repo-picker button anymore.
+This checks for Python package dependencies (PySide6, keyring) and installs
+any that are missing automatically — no manual `pip install` step required.
+It reads whatever GitHub token `UkoreHub.exe` already cached; **it cannot
+complete a first-time login itself** — there is no login UI left in the
+plain-Python app anymore, so run `UkoreHub.exe` at least once first. The
+workspace folder (where cloned repos live) is fixed to `<this repo>/projects`.
+Managers add Projects/Repos via the Project Editor section (a node graph, 1
+node = 1 repo). Whatever's added there becomes available to pick as the
+active repo by clicking its node in Project Editor — there is no separate
+sidebar repo-picker button.
 
-Alternatively, double-click `UkoreHub.exe` at the repo root (or pin it to
-the taskbar) — a thin native wrapper that launches `launcher.py` with no
-terminal window. Admins rebuild and recommit this exe via
-`python developer/packaging/build_exe.py` on the `dev` branch only when
-rebranding the icon (see `developer/packaging/README.md`) — routine code
-updates still flow through
-**Update and Restart** / `git pull` as plain `.py` changes, exactly as
-before; the exe itself rarely needs to change.
+Admins rebuild and recommit `UkoreHub.exe` via
+`python developer/packaging/build_exe.py` on the `dev` branch when
+rebranding the icon, or when changing `developer/packaging/exe_entry.py`/
+`updater.py` themselves (see `developer/packaging/README.md`) — routine
+code updates elsewhere still flow through **Update and Restart** / `git
+pull` as plain `.py` changes, exactly as before; the exe itself rarely
+needs to change.
 
 Setting > Program Database keeps a shared catalog of pipeline software (name,
 icon, description) that repos can list as requirements at repo-creation

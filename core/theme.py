@@ -155,27 +155,6 @@ def build_stylesheet(colors: ThemeColors) -> str:
         border-radius: 3px;
         margin-bottom: 2px;
     }}
-    QFrame#repoCard {{
-        background-color: {colors.surface};
-        border: 1px solid {colors.border};
-        border-radius: 6px;
-        padding: 10px 12px;
-        margin-bottom: 6px;
-    }}
-    QFrame#repoCard:hover {{
-        background-color: {colors.hover};
-    }}
-    QFrame#repoCard[selected="true"] {{
-        border: 2px solid {colors.accent};
-        background-color: {colors.hover};
-    }}
-    QFrame#repoCard[hasThumbnail="true"], QFrame#repoCard[hasThumbnail="true"]:hover,
-    QFrame#repoCard[hasThumbnail="true"][selected="true"] {{
-        /* No QSS border here — the selection ring on a thumbnail card is
-           drawn by hand in _RepoCard.paintEvent instead, since a QSS
-           border didn't reliably paint on top of a transparent background. */
-        background: transparent;
-    }}
     QFrame#videoCard {{
         background-color: {colors.surface};
         border: 1px solid {colors.border};
@@ -211,6 +190,17 @@ def build_stylesheet(colors: ThemeColors) -> str:
     }}
     QFrame#notificationCard[clickable="true"]:hover {{
         background-color: {colors.hover};
+    }}
+    QFrame#softwareLinkCard {{
+        background-color: {colors.surface};
+        border: 1px solid {colors.border};
+        border-radius: 6px;
+    }}
+    QLabel[linkStatus="linked"] {{
+        color: {colors.success};
+    }}
+    QLabel[linkStatus="not_linked"] {{
+        color: {colors.text_secondary};
     }}
     QLabel[status="cloned"] {{
         color: {colors.success};

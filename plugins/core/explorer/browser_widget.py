@@ -24,7 +24,7 @@ from PySide6.QtWidgets import (
 )
 
 from core.git_service import GitService
-from core.os_utils import open_with_default_app
+from core.os_utils import open_in_file_explorer, open_with_default_app
 from plugins.core.explorer.file_table_proxy import FileTableFilterProxy
 from plugins.core.explorer.last_opened_store import LastOpenedStore
 from plugins.core.explorer.path_commit_history_panel import PathCommitHistoryPanel
@@ -65,11 +65,11 @@ class RepoBrowserWidget(QWidget):
         # from the "Up" button, which always goes to the parent folder
         # regardless of navigation history.
         self._back_stack: list[Path] = []
-        # Persisted per-repo, per-user (LastOpenedStore, under
-        # <repo_root>/.ukorehub/) rather than kept purely in-memory —
-        # rebuilt from that store on every set_root() (repo switch) so it
-        # survives across app restarts and repo switches, unlike a plain
-        # in-memory MRU list would.
+        # Persisted per-repo, per-user (LastOpenedStore, under this app's
+        # own cache/explorer/, not the browsed repo's working tree) rather
+        # than kept purely in-memory — rebuilt from that store on every
+        # set_root() (repo switch) so it survives across app restarts and
+        # repo switches, unlike a plain in-memory MRU list would.
         self._last_opened_store: LastOpenedStore | None = None
 
         self.fs_model = QFileSystemModel()
@@ -187,10 +187,21 @@ class RepoBrowserWidget(QWidget):
         table_row.addWidget(self.table, stretch=1)
         table_row.addWidget(self.commit_panel)
 
+        # Opens the currently browsed folder in the OS file explorer
+        # (core/os_utils.py's open_in_file_explorer) — sits below the file
+        # table rather than in nav_row, since it's a "hand off to the OS"
+        # action rather than in-app navigation.
+        self.open_directory_button = QPushButton("Open Directory")
+        self.open_directory_button.clicked.connect(self._on_open_directory_clicked)
+        bottom_row = QHBoxLayout()
+        bottom_row.addWidget(self.open_directory_button)
+        bottom_row.addStretch(1)
+
         main_column = QVBoxLayout()
         main_column.addLayout(folder_row, stretch=0)
         main_column.addLayout(nav_row, stretch=0)
         main_column.addLayout(table_row, stretch=1)
+        main_column.addLayout(bottom_row, stretch=0)
 
         layout = QVBoxLayout(self)
         layout.addLayout(main_column)
@@ -201,11 +212,11 @@ class RepoBrowserWidget(QWidget):
         to jump here and show a specific file."""
         self._navigate_to(Path(path).parent)
 
-    def set_root(self, path: Path) -> None:
+    def set_root(self, path: Path, *, repo_id: str) -> None:
         path = Path(path)
         self._root = path
         self.fs_model.setRootPath(str(path))
-        self._last_opened_store = LastOpenedStore(path, max_entries=_MAX_LAST_OPENED)
+        self._last_opened_store = LastOpenedStore(path, repo_id, max_entries=_MAX_LAST_OPENED)
         self._refresh_last_opened_list()
         self._navigate_to(path)
 
@@ -262,6 +273,11 @@ class RepoBrowserWidget(QWidget):
         if self._current_path is None:
             return
         self._create_new_folder(self._current_path)
+
+    def _on_open_directory_clicked(self) -> None:
+        if self._current_path is None:
+            return
+        open_in_file_explorer(self._current_path)
 
     def _on_breadcrumb_entered(self) -> None:
         typed_path = Path(self.breadcrumb.text().strip())

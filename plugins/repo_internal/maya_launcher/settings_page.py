@@ -1,59 +1,35 @@
 from __future__ import annotations
 
-from typing import Callable
-
-from PySide6.QtWidgets import QCheckBox, QGroupBox, QLabel, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QGroupBox, QLabel, QVBoxLayout, QWidget
 
 from core.exceptions import NotFoundError
 from plugins.repo_internal.maya_launcher.link_resolution import linked_key, pinned_version
-from plugins.repo_internal.maya_launcher.repo_tools_store import RepoToolsStore
 
 SOFTWARE_LINKER_PLUGIN_ID = "software_linker"
-# Convention-only string match with plugins/repo_internal/PublishApi/plugin.py's
-# own TOOL_ID and plugins/repo_internal/maya_launcher/plugin.py's
-# PUBLISH_API_TOOL_ID — PublishApi is pure infrastructure (no artist-facing
-# behavior, no UI), never gated by RepoToolsStore, so it's excluded from
-# this page's checkbox list entirely rather than shown as a toggle that
-# would silently do nothing. See plugin.py's PUBLISH_API_TOOL_ID comment.
-_PUBLISH_API_TOOL_ID = "publish_api"
 
 
 class MayaLauncherSettingsPage(QWidget):
-    """Settings > Maya Launcher — per-repo enable/disable for whichever Maya
-    tool plugins are currently contributing to the shared
-    maya_launcher_env_bridge (whichever repo is active when this tab is
+    """Settings > Maya Launcher — Software Linker status readout (✅/⚠️ per
+    required Maya `Program`) for whichever repo is active when this tab is
     shown; see on_activated wiring in plugin.py's register(), which calls
     refresh() every time this tab becomes visible —
-    interface/settings_tab_registry.py's SettingsTabSpec.on_activated),
-    plus the Software Linker status readout that used to be a separate
-    Repo Add-on panel (see this plugin's own README.md for why that moved
-    here).
+    interface/settings_tab_registry.py's SettingsTabSpec.on_activated.
 
-    `read_bridge()` is called once here at construction (not per-refresh)
-    to build the checkbox list — safe because every plugin's register(api)
-    has already run by the time a Settings tab is ever constructed (lazy
-    page_factory(), first triggered by a user actually opening Settings),
-    so the bridge's "contributions" keys are already complete. See
-    plugins/repo_internal/maya_launcher/README.md for the bridge shape."""
+    Per-tool env enable/disable ("Enabled Tools for Active Repo") used to
+    live here too, backed by its own RepoToolsStore opt-out toggle — removed
+    2026-08-05. Every Maya tool (MayaNgskin, MayaToolkit, UkoreBrowser, ...)
+    is its own plugins/repo_internal/<Name>/ plugin now, each already
+    toggleable per repo via Repository Setting > Enable Plugin
+    (Repo.required_plugin_ids), so a second, separate toggle for the same
+    decision here was redundant. See this plugin's own README.md ("Per-repo
+    tool gating") for the full history."""
 
-    def __init__(self, parent=None, *, api, tools_store: RepoToolsStore, read_bridge: Callable[[], tuple[dict, dict]]):
+    def __init__(self, parent=None, *, api):
         super().__init__(parent)
         self._api = api
-        self._tools_store = tools_store
-        contributions, labels = read_bridge()
-        self._tool_ids = sorted(tid for tid in contributions if tid != _PUBLISH_API_TOOL_ID)
-        self._checkboxes: dict[str, QCheckBox] = {}
 
         self._active_repo_label = QLabel("")
         self._active_repo_label.setWordWrap(True)
-
-        tools_group = QGroupBox("Enabled Tools for Active Repo")
-        tools_layout = QVBoxLayout(tools_group)
-        for tool_id in self._tool_ids:
-            checkbox = QCheckBox(labels.get(tool_id, tool_id))
-            checkbox.toggled.connect(lambda _checked, tid=tool_id: self._on_tool_toggled(tid))
-            tools_layout.addWidget(checkbox)
-            self._checkboxes[tool_id] = checkbox
 
         self._link_status_label = QLabel("")
         self._link_status_label.setWordWrap(True)
@@ -63,7 +39,6 @@ class MayaLauncherSettingsPage(QWidget):
 
         layout = QVBoxLayout(self)
         layout.addWidget(self._active_repo_label)
-        layout.addWidget(tools_group)
         layout.addWidget(link_group)
         layout.addStretch()
 
@@ -74,8 +49,6 @@ class MayaLauncherSettingsPage(QWidget):
         repo_id = self._api.local_config.active_repo_id
         if not project_id or not repo_id:
             self._active_repo_label.setText("No repo selected.")
-            for checkbox in self._checkboxes.values():
-                checkbox.setEnabled(False)
             self._link_status_label.setText("")
             return
 
@@ -84,19 +57,10 @@ class MayaLauncherSettingsPage(QWidget):
             repo = self._api.metadata.get_repo(project_id, repo_id)
         except NotFoundError:
             self._active_repo_label.setText("No repo selected.")
-            for checkbox in self._checkboxes.values():
-                checkbox.setEnabled(False)
             self._link_status_label.setText("")
             return
 
         self._active_repo_label.setText(f"Active repo: {project.name} / {repo.name}")
-        enabled_tool_ids = set(self._tools_store.enabled_tool_ids_for(project_id, repo_id, self._tool_ids))
-        for tool_id, checkbox in self._checkboxes.items():
-            checkbox.setEnabled(True)
-            blocked = checkbox.blockSignals(True)
-            checkbox.setChecked(tool_id in enabled_tool_ids)
-            checkbox.blockSignals(blocked)
-
         self._refresh_link_status(repo)
 
     def _refresh_link_status(self, repo) -> None:
@@ -127,11 +91,3 @@ class MayaLauncherSettingsPage(QWidget):
                     "Configure it in Settings > Software Linker."
                 )
         self._link_status_label.setText("\n".join(lines))
-
-    def _on_tool_toggled(self, _tool_id: str) -> None:
-        project_id = self._api.local_config.active_project_id
-        repo_id = self._api.local_config.active_repo_id
-        if not project_id or not repo_id:
-            return
-        enabled_tool_ids = sorted(tid for tid, checkbox in self._checkboxes.items() if checkbox.isChecked())
-        self._tools_store.set_enabled_tool_ids(project_id, repo_id, self._tool_ids, enabled_tool_ids)

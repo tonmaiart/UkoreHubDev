@@ -1,18 +1,18 @@
 # ================================================
-#  MODEL PUBLISHER — MAYA
+#  MAYA PUBLISHER — MAYA
 # ================================================
 
 # This tool created by Natchapon Srisuk, only for Ukore Studio's projects.
 # contact : natchapon.18851@gmail.com
 
-# Split out of the original UkorePublisher on 2026-07-19 — see
-# plugins/repo_internal/PublishApi/README.md for why the publish root is now
-# always resolved from the active repo's pipeline output rather than a
-# share/publish scene-path convention. As of 2026-08-03, tickets are
-# user-managed (PublishApi.tickets) instead of a hardcoded list — each
-# ticket has its own Publish Path and its own validation scripts, managed
-# via the "Manage Tickets..." button below (PublishApi.ticket_manager_dialog).
-# The old per-repo Repo Studio Setting tab in UkoreHub is gone.
+# Merges what used to be three separate tools' own MainWindow
+# (RigPublisher/ModelPublisher/AnimationPublisher's interface.py, which
+# were already ~identical) into one, parameterized by the active repo's
+# configured Publish Mode (Repository Setting > MayaPublisher) instead of
+# each mode having its own plugin/window. Tickets are user-managed
+# (PublishApi.tickets) — each ticket has its own Publish Path and its own
+# validation scripts, managed via the "Manage Tickets..." button below
+# (PublishApi.ticket_manager_dialog).
 # ================================================
 
 import os
@@ -20,7 +20,7 @@ import shutil
 from importlib import reload
 
 import maya.cmds as cmds
-from ModelPublisher import function
+from MayaPublisher import function
 from PublishApi import tickets, versioning
 from PublishApi.ticket_manager_dialog import TicketManagerDialog
 from tmlib.module.PySide import QtGui, QtWidgets
@@ -36,6 +36,10 @@ class MainWindow(ToolkitWindow):
 
         self.snapshot_path = None
         self._tickets = []
+        self._mode = function.get_publish_mode()
+
+        if self._mode is not None:
+            self.setWindowTitle("MayaPublisher — {}".format(function.MODE_LABELS[self._mode]))
 
         self._add_manage_tickets_button()
         self.initialize_ticket_list_widget()
@@ -53,25 +57,38 @@ class MainWindow(ToolkitWindow):
 
     def _add_manage_tickets_button(self):
         """Inserted in code rather than in ui.ui — avoids hand-editing the
-        Designer XML for a button every Publisher plugin's window needs
-        identically (RigPublisher/AnimationPublisher's own interface.py
-        do the exact same thing)."""
+        Designer XML for a button this window needs."""
         self.pushButton_manage_tickets = QtWidgets.QPushButton("Manage Tickets...")
         self.pushButton_manage_tickets.clicked.connect(self.open_ticket_manager)
         self.ui.groupBox_ticket.layout().addWidget(self.pushButton_manage_tickets)
 
     def open_ticket_manager(self):
-        dialog = TicketManagerDialog(self, tool_id=function.TOOL_ID, tool_label="ModelPublisher")
+        if self._mode is None:
+            cmds.confirmDialog(
+                m="This repo has no Publish Mode configured yet. Ask a studio admin to set one "
+                "under Repository Setting > MayaPublisher.",
+                button=["Ok"],
+            )
+            return
+
+        dialog = TicketManagerDialog(
+            self,
+            tool_id=function.TOOL_ID,
+            tool_label="MayaPublisher — {}".format(function.MODE_LABELS[self._mode]),
+            show_export_type=(self._mode == "animation"),
+            scripts_tool_id=function.MODE_TOOL_IDS[self._mode],
+        )
         dialog.exec_()
         self.initialize_ticket_list_widget()
         self.refresh_publish_destination()
 
     def initialize_ticket_list_widget(self):
-        """Repopulates from PublishApi.tickets (user-managed, no more
-        hardcoded list) — keeps whichever ticket was selected before, by
-        id, across a Manage Tickets... round trip."""
+        """Repopulates from PublishApi.tickets, keeping whichever ticket
+        was selected before (by id) across a Manage Tickets... round trip.
+        Stays empty if this repo has no Publish Mode configured yet — see
+        refresh_publish_destination for the hint shown in that case."""
         current_id = self.get_current_selected_ticket_id()
-        self._tickets = tickets.list_tickets(function.TOOL_ID)
+        self._tickets = tickets.list_tickets(function.TOOL_ID) if self._mode is not None else []
 
         self.ui.listWidget_ticket.blockSignals(True)
         self.ui.listWidget_ticket.clear()
@@ -98,6 +115,16 @@ class MainWindow(ToolkitWindow):
         return None
 
     def refresh_publish_destination(self):
+        if self._mode is None:
+            self.ui.label_publish_root.setText(
+                "This repo has no Publish Mode set — ask a studio admin to set it under "
+                "Repository Setting > MayaPublisher."
+            )
+            self.ui.label_job_name.setText("")
+            self.ui.label_job_task.setText("")
+            self.ui.label_version_publish.setText("")
+            return
+
         ticket = self.get_current_selected_ticket()
 
         if ticket is None:

@@ -470,8 +470,9 @@ def open_in_ukore_browser(path: str) -> bool:
     uses) since that constructs a bare MainWindow with no way to pass a
     target path in; this constructs the same MainWindow class directly and
     calls its own navigation method right after. UkoreBrowser may be
-    disabled for this repo via maya_launcher's RepoToolsStore, same as any
-    other tool, so the import itself is optional."""
+    disabled for this repo via Repository Setting > Enable Plugin (dropping
+    it off maya_launcher's assembled PYTHONPATH), same as any other tool,
+    so the import itself is optional."""
     try:
         from UkoreBrowser.interface import MainWindow as BrowserWindow
     except ImportError:

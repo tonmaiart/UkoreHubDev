@@ -6,10 +6,10 @@ that needs them, so the user never sees a ModuleNotFoundError.
 from __future__ import annotations
 
 import importlib.util
-import os
 import shutil
 import subprocess
 import sys
+import webbrowser
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent
@@ -21,6 +21,8 @@ REQUIRED_PACKAGES = [
     ("keyring", "keyring>=24.0"),
 ]
 
+GIT_DOWNLOAD_URL = "https://github.com/git-for-windows/git/releases/download/v2.55.0.windows.3/Git-2.55.0.3-64-bit.exe"
+
 
 def ensure_dependencies() -> None:
     for import_name, pip_spec in REQUIRED_PACKAGES:
@@ -30,69 +32,17 @@ def ensure_dependencies() -> None:
         subprocess.run([sys.executable, "-m", "pip", "install", pip_spec], check=True)
 
 
-def _refresh_path_from_registry() -> None:
-    """A winget install that just completed updates the registry, not this
-    already-running process's environment (env vars are only inherited at
-    process creation) — merge the machine + user PATH from the registry into
-    os.environ so a just-installed binary's shutil.which() can find it
-    without restarting UkoreHub."""
-    if sys.platform != "win32":
-        return
-    import winreg
-
-    def _read(hive: int, subkey: str) -> str:
-        try:
-            with winreg.OpenKey(hive, subkey) as key:
-                value, _ = winreg.QueryValueEx(key, "Path")
-                return value
-        except OSError:
-            return ""
-
-    machine_path = _read(winreg.HKEY_LOCAL_MACHINE, r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment")
-    user_path = _read(winreg.HKEY_CURRENT_USER, "Environment")
-    combined = ";".join(p for p in (machine_path, user_path, os.environ.get("PATH", "")) if p)
-    if combined:
-        os.environ["PATH"] = combined
-
-
-def _winget_install(package_id: str, display_name: str) -> bool:
-    """Best-effort silent install via winget (ships by default on Windows
-    10/11) — never raises, so callers can fall back to a manual-install
-    message. Returns whether winget itself ran the install successfully;
-    callers still need to re-check shutil.which() afterwards since a
-    successful install doesn't guarantee this process can see the new PATH
-    entry (see _refresh_path_from_registry)."""
-    if sys.platform != "win32" or shutil.which("winget") is None:
-        return False
-    print(f"UkoreHub: '{display_name}' not found — installing via winget...")
-    try:
-        subprocess.run(
-            [
-                "winget", "install", "--id", package_id, "-e",
-                "--silent", "--accept-package-agreements", "--accept-source-agreements",
-            ],
-            check=True,
-        )
-    except (subprocess.CalledProcessError, OSError) as exc:
-        print(f"UkoreHub: winget install of '{display_name}' failed: {exc}")
-        return False
-    _refresh_path_from_registry()
-    return True
+# Presence checks only — no auto-install. UkoreHub.exe (developer/packaging/
+# updater.py) already checks/updates before this file is ever spawned; these
+# only matter for the `python launcher.py` direct-invocation dev path, which
+# bypasses that exe entirely.
 
 
 def check_git_prerequisite() -> bool:
-    if shutil.which("git") is not None:
-        return True
-    if not _winget_install("Git.Git", "git"):
-        return False
     return shutil.which("git") is not None
 
 
 def check_git_lfs_prerequisite() -> bool:
-    if shutil.which("git-lfs") is not None:
-        return True
-    if not _winget_install("GitHub.GitLFS", "git-lfs"):
-        return False
     return shutil.which("git-lfs") is not None
 
 
@@ -115,21 +65,24 @@ def main() -> None:
         app.setWindowIcon(QIcon(str(icon_path)))
 
     if not check_git_prerequisite():
-        QMessageBox.critical(
-            None,
+        box = QMessageBox(
+            QMessageBox.Icon.Critical,
             "Git Not Found",
             "UkoreHub requires 'git' to be installed and available on your PATH.\n"
-            "Automatic install via winget wasn't available or didn't succeed — "
-            "please install git yourself and restart UkoreHub.",
+            "Download and install it, then restart UkoreHub.",
         )
+        download_button = box.addButton("Download Git", QMessageBox.ButtonRole.ActionRole)
+        box.addButton(QMessageBox.StandardButton.Close)
+        box.exec()
+        if box.clickedButton() is download_button:
+            webbrowser.open(GIT_DOWNLOAD_URL)
         sys.exit(1)
 
     if not check_git_lfs_prerequisite():
         QMessageBox.warning(
             None,
             "git-lfs Not Found",
-            "'git-lfs' was not found on your PATH, and automatic install via "
-            "winget wasn't available or didn't succeed.\n"
+            "'git-lfs' was not found on your PATH.\n"
             "Some repos may require it — you can continue, but LFS-tracked files "
             "may not sync correctly.",
         )
@@ -161,15 +114,25 @@ def main() -> None:
     program_store = ProgramStore(data_dir / "programs.json")
     local_config_store = LocalConfigStore(data_dir / "local_config.json")
     # Workspace root is fixed to the repo's own projects/ folder — there is no
-    # UI to point it elsewhere (see interface/settings/common_settings_page.py
-    # and interface/login/login_overlay.py), so force it here on every launch
-    # rather than only defaulting it once.
+    # UI to point it elsewhere (see interface/settings/common_settings_page.py),
+    # so force it here on every launch rather than only defaulting it once.
     forced_workspace_root = str(REPO_ROOT / "projects")
     if local_config_store.workspace_root != forced_workspace_root:
         local_config_store.set_workspace_root(forced_workspace_root)
     hook_registry = HookRegistry()
     git_service = GitService(hooks=hook_registry)
     token_store = TokenStore(data_dir / "github_token.json")
+    # GitHub login now happens in the launcher exe before this process is
+    # even spawned (developer/packaging/updater.py owns the token cache) —
+    # just load whatever it already cached, same "presence, not validity"
+    # semantics the old in-app LoginGate.restore_session_state() used. If
+    # this is None (e.g. running `python launcher.py` directly without ever
+    # going through the launcher exe first), GitService simply stays
+    # unauthenticated — private-repo git operations fail with a normal auth
+    # error, same as before anyone had ever logged in.
+    token = token_store.load_token()
+    if token:
+        git_service.set_github_token(token)
 
     apply_theme(app, local_config_store.theme)
 
@@ -261,7 +224,6 @@ def main() -> None:
     window = MainWindow(
         store,
         local_config_store,
-        system_config_store,
         program_store,
         git_service,
         token_store,
@@ -274,8 +236,8 @@ def main() -> None:
         core_plugin_ids=core_plugin_ids,
         opt_in_plugin_ids=opt_in_plugin_ids,
     )
-    # MainWindow.__init__ already calls showMaximized() early (so the login
-    # gate itself never flashes unmaximized before real content loads), but
+    # MainWindow.__init__ already calls showMaximized() early (so the real
+    # UI never flashes unmaximized before it's fully built), but
     # that happens before this window has ever actually been realized on
     # screen. A second showMaximized() call made synchronously here, still
     # before app.exec() has run a single event, is *also* pre-realization —

@@ -101,13 +101,9 @@ class SettingsView(QWidget):
         content_layout.addWidget(self.tab_list)
         content_layout.addWidget(self.stack, stretch=1)
 
-        # Big left/right spacers narrow the effective width of the page
-        # (Discord/VS Code Settings style) rather than letting the tab list
-        # + stack stretch edge-to-edge across a maximized window.
         layout = QHBoxLayout(self)
-        layout.addStretch(1)
-        layout.addWidget(content_widget, stretch=4)
-        layout.addStretch(1)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(content_widget)
 
     def _add_gap_row(self) -> None:
         item = QListWidgetItem("")

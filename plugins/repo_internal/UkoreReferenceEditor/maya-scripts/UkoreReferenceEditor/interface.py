@@ -449,9 +449,17 @@ class _EntryTable(QtWidgets.QWidget):
             update_button.clicked.connect(lambda _checked=False, r=row: self._open_update_version_dialog(r))
             row_layout.addWidget(update_button)
 
-        repath_button = QtWidgets.QPushButton("Repath...")
-        repath_button.clicked.connect(lambda _checked=False, r=row: self._repath_row(r))
-        row_layout.addWidget(repath_button)
+        repath_file_button = QtWidgets.QPushButton("Repath File...")
+        repath_file_button.clicked.connect(
+            lambda _checked=False, r=row: self._repath_row(r, file_mode=1, caption="Repath File...")
+        )
+        row_layout.addWidget(repath_file_button)
+
+        repath_search_button = QtWidgets.QPushButton("Repath Search...")
+        repath_search_button.clicked.connect(
+            lambda _checked=False, r=row: self._repath_row(r, file_mode=3, caption="Repath Search...")
+        )
+        row_layout.addWidget(repath_search_button)
 
         browse_button = QtWidgets.QPushButton("Open in Ukore Browser")
         browse_button.clicked.connect(lambda _checked=False, r=row: self._open_in_browser(r))
@@ -509,7 +517,22 @@ class _EntryTable(QtWidgets.QWidget):
         chosen_path = Path(combo.currentData())
         self._run_action(row, chosen_path, "update_version")
 
-    def _repath_row(self, row: int):
+    def _repath_row(self, row: int, file_mode: int, caption: str):
+        """Backs both Repath buttons — `file_mode=1` ("Repath File...",
+        Maya's single-existing-file mode) is a direct override with the
+        chosen file; `file_mode=3` ("Repath Search...", Maya's
+        existing-directory-only mode, same as _find_all_missing's picker)
+        searches the chosen folder recursively for a file matching the
+        current path's own filename via matcher.resolve_manual_target. Two
+        dedicated buttons/fileModes instead of the old single ambiguous
+        fileMode=2 ("pick a file OR a folder") button — Maya's own docs
+        describe fileMode=2 as returning "the name of a directory" even
+        though files are displayed, which made a file pick silently behave
+        like a folder pick; see
+        developer/bug-history/2026-08-05-repath-filemode2-native-dialog-directory-only.md.
+        dialogStyle=2 forces Maya's own cross-platform dialog rather than
+        the OS-native one, the convention used everywhere else in this
+        codebase that calls fileDialog2."""
         entry = self._entries[row]
         current_path = getattr(entry, self._path_attr)
         starting_dir = ""
@@ -518,14 +541,11 @@ class _EntryTable(QtWidgets.QWidget):
             if parent.is_dir():
                 starting_dir = str(parent)
 
-        # fileMode=2 is Maya's own "pick a file OR a directory" mode — the
-        # user either clicks an existing file (direct override below) or
-        # navigates into/selects a folder without picking a specific file
-        # (recursive filename search below).
         chosen = cmds.fileDialog2(
-            fileMode=2,
-            caption="Repath...",
-            okCaption="Select",
+            fileMode=file_mode,
+            dialogStyle=2,
+            caption=caption,
+            okCaption="Select" if file_mode == 1 else "Search",
             startingDirectory=starting_dir,
         )
         if not chosen:
@@ -535,13 +555,13 @@ class _EntryTable(QtWidgets.QWidget):
         resolved = matcher.resolve_manual_target(current_path, chosen_path)
         if resolved is None:
             message = f"No file named {Path(current_path).name!r} found under {chosen_path}"
-            print(f"{_LOG_PREFIX} [{self._label}] Repath: {message}")
-            cmds.warning(f"{_LOG_PREFIX} [{self._label}] Repath: {message}")
+            print(f"{_LOG_PREFIX} [{self._label}] {caption}: {message}")
+            cmds.warning(f"{_LOG_PREFIX} [{self._label}] {caption}: {message}")
             return
 
-        print(f"{_LOG_PREFIX} [{self._label}] Repath: {current_path!r} -> {resolved!r}")
+        print(f"{_LOG_PREFIX} [{self._label}] {caption}: {current_path!r} -> {resolved!r}")
         ok = self._redirect_fn(entry, resolved)
-        print(f"{_LOG_PREFIX} [{self._label}] Repath returned {ok}")
+        print(f"{_LOG_PREFIX} [{self._label}] {caption} returned {ok}")
         self.reload_table()
 
 

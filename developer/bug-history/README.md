@@ -25,6 +25,13 @@ references both.
 - [2026-07-30 — "Quick Script..." menu item crashed with ModuleNotFoundError: QuickScript](2026-07-30-quickscript-menu-item-dangling-rename.md) — `plugins/core/MayaToolkit/maya-scripts/UkoreMaya/core/menu_utils.py`, `maya-plug-ins/ukoreMaya.py`
 - [2026-08-03 — RigPublisher published into C:\<name> instead of the repo's Custom Path](2026-08-03-publishapi-custom-path-leading-slash.md) — `plugins/core/PublishApi/maya-scripts/PublishApi/repo_paths.py` (same leading-slash pattern as the 2026-07-20 entry above — two more unfixed instances flagged, not yet fixed)
 - [2026-08-03 — Maya's native "could not find file" dialog still appeared despite `-loadReferenceDepth "none"`](2026-08-03-reference-native-dialog-not-suppressed-by-loadreferencedepth.md) — `plugins/core/maya_launcher/plugin.py` (`_set_project_and_open_command`)
+- [2026-08-04 — Logout crashed UkoreHub.exe with "Failed to load Python DLL"](2026-08-04-relaunch-inherits-pyinstaller-onefile-env.md) — `interface/main_window.py` (`_relaunch_to_login`), inherited PyInstaller onefile bootloader env vars
+- [2026-08-05 — Explorer's Last Opened Files list got committed into browsed repos](2026-08-05-explorer-last-opened-committed-to-browsed-repo.md) — `plugins/core/explorer/last_opened_store.py`, `browser_widget.py`
+- [2026-08-05 — DebugConsole plugin silently failing to load (stale `plugins.studio` import)](2026-08-05-debugconsole-stale-plugins-studio-import.md) — `plugins/core/DebugConsole/plugin.py`
+- [2026-08-05 — Maya tool plugins contributed dead paths to the env bridge after moving to `repo_internal/`](2026-08-05-maya-bridge-tools-hardcoded-stale-plugins-core-root.md) — `plugins/repo_internal/{MayaToolkit,MayaNgskin,UkoreReferenceEditor,UkorePlayblast,ModelPublisher,RigPublisher,PublishApi,UkoreBrowser,AnimationPublisher}/plugin.py` (systemic — read this one even if your change is to just one of these)
+- [2026-08-05 — QuickData.py crashed the whole MayaToolkit plugin when ngSkinTools2 wasn't installed](2026-08-05-quickdata-hardcoded-ngskintools-import.md) — `plugins/repo_internal/MayaToolkit/maya-scripts/tmlib/core/QuickData.py`, `WeightPuller/interface.py`
+- [2026-08-05 — Ukore Reference Editor's Repath button couldn't pick a file, only a folder](2026-08-05-repath-filemode2-native-dialog-directory-only.md) — `plugins/repo_internal/UkoreReferenceEditor/maya-scripts/UkoreReferenceEditor/interface.py`
+- [2026-08-05 — Ukore Reference Editor's auto-redirect/auto-load never ran for the very first Launch-triggered scene open](2026-08-05-reference-editor-callback-registered-too-late-for-first-open.md) — `plugins/repo_internal/MayaToolkit/maya-plug-ins/ukoreMaya.py` (`initializePlugin`)
 
 ## Adding a new entry
 

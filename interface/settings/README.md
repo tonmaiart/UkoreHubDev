@@ -32,22 +32,27 @@ anywhere; `SettingsTabSpec` has no `on_save`/`on_cancel` hooks.
   specific constructed page from outside — `main_window.py` uses it (via
   `SettingsDialog.view.get_tab_widget(...)`) to connect
   `CommonSettingsPage.logout_requested` (also closing the dialog itself,
-  since logout tears down the main UI behind it) and
-  `BrowserLinksSettingsPage.browser_links_changed` without this view
+  since logout closes the whole app — see `common_settings_page.py` below)
+  and `BrowserLinksSettingsPage.browser_links_changed` without this view
   needing to know what those pages are.
 - `common_settings_page.py` — workspace folder (read-only), the Logout
-  button (moved here from Sidebar's footer — `logout_requested` signal,
-  connected in `main_window.py` to the same logout flow the old toggle
-  button used to trigger), and a Restart button (added 2026-07-19 —
-  `restart_requested` signal, connected to `MainWindow._on_restart_requested`,
-  which calls the same `_restart_app()` helper
-  (`os.execv(sys.executable, [sys.executable, *sys.argv])`)
+  button (`logout_requested` signal, connected in `main_window.py` to
+  `_on_logout_requested` — clears the cached token/username via
+  `core/github/token_store.py`'s `TokenStore` and relaunches
+  `UkoreHub.exe`, whose own login step, `developer/packaging/updater.py`,
+  shows the GitHub login screen again since the token is now gone; this
+  app has no in-app login UI of its own to "go back to" otherwise), and a
+  Restart button (`restart_requested` signal, connected to
+  `MainWindow._on_restart_requested`, which calls the same `_restart_app()`
+  helper (`os.execv(sys.executable, [sys.executable, *sys.argv])`)
   `plugins/core/self_updater/`'s "Update and Restart" button uses too,
   just without the `self_update.pull_update()` git pull first).
   `CATEGORY_GENERAL`.
 - `github_oauth_settings_page.py` — `GithubOAuthSettingsPage`: just the
   GitHub OAuth Client ID field, split out of `common_settings_page.py`
-  since it's studio-admin plumbing most users never touch.
+  since it's studio-admin plumbing most users never touch — still needed
+  even though login moved out of this app, since the launcher's own login
+  step reads this same `data/system_config.json` value.
   `CATEGORY_DEVELOPER`.
 - `program_database_page.py` — CRUD for the shared Program Database
   (`core/program_store.py`), using `program_dialog.py`'s `ProgramDialog`

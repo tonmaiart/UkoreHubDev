@@ -6,7 +6,6 @@ from PySide6.QtCore import QSize, Signal
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QProgressBar, QPushButton, QVBoxLayout, QWidget
 
-from interface.login.github_auth_widget import GitHubAuthWidget
 from interface.section_registry import SectionRegistry
 from interface.sidebar.active_repo_widget import ActiveRepoWidget
 from interface.sidebar.section_tab_list import SectionTabList
@@ -26,12 +25,14 @@ class Sidebar(QWidget):
     panel instead, see plugins/core/project_editor/ and
     interface/section_registry.py's SectionSpec.persistent), and a footer
     strip for sync status, SidebarFooterActionRegistry-provided widgets
-    (e.g. plugins/core/self_updater/'s Update button), and an account row
-    (GitHub avatar/username + an icon-only Setting button right after it).
-    Double-clicking a node in Project Editor's graph is the only way to
-    change the active repo. Logging out lives in Settings > Common now, not
-    here — GitHubAuthWidget is display-only (Sidebar only ever shows a
-    logged-in user)."""
+    (e.g. plugins/core/self_updater/'s Update button), a display-only
+    account_label (the GitHub username — actual login/logout happens in
+    the launcher exe, see developer/packaging/updater.py; MainWindow just
+    pushes local_config_store.github_username in here, and Settings >
+    Common's Logout button clears it and relaunches to the login screen —
+    see main_window.py's _on_logout_requested), and the icon-only Setting
+    button. Double-clicking a node in Project Editor's graph is the only
+    way to change the active repo."""
 
     navigation_changed = Signal(str)
     settings_requested = Signal()
@@ -55,7 +56,7 @@ class Sidebar(QWidget):
         self.sync_progress_bar.setRange(0, 0)
         self.sync_progress_bar.setVisible(False)
 
-        self.github_auth_widget = GitHubAuthWidget()
+        self.account_label = QLabel("")
 
         self.setting_button = QPushButton()
         self.setting_button.setObjectName("sidebarSettingButton")
@@ -68,7 +69,7 @@ class Sidebar(QWidget):
         self.setting_button.clicked.connect(self.settings_requested.emit)
 
         account_row = QHBoxLayout()
-        account_row.addWidget(self.github_auth_widget, stretch=1)
+        account_row.addWidget(self.account_label, stretch=1)
         account_row.addWidget(self.setting_button)
 
         footer = QWidget()
@@ -98,3 +99,6 @@ class Sidebar(QWidget):
 
     def set_sync_message(self, text: str) -> None:
         self.status_label.setText(text)
+
+    def set_account_username(self, username: str | None) -> None:
+        self.account_label.setText(username or "")

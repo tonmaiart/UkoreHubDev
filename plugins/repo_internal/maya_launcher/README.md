@@ -29,15 +29,12 @@ restored from.
 - `plugin.py` — `register(api)`: registers the `.ma`/`.mb` file opener and
   the `Maya Launcher` settings tab. Also has the launch/merge logic:
   `_maya_programs_for_repo`, `_repo_root_path`, `_set_project_and_open_command`,
-  `_build_maya_env`, `_read_bridge` (see "Env merge" and "Auto set-project"
-  below).
-- `repo_tools_store.py` — `RepoToolsStore`: per-repo enable/disable state
-  for whichever tool ids the bridge currently knows about (see "Per-repo
-  tool toggle" below).
+  `_build_maya_env`, `_read_bridge`, `_prepare_env_and_plugins` (see "Env
+  merge" and "Auto set-project" below).
 - `settings_page.py` — `MayaLauncherSettingsPage`: the Settings > Maya
-  Launcher tab — per-tool checkboxes for the active repo (built once at
-  construction from a `read_bridge()` snapshot — see below), plus the
-  Software Linker link-status readout (✅/⚠️ per required Maya `Program`).
+  Launcher tab — just the Software Linker link-status readout (✅/⚠️ per
+  required Maya `Program`). No longer owns any per-tool enable/disable UI
+  (see "Per-repo tool gating" below).
 
 **The 7 nested tool payload folders that used to live here
 (`AdvancedSkeleton/`, `MayaNgskin/`, `MayaToolkit/`, `mGear/`,
@@ -50,16 +47,19 @@ payload shape.
 
 **`UkorePublisher` went further still, the same day**: extracted out of
 `MayaToolkit/maya-scripts/` into its own plugin, then immediately split
-again into three type-specific plugins —
-`plugins/repo_internal/ModelPublisher/`, `plugins/repo_internal/RigPublisher/`,
-`plugins/repo_internal/AnimationPublisher/` — each with its own dedicated UI
-instead of one shared "pick a Type, then a Ticket" window. All three are
-built on `plugins/repo_internal/PublishApi/`, a new non-UI Maya-side library
+again into three type-specific plugins — `ModelPublisher`, `RigPublisher`,
+`AnimationPublisher` — each with its own dedicated UI instead of one
+shared "pick a Type, then a Ticket" window. All three were built on
+`plugins/repo_internal/PublishApi/`, a new non-UI Maya-side library
 (itself one of these bridge-contributing tool plugins) that resolves a
 publish destination from the active repo's Project Editor pipeline
 metadata and creates versioned publish folders — the single source of
-truth those three, and eventually `UkoreBrowser`, share instead of each
-carrying its own copy of that logic. See
+truth those three, and eventually `UkoreBrowser`, shared instead of each
+carrying its own copy of that logic. **2026-08-05**: since the three
+plugins turned out to be near-identical (same `plugin.py`/`interface.py`/
+`ui.ui`, only the export logic differed), they were merged back into one
+`plugins/repo_internal/MayaPublisher/`, with a per-repo "Publish Mode"
+setting choosing which of Rig/Model/Animation that repo publishes as — see
 `plugins/repo_internal/PublishApi/README.md`.
 
 ## The `maya_launcher_env_bridge` shared bridge
@@ -101,9 +101,7 @@ after every plugin has finished registering (see `core/extensibility/loader.py`)
 | `plugins/core/DreamwallPicker` | `PYTHONPATH` |
 | `plugins/core/StudioLibrary` | `PYTHONPATH` |
 | `plugins/repo_internal/PublishApi` | `PYTHONPATH` (its own `maya-scripts/` **and** `api.app_root`, same reason as `UkoreBrowser` above) |
-| `plugins/repo_internal/ModelPublisher` | `PYTHONPATH` |
-| `plugins/repo_internal/RigPublisher` | `PYTHONPATH` |
-| `plugins/repo_internal/AnimationPublisher` | `PYTHONPATH` |
+| `plugins/repo_internal/MayaPublisher` | `PYTHONPATH` |
 | `plugins/repo_internal/UkorePlayblast` | `PYTHONPATH` |
 
 `mGear.mod` is itself version-aware (`+MAYAVERSION:2018 ...` blocks), so
@@ -112,76 +110,59 @@ resolves the right platform/version subfolder from the `.mod` file itself.
 `ngSkinTools2.mll`, by contrast, is a compiled plug-in shipped **one build
 per Maya version**, hence the versioned keying.
 
-## Per-repo tool toggle — owned entirely by this plugin
+## Per-repo tool gating — owned by Repository Setting > Enable Plugin
 
-Unlike the tool plugins above (each always registered, unconditionally
-writing its bridge entry), whether a tool's env contribution actually
-applies to a given repo's Maya launch is gated per-repo by
-`RepoToolsStore` instead. Storage: `api.plugin_config_store("maya_launcher",
-shared=True)` → `data/plugins/repo_internal/maya_launcher.json`, key shape
-`{"repo_disabled_tools": {"<project_id>:<repo_id>": ["advanced_skeleton", ...]}}`
-— **an opt-OUT list** (the tools turned off for this repo), not opt-in.
-**A repo with no entry, or an empty list, has every currently-known tool id
-enabled** (`RepoToolsStore.enabled_tool_ids_for` takes `all_tool_ids` — read
-live off the bridge by `plugin.py`, not a hardcoded list — and returns it
-minus whatever's in the disabled set). Toggling happens in the
-`MayaLauncherSettingsPage` Settings tab, one checkbox row per tool, scoped
-to whichever repo is currently active (refreshed via
-`SettingsTabSpec.on_activated`, so switching repos then reopening this tab
-shows the right state — see `interface/settings/settings_view.py`). Every
-toggle self-persists immediately (same convention every settings page in
-this app follows — no Save/Cancel step).
+Whether a tool's env contribution actually applies to a given repo's Maya
+launch is gated per-repo by `repo.required_plugin_ids` — the same
+`Repo.required_plugin_ids` list `interface/repo_settings/
+requirements_and_plugins_page.py`'s "Enable Plugin" section already
+manages for every plugin's sidebar visibility (see that page and
+`interface/main_window.py`'s `_apply_plugin_visibility`). `plugin.py`'s
+`_prepare_env_and_plugins` intersects `repo.required_plugin_ids` with the
+bridge's `"contributions"` keys — this works with no extra mapping because
+every contributing tool's manifest `id` is identical to its own bridge
+`tool_id` (e.g. `plugins/repo_internal/MayaNgskin/manifest.json`'s
+`"id": "maya_ngskin"` matches its `plugin.py`'s `TOOL_ID = "maya_ngskin"`).
+Enable Plugin is **opt-in** (unchecked by default) — a repo that has never
+had a tool checked there gets **zero** tool contributions on Maya launch,
+unlike the old mechanism below.
 
-**Why opt-out, not opt-in:** changed 2026-07-19 after two real
-`ModuleNotFoundError`s (`PublishApi`, then `RigPublisher`) on repos whose
-tool list had been customized *before* those plugins existed. The
-original design stored the enabled set directly — so a repo with an
-explicit customized list had no way to tell "this tool was explicitly
-unchecked" apart from "this tool didn't exist yet when the list was last
-saved," and silently excluded every tool added afterward until someone
-noticed and re-checked it by hand in Settings. Storing the disabled set
-instead fixes this permanently: a brand-new tool id is never in *any*
-repo's disabled set until someone actually unchecks it, so it defaults to
-enabled everywhere — the same "no entry = everything on" behavior this
-store has always had for repos with zero customization, now also true for
-tool ids added after a repo was first customized.
+**Before 2026-08-05** this was a separate opt-out toggle owned entirely by
+this plugin: `RepoToolsStore` (`repo_tools_store.py`, deleted), backed by
+`api.plugin_config_store("maya_launcher", shared=True)` →
+`data/plugins/repo_internal/maya_launcher.json`, with its own
+`MayaLauncherSettingsPage` checkbox list ("Enabled Tools for Active Repo").
+Removed because every tool it gated is now its own independent
+`plugins/repo_internal/<Name>/` plugin (since the 2026-07-19
+un-consolidation below), each *already* individually toggleable per repo
+via Enable Plugin — so the same decision ("does this repo use
+MayaNgskin?") had two separate checkboxes in two different places that
+could disagree with each other. Folding gating into Enable Plugin removes
+that duplication; the tradeoff is the opt-in-by-default-off behavior noted
+above, a deliberate change (previously: opt-out, "no entry = everything
+on") — an existing repo that relied on the old all-enabled-by-default
+behavior needs its tools re-checked once under Repository Setting > Enable
+Plugin. `data/plugins/repo_internal/maya_launcher.json`'s old
+`repo_disabled_tools`/`repo_enabled_tools` data is simply abandoned, not
+migrated — nothing reads that file anymore.
 
-`RepoToolsStore._migrate_legacy_entry` handles the one-time conversion:
-the old `repo_enabled_tools` opt-in shape is read (never written again)
-and converted to `repo_disabled_tools` as `_LEGACY_TOOL_IDS - old_enabled_set`
-— `_LEGACY_TOOL_IDS` is the fixed set of exactly the 7 tool ids the
-pre-2026-07-19 Settings UI could ever have offered a checkbox for, so this
-correctly recovers "what did this repo actually opt out of" without
-guessing, and never needs a new entry added to it (a second migration like
-this, if ever needed again, would use a snapshot of whatever
-`_LEGACY_TOOL_IDS` — or its 2026-07-19 successor — looked like at *that*
-point instead).
-
-**`plugins/repo_internal/PublishApi` is never gated by this at all**, on top of
-the above — it's pure infrastructure (no artist-facing behavior or UI of
-its own, only path-resolution/versioning functions other tools import
-directly: `UkoreBrowser`, `ModelPublisher`/`RigPublisher`/
-`AnimationPublisher`), so there's no legitimate reason to ever disable it
-per-repo, opt-out storage or not. `open_maya_file` force-includes its
-contribution regardless of `RepoToolsStore`'s per-repo list
-(`PUBLISH_API_TOOL_ID` in `plugin.py`), and `MayaLauncherSettingsPage`
-excludes it from the checkbox list entirely (`_PUBLISH_API_TOOL_ID` in
-`settings_page.py`) rather than showing a toggle that would silently do
-nothing.
-
-This toggle mechanism is a maya_launcher-owned enhancement layered on top
-of the bridge — it existed before the 2026-07-14 consolidation too, and
-was deliberately kept when un-consolidating back to independent plugins on
-2026-07-19 (the 2026-07-14 README previously noted this store "replaced
-the generic `Repo.enabled_addon_ids`/`RepoAddonPanelRegistry` mechanism
-for these 7 ids" — that migration is still in effect; toggling stayed on
-`RepoToolsStore`, it did not revert to `Repo.enabled_addon_ids`).
+**`plugins/repo_internal/PublishApi` is never gated by this at all** — it's
+pure infrastructure (no artist-facing behavior or UI of its own, only
+path-resolution/versioning functions other tools import directly:
+`UkoreBrowser`, `MayaPublisher`), so
+there's no legitimate reason to ever disable it per-repo. `open_maya_file`
+force-includes its contribution regardless of `repo.required_plugin_ids`
+(`PUBLISH_API_TOOL_ID` in `plugin.py`) — unlike the pre-2026-08-05
+`MayaLauncherSettingsPage`, Enable Plugin's generic plugin list does still
+show a PublishApi checkbox (it doesn't special-case any plugin id), but
+checking/unchecking it has no effect on the Maya env either way since the
+force-include bypasses it.
 
 ## Env merge (`plugin.py::_build_maya_env`)
 
 `open_maya_file` reads the bridge's full `"contributions"` dict, filters
-it down to `RepoToolsStore.enabled_tool_ids_for(...)` for the active repo,
-then `_build_maya_env(base_env, contributions, maya_version)` merges every
+it down to the active repo's `required_plugin_ids` (see "Per-repo tool
+gating" above), then `_build_maya_env(base_env, contributions, maya_version)` merges every
 remaining contribution — iterates `tool_id`s sorted for deterministic
 ordering; for each, each `var_name`'s `"*"` paths then its
 `maya_version`-specific paths (if any) are prepended in that order. **It
@@ -225,7 +206,7 @@ maya_exe = linked.get(program.id)   # program.id is the Program catalog entry's 
 ```
 `shared=False` because which local `maya.exe` path a specific artist's
 machine has is inherently per-machine, not team data (contrast with
-`RepoToolsStore`'s data above, which *is* shared). If SoftwareLinker's
+`Repo.required_plugin_ids` above, which *is* shared/studio-tracked). If SoftwareLinker's
 plugin id or config key ever changes, this constant has to change in
 lockstep — there's no compiler/test to catch drift, so grep both files if
 you touch either. `_maya_programs_for_repo(api, repo)` is the shared lookup
@@ -316,9 +297,11 @@ launch, and finds this plugin's spec by Program name match at click time.
    + `plugin.py`), following the shape any of the existing tool plugins
    above use — `register(api)` reads/updates the bridge's `"contributions"`
    and `"labels"` dicts and writes them back, nothing else.
-2. That's it — this plugin never needs a code change: `_read_bridge`,
-   `RepoToolsStore`, and `MayaLauncherSettingsPage` all iterate whatever
-   the bridge currently knows about generically.
+2. That's it — this plugin never needs a code change: `_read_bridge` and
+   `_prepare_env_and_plugins` iterate whatever the bridge currently knows
+   about generically, and gating comes from Repository Setting > Enable
+   Plugin (see "Per-repo tool gating" above), which lists every discovered
+   plugin generically too.
 
 ## Extending this pattern to another DCC (Houdini, Nuke, Blender, ...)
 
@@ -350,7 +333,7 @@ reachable by normal pytest `import` from outside their own package (the
 loader always imports `plugin.py` standalone via
 `importlib.util.spec_from_file_location`, same as any other plugin — see
 `plugins/README.md`'s Testing section). Verify with a throwaway scratchpad
-script that imports `plugins.repo_internal.maya_launcher.repo_tools_store`
+script that imports `plugins.repo_internal.maya_launcher.link_resolution`
 directly (a real importable module, just not part of a pytest `tests/`
 package) and asserts on its pure-function outputs, or loads `plugin.py`
 the same way the real loader does for anything that needs `register(api)`'s

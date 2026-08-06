@@ -2,8 +2,8 @@
 
 The left-hand navigation column of `MainWindow` — replaced the old
 horizontal top `MenuBar` row (renamed from `interface/menu_bar/`). A plain
-widget column (repo identity, the section tab list, sync progress, GitHub
-account), not Qt's `QMenuBar`/dropdown-menu widget.
+widget column (repo identity, the section tab list, sync progress), not
+Qt's `QMenuBar`/dropdown-menu widget.
 
 - `sidebar.py` — `Sidebar`: top to bottom, `ActiveRepoWidget` (thumbnail +
   name label, display-only — see below), `SectionTabList` (stretched to
@@ -12,15 +12,19 @@ account), not Qt's `QMenuBar`/dropdown-menu widget.
   entry (built via `spec.widget_factory()`, stored in
   `self.footer_action_widgets` keyed by `spec.key` — e.g.
   `plugins/core/self_updater/`'s Update button; nothing here is
-  hardcoded, Sidebar just renders whatever's registered), and an account
-  row — `interface/login/github_auth_widget.py`'s `GitHubAuthWidget` (display-only,
-  avatar+username, no login/logout control of its own — logging out lives
-  in Settings > Common now) plus the icon-only `setting_button` right after
-  it. Fixed width (`SIDEBAR_WIDTH`). Setting is deliberately its own button
-  here, not a row in `SectionTabList` — it's an app-level control, not a
-  repo-scoped one — so `MainWindow` deselects `tab_list`'s current row by
-  hand when Setting is clicked (`_on_settings_requested`) rather than the
-  list having any notion of a "Setting" entry itself.
+  hardcoded, Sidebar just renders whatever's registered), then an account
+  row — `account_label` (display-only GitHub username, pushed in by
+  `MainWindow._start_app` from `local_config_store.github_username`; no
+  login/logout control of its own — actual GitHub login now happens
+  entirely in the launcher exe before this app ever opens, see
+  `developer/packaging/updater.py`, and logout lives in
+  Settings > Common, see `interface/settings/README.md`) plus the
+  icon-only `setting_button` right after it. Fixed width (`SIDEBAR_WIDTH`).
+  Setting is deliberately its own button here, not a row in
+  `SectionTabList` — it's an app-level control, not a repo-scoped one — so
+  `MainWindow` deselects `tab_list`'s current row by hand when Setting is
+  clicked (`_on_settings_requested`) rather than the list having any
+  notion of a "Setting" entry itself.
 - `active_repo_widget.py` — `ActiveRepoWidget`: the thumbnail banner
   (`_ThumbnailBanner`, fill-cropped, never rounded) plus a plain
   `name_label` beneath it naming the active Project/Repo. Re-added
@@ -41,10 +45,7 @@ account), not Qt's `QMenuBar`/dropdown-menu widget.
   (`add_dynamic_tab`, rebuilt by `main_window.py` on every repo switch,
   always inserted right after the fixed sections). Emits
   `navigation_changed(key)` for every row.
-- `circular_pixmap.py` — `circular_pixmap` (crop-to-circle), used by
-  `interface/login/github_auth_widget.py`'s GitHub avatar.
 
 **Working here:** stay inside this folder unless the change needs a new
 `core/` primitive, or touches `main_window.py`'s wiring (which constructs
-`Sidebar` and connects its signals) or a `login/`/`shared/` file these
-import.
+`Sidebar` and connects its signals).

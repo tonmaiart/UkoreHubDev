@@ -14,11 +14,17 @@ discovery mechanism.
     of Windows' Uninstall registry keys (the same list "Programs and
     Features"/Settings > Apps reads from).
   - `ProgramPickerDialog` — icon+search picker over installed programs.
-  - `SoftwareLinkerPage` — the Settings tab itself: list of Program
-    Database entries + their linked path, "Browse Program...", "Browse
-    Path...", "Clear Link". Auto-detects an unlinked program's executable
-    via a PATH lookup on first load (best-effort, never overwrites an
-    existing link).
+  - `_ProgramLinkCard` — one card per linkable (Program, version) slot:
+    the Program's own icon (`program_store.resolve_icon_path`, falling
+    back to a generic icon), name/path/status each on their own line, and
+    its own "Browse Program..." split button (dropdown holds "Browse
+    Path...", folded into the same button rather than a separate one) +
+    "Clear" button — no page-level selection state, each card acts on its
+    own program directly.
+  - `SoftwareLinkerPage` — the Settings tab itself: a scrollable list of
+    `_ProgramLinkCard`s, one per Program Database entry. Auto-detects an
+    unlinked program's executable via a PATH lookup on first load
+    (best-effort, never overwrites an existing link).
   - `register(api)` — registers `SoftwareLinkerPage` as a Settings tab via
     `api.register_settings_tab(...)`. The page's `config_store` is
     `api.plugin_config_store(PLUGIN_ID, shared=False)` — per-machine, keyed

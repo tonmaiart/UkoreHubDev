@@ -13,7 +13,7 @@ _ICON_SIZE = 28
 class NotificationCard(QFrame):
     """The one card template every producer's notification renders through
     (core.theme.py's QFrame#notificationCard idiom, same shape as
-    _VideoCard/_RepoCard elsewhere in this codebase): icon, label, date/time,
+    _VideoCard elsewhere in this codebase): icon, label, date/time,
     and an optional click action. Only clickable (pointer cursor + hover
     highlight via the [clickable="true"] QSS property) when the entry
     actually has an on_click."""

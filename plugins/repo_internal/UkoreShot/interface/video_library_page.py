@@ -25,8 +25,7 @@ from plugins.repo_internal.UkoreShot.interface.thumbnail_loader import Thumbnail
 
 _VIDEO_EXTENSIONS = {".mov", ".mp4", ".avi"}
 _UNKNOWN = "Unknown"
-# Must match core/theme.py's QFrame#videoCard border-radius (same reasoning
-# as interface/login/repo_picker.py's CARD_CORNER_RADIUS) so the painted
+# Must match core/theme.py's QFrame#videoCard border-radius so the painted
 # thumbnail's clip path lines up with the QSS-drawn card border.
 _CARD_CORNER_RADIUS = 6.0
 
@@ -85,16 +84,14 @@ def _format_filter_value(field: str, parsed) -> str:
 
 
 class _VideoCard(QFrame):
-    """One clickable card per video, painted the same fill-cropped-
-    thumbnail way interface/login/repo_picker.py's _RepoCard does (reusing
-    core/theme.py's card idiom as QFrame#videoCard) — replaces a plain
-    QListWidget IconMode list, which rendered badly (overlapping
+    """One clickable card per video, painted with a fill-cropped thumbnail
+    (reusing core/theme.py's card idiom as QFrame#videoCard) — replaces a
+    plain QListWidget IconMode list, which rendered badly (overlapping
     thumbnails, cut-off text) for anything beyond a small square icon.
-    Unlike _RepoCard the thumbnail only fills a fixed-height strip at the
-    top, with the video's relative path underneath as normal child labels,
-    so paintEvent draws the QSS background/border first and only overlays
-    the thumbnail on top of that top strip — no transparent-background
-    trick needed."""
+    The thumbnail only fills a fixed-height strip at the top, with the
+    video's relative path underneath as normal child labels, so paintEvent
+    draws the QSS background/border first and only overlays the thumbnail
+    on top of that top strip — no transparent-background trick needed."""
 
     clicked = Signal()
 

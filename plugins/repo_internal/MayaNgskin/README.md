@@ -20,6 +20,6 @@ other flat-PYTHONPATH siblings) into
 `PluginConfigStore`, read and merged by that plugin's `open_maya_file`
 when it actually launches Maya. No direct import relationship with
 `maya_launcher` — just the shared `PluginConfigStore` id convention (see
-that plugin's README for the full bridge shape). `RepoToolsStore` (owned
-by `maya_launcher`) is what lets a studio admin disable this tool per-repo;
-this plugin always contributes unconditionally.
+that plugin's README for the full bridge shape). Repository Setting >
+Enable Plugin (`Repo.required_plugin_ids`) is what lets a studio admin
+disable this tool per-repo; this plugin always contributes unconditionally.

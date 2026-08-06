@@ -134,8 +134,7 @@ def _clone_status_icon(is_cloned: bool) -> QPixmap | None:
 
 
 class RepoNodeItem(QGraphicsItem):
-    """One node = one repo. Paints the repo's thumbnail fill-cropped (same
-    crop math as interface/login/repo_picker.py's _RepoCard.paintEvent) plus
+    """One node = one repo. Paints the repo's thumbnail fill-cropped plus
     a name label, a hover highlight, and an accent border while this is the
     active repo. A single left-click requests an active-repo switch (see
     mousePressEvent); right-click opens a context menu for the repo/

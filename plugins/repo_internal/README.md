@@ -22,9 +22,10 @@ repo owner opts in.
 Same authoring shape as any other plugin (`manifest.json` + `plugin.py`
 with `register(api)`, optionally a real Python package for a multi-file
 plugin — see `plugins/README.md`'s "Minimum folder shape" and "Multi-file
-plugins" sections). As of 2026-08-04, home to eleven Maya-pipeline plugins
+plugins" sections). As of 2026-08-04, home to nine Maya-pipeline plugins
 moved here from `plugins/core/` (none of them need to be on for every
 repo — a non-Maya project shouldn't see a Maya Launcher tab):
-`AnimationPublisher`, `MayaNgskin`, `MayaToolkit`, `ModelPublisher`,
-`PublishApi`, `RigPublisher`, `UkoreBrowser`, `UkorePlayblast`,
-`UkoreReferenceEditor`, `UkoreShot`, and `maya_launcher` itself.
+`MayaNgskin`, `MayaPublisher`, `MayaToolkit`, `PublishApi`, `UkoreBrowser`,
+`UkorePlayblast`, `UkoreReferenceEditor`, `UkoreShot`, and `maya_launcher`
+itself. `MayaPublisher` merged the former `RigPublisher`/`ModelPublisher`/
+`AnimationPublisher` (2026-08-05) — see its own README.

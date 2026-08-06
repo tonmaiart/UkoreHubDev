@@ -5,9 +5,11 @@ operations — widgets here handle layout, user interaction, and background
 `QThread` workers so the UI doesn't block on git/network calls.
 
 Organized by domain rather than by suffix convention: each of `sidebar/`,
-`login/`, `browser_links/`, `repo_settings/`, `settings/` owns one feature
+`browser_links/`, `repo_settings/`, `settings/` owns one feature
 area end-to-end (page + its dialogs + its workers), the same discipline
-`plugins/` already enforces for its own folders. Explorer and Submit used
+`plugins/` already enforces for its own folders. GitHub login used to be
+its own domain here too (`login/`) but moved out entirely — see the
+"GitHub login" note below. Explorer and Submit used
 to live here too (`explorer/`, `submit/`) but are now real always-on
 plugins under `plugins/core/explorer/` and `plugins/core/submit/` —
 registered into `SectionRegistry` via `register(api)` exactly like any
@@ -35,14 +37,15 @@ a new top-level section that needs `section_registry.py`).
 - `main_window.py` — top-level `QMainWindow`: constructs every window's
   page from `SectionRegistry`, wires `sidebar/`'s `Sidebar` (the left-hand
   navigation column — display-only repo thumbnail/name label,
-  `SectionTabList`, a `SidebarFooterActionRegistry`-driven footer, and
-  GitHub login), drives active-repo restore + auto-sync on launch, and owns
+  `SectionTabList`, a `SidebarFooterActionRegistry`-driven footer), drives
+  active-repo restore + auto-sync on launch, and owns
   the one shared `QWebEngineProfile`
   (`browser_links/web_engine_profile.py`) every
-  `browser_links/browser_link_page.py` tab uses. Login mechanics themselves
-  (LoginOverlay, token/session state) live in `login/login_gate.py`'s
-  `LoginGate` — `main_window.py` only drives *when* to show/teardown the
-  gate. Every ordinary section is its own standalone page in `view_stack`,
+  `browser_links/browser_link_page.py` tab uses. GitHub login happens
+  entirely before this process is even spawned now (see the "GitHub login"
+  note below), so `MainWindow` builds the real UI immediately on
+  construction — no gate to show/teardown. Every ordinary section is its
+  own standalone page in `view_stack`,
   switched to via `Sidebar.navigation_changed` — except a section flagged
   `SectionSpec.persistent=True` (Project Editor), which is never added to
   `view_stack`/`SectionTabList` at all and instead sits permanently docked
@@ -85,12 +88,7 @@ a new top-level section that needs `section_registry.py`).
   tabs + dynamic Browser Link tabs + a trailing Setting row — Project
   Editor is not one of these rows, see below), and a footer built from
   `sidebar_footer_action_registry.py` (e.g. `plugins/core/self_updater/`'s
-  Update button) plus GitHub login/logout. See `sidebar/README.md`.
-- `login/` — the mandatory GitHub login gate: `login_gate.py`'s
-  `LoginGate` owns the actual mechanics (LoginOverlay construction, token/
-  session restore, logout) so `main_window.py` only drives *when* to show
-  it; also the OAuth device-flow dialog and the repo picker. See
-  `login/README.md`.
+  Update button). See `sidebar/README.md`.
 - `browser_links/` — the Browser Link feature end-to-end: its Settings tab
   and its runtime `QWebEngineView` tab, previously split across
   `settings/`/`about/` by UI-kind rather than domain (`about/` itself was
@@ -108,6 +106,26 @@ a new top-level section that needs `section_registry.py`).
   use, re-checked whenever a domain folder is split out. See
   `shared/README.md`.
 
+## GitHub login
+
+There is no login domain in `interface/` anymore — the old mandatory
+in-app gate (`login/`: `LoginOverlay`, `GitHubLoginDialog`,
+`GitHubAuthWidget`, `LoginGate`) was deleted entirely. GitHub login (OAuth
+device flow) and the token cache now live in `developer/packaging/updater.py`,
+run by the launcher exe (`UkoreHub.exe`) *before* this process is even
+spawned — by the time `launcher.py` constructs `GitService`, it just loads
+whatever token the launcher already cached (`core/github/token_store.py`)
+and calls `git_service.set_github_token(...)`.
+
+`MainWindow` still shows the signed-in username (`Sidebar.account_label`,
+pushed from `local_config_store.github_username` in `_start_app`) and still
+owns logout (`Settings > Common`'s Logout button, wired to
+`_on_logout_requested`) — but logout here doesn't tear down any in-app UI
+(there isn't any): it clears the cached token/username via `TokenStore`
+and relaunches `UkoreHub.exe`, whose own login step shows the GitHub login
+screen again. `MainWindow` holds a `TokenStore` reference for exactly this
+one purpose — it never reads a token to authenticate anything itself.
+
 ## Testing conventions
 
 Qt widgets are **never constructed inside pytest tests**: registries are
@@ -119,12 +137,12 @@ without crashing), use a throwaway headless smoke-test script instead of a
 pytest test — **and always point it at a scratch copy of `data/`, never
 the real one** (see root `CLAUDE.md`'s "Headless/smoke testing" section):
 construct `QApplication`, all registries, and `MainWindow` without calling
-`app.exec()`. Pre-seed the scratch `local_config_store` with a fake
-`github_username` and a fake token in the scratch `token_store` before
-constructing `MainWindow`, so `LoginGate.is_logged_in()` is true and it
-skips `LoginOverlay` entirely (that path is otherwise indistinguishable
-from a real hang since it just sits there waiting for a click); and end
-with
+`app.exec()`. `MainWindow` has no login gate of its own anymore (see the
+"GitHub login" note above) — it always builds the real UI immediately, so
+there's nothing to pre-seed/skip there; it does still take a `token_store`
+constructor argument (any `TokenStore` pointed at the scratch `data/` copy
+works, even with no token ever saved to it — it's read only if the user
+clicks Logout). End the script with
 `sys.stdout.flush(); os._exit(0)` — `os._exit` is required because Qt/
 Windows can hang on normal process teardown after `QApplication` is
 destroyed without an explicit `app.quit()`; without the `os._exit(0)` the

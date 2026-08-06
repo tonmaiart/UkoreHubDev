@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 TOOL_ID = "publish_api"
 TOOL_LABEL = "PublishApi"
 # Convention-only string match with plugins/repo_internal/maya_launcher/plugin.py
@@ -11,7 +13,7 @@ ANY_VERSION = "*"
 
 
 def register(api) -> None:
-    tool_root = api.app_root / "plugins" / "core" / "PublishApi"
+    tool_root = Path(__file__).resolve().parent
 
     bridge = api.plugin_config_store(MAYA_ENV_BRIDGE_PLUGIN_ID, shared=True)
     contributions = bridge.get("contributions", {})

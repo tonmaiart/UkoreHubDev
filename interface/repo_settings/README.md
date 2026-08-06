@@ -31,13 +31,17 @@ for the type-specific rebuild.
   "Requirements & Plugins" tab (2026-08-04, merging what used to be two
   separate `CATEGORY_REPO` tabs — Requirements, formerly owned by
   `plugins/core/project_editor/`, and this folder's own Enable Plugin).
-  Two stacked sections: Program Requirements (embeds
+  Two stacked sections inside a `wrap_scrollable()` scroll area
+  (2026-08-05, so the tree plus three plugin lists don't cram into
+  whatever height the "Repository Setting..." popup has): Program
+  Requirements (embeds
   `interface/shared/requirements_tree_widget.py`'s `RequirementsTreeWidget`
   — the same checkable Program tree `RepoDialog` shows at Add-Repo time,
   here editing an *existing* repo's `required_program_ids`/
   `program_version_pins`), and Enable Plugin — every discovered plugin,
   split into three lists by `core.extensibility.loader.plugin_source()`
-  instead of one flat checklist: **Core** (`plugins/core/`) — always on,
+  instead of one flat checklist, laid out as three columns in one row:
+  **Core** (`plugins/core/`) — always on,
   no checkbox, no per-repo opt-out at all; **Internal**
   (`plugins/repo_internal/`) and **External** (`cache/plugins/`) — both
   opt-in, unchecked by default, both persisted to the same

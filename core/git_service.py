@@ -259,12 +259,12 @@ class GitService:
     def stage_paths(self, repo_path: Path, paths: list[str]) -> None:
         if not paths:
             return
-        self._run_capture(["add", "--", *paths], cwd=Path(repo_path))
+        self._run_capture_batched(["add"], paths, Path(repo_path))
 
     def unstage_paths(self, repo_path: Path, paths: list[str]) -> None:
         if not paths:
             return
-        self._run_capture(["reset", "HEAD", "--", *paths], cwd=Path(repo_path))
+        self._run_capture_batched(["reset", "HEAD"], paths, Path(repo_path))
 
     def get_commit_files(self, repo_path: Path, commit_hash: str) -> list[str]:
         """Relative paths of every file changed in a single commit. --root
@@ -285,9 +285,9 @@ class GitService:
         so they're removed instead via git clean."""
         repo_path = Path(repo_path)
         if modified_paths:
-            self._run_capture(["checkout", "--", *modified_paths], cwd=repo_path)
+            self._run_capture_batched(["checkout"], modified_paths, repo_path)
         if untracked_paths:
-            self._run_capture(["clean", "-f", "--", *untracked_paths], cwd=repo_path)
+            self._run_capture_batched(["clean", "-f"], untracked_paths, repo_path)
 
     def commit(
         self, repo_path: Path, message: str, amend: bool = False, *, context: GitHookContext | None = None
@@ -410,18 +410,48 @@ class GitService:
         return parts[0], parts[1]
 
     def _run_capture(self, args: list[str], cwd: Path, extra_env: dict | None = None) -> str:
-        result = subprocess.run(
-            [self.git_executable, *args],
-            cwd=str(cwd),
-            stdin=subprocess.DEVNULL,
-            capture_output=True,
-            text=True,
-            env=_non_interactive_env(extra_env),
-            creationflags=_NO_WINDOW_FLAGS,
-        )
+        try:
+            result = subprocess.run(
+                [self.git_executable, *args],
+                cwd=str(cwd),
+                stdin=subprocess.DEVNULL,
+                capture_output=True,
+                text=True,
+                env=_non_interactive_env(extra_env),
+                creationflags=_NO_WINDOW_FLAGS,
+            )
+        except OSError as exc:
+            # e.g. WinError 206 "The filename or extension is too long" when
+            # a huge pathspec argument list (hundreds/thousands of selected
+            # files) blows past Windows' ~32K CreateProcess command-line
+            # limit. Surfacing this as a GitOperationError (instead of
+            # letting the OSError propagate) matters because the app runs
+            # via pythonw.exe with no console — an uncaught exception here
+            # has nowhere to print to and just vanishes, so callers relying
+            # on `except GitOperationError` around this never see it.
+            raise GitOperationError(f"git {' '.join(args)} failed to start: {exc}") from exc
         if result.returncode != 0:
             raise GitOperationError(f"git {' '.join(args)} failed: {result.stderr.strip()}")
         return result.stdout
+
+    # Stays safely under Windows' ~32,767-char CreateProcess command-line
+    # limit (which subprocess hits directly here since git.exe is launched
+    # without a shell) even for repos with thousands of selected paths.
+    _MAX_BATCH_CMDLINE_CHARS = 20_000
+
+    def _run_capture_batched(self, base_args: list[str], paths: list[str], cwd: Path) -> None:
+        batch: list[str] = []
+        batch_chars = 0
+        for path in paths:
+            added = len(path) + 3  # quoting/arg-separator overhead
+            if batch and batch_chars + added > self._MAX_BATCH_CMDLINE_CHARS:
+                self._run_capture([*base_args, "--", *batch], cwd=cwd)
+                batch = []
+                batch_chars = 0
+            batch.append(path)
+            batch_chars += added
+        if batch:
+            self._run_capture([*base_args, "--", *batch], cwd=cwd)
 
     def get_latest_commit(self, repo_path: Path) -> CommitInfo | None:
         repo_path = Path(repo_path)

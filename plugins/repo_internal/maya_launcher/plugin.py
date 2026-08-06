@@ -10,7 +10,6 @@ from core.exceptions import NotFoundError
 from interface.program_launch_registry import ProgramLaunchSpec
 from interface.settings_tab_registry import CATEGORY_REPO, SettingsTabSpec
 from plugins.repo_internal.maya_launcher.link_resolution import linked_key, pinned_version
-from plugins.repo_internal.maya_launcher.repo_tools_store import RepoToolsStore
 from plugins.repo_internal.maya_launcher.settings_page import MayaLauncherSettingsPage
 
 PLUGIN_ID = "maya_launcher"
@@ -21,8 +20,7 @@ SOFTWARE_LINKER_PLUGIN_ID = "software_linker"
 # Convention-only string match with every Maya env-contributing plugin
 # (plugins/core/AdvancedSkeleton, .../MayaNgskin, .../MayaToolkit,
 # .../mGear, .../UkoreBrowser, .../DreamwallPicker, .../StudioLibrary,
-# .../PublishApi, .../ModelPublisher, .../RigPublisher,
-# .../AnimationPublisher) — each writes its own contributions[tool_id] entry
+# .../PublishApi, .../MayaPublisher) — each writes its own contributions[tool_id] entry
 # (plus labels[tool_id]) into this shared, studio-tracked PluginConfigStore
 # at register() time. This plugin is a pure bridge reader: it owns
 # launching Maya with an assembled env, not the list of what goes into
@@ -34,12 +32,12 @@ MAYA_ENV_BRIDGE_PLUGIN_ID = "maya_launcher_env_bridge"
 ANY_VERSION = "*"
 # PublishApi is pure infrastructure — no artist-facing behavior or UI of
 # its own, just path-resolution/versioning other tools (UkoreBrowser,
-# ModelPublisher/RigPublisher/AnimationPublisher) import directly. Never
-# gated by RepoToolsStore's per-repo toggle below (unlike every other tool,
-# it isn't even offered as a checkbox in Settings): there's no legitimate
-# reason a repo would ever want it disabled, and doing so only breaks
-# whatever else is enabled and imports it — `import PublishApi` failing
-# inside Maya for a tool that's supposedly turned on.
+# MayaPublisher) import directly. Its env
+# contribution is force-included below regardless of whether it's checked
+# under Repository Setting > Enable Plugin: there's no legitimate reason a
+# repo would ever want it disabled, and doing so only breaks whatever else
+# is enabled and imports it — `import PublishApi` failing inside Maya for a
+# tool that's supposedly turned on.
 PUBLISH_API_TOOL_ID = "publish_api"
 # Convention-only string match with plugins/repo_internal/UkoreReferenceEditor/plugin.py's
 # own TOOL_ID — used to decide whether to open with -loadReferenceDepth
@@ -205,17 +203,26 @@ def _find_linked_maya(api, repo) -> tuple[str, str] | None:
     return None
 
 
-def _prepare_env_and_plugins(api, tools_store, repo, maya_version: str) -> tuple[dict, list[str], set[str]]:
+def _prepare_env_and_plugins(api, repo, maya_version: str) -> tuple[dict, list[str], set[str]]:
     """Shared bridge read + env-merge + force-load-plugin-names — every
     part of a Maya launch that doesn't depend on whether a specific scene
     is being opened. Shared by open_maya_file and launch_maya_standalone
-    below."""
+    below.
+
+    Which tools' contributions actually apply is gated by
+    `repo.required_plugin_ids` — Repository Setting > Enable Plugin — since
+    every contributing tool (MayaNgskin, MayaToolkit, UkoreBrowser, ...) is
+    its own plugins/repo_internal/<Name>/ plugin with a manifest id that
+    matches its bridge tool_id exactly (see this plugin's README). This
+    used to be a separate opt-out toggle owned by this plugin
+    (RepoToolsStore, removed 2026-08-05) — folded into Enable Plugin so
+    there's a single place that decides whether a repo uses a given tool,
+    instead of two. Enable Plugin is opt-in (unchecked by default), unlike
+    the old opt-out store, so a repo that has never touched Enable Plugin
+    now gets zero tool contributions until someone checks the ones it
+    needs."""
     all_contributions, _labels = _read_bridge(api)
-    enabled_tool_ids = set(
-        tools_store.enabled_tool_ids_for(
-            api.local_config.active_project_id, api.local_config.active_repo_id, list(all_contributions)
-        )
-    )
+    enabled_tool_ids = set(repo.required_plugin_ids) & set(all_contributions)
     contributions = {tid: c for tid, c in all_contributions.items() if tid in enabled_tool_ids}
     if PUBLISH_API_TOOL_ID in all_contributions:
         contributions[PUBLISH_API_TOOL_ID] = all_contributions[PUBLISH_API_TOOL_ID]
@@ -234,8 +241,6 @@ def _warn_no_linked_maya() -> None:
 
 
 def register(api) -> None:
-    tools_store = RepoToolsStore(api.plugin_config_store(PLUGIN_ID, shared=True))
-
     def open_maya_file(path: Path, repo) -> bool:
         found = _find_linked_maya(api, repo)
         if found is None:
@@ -243,7 +248,7 @@ def register(api) -> None:
             return True  # handled (with a warning) — do not fall back to OS default
         maya_exe, maya_version = found
 
-        env, plugin_names, enabled_tool_ids = _prepare_env_and_plugins(api, tools_store, repo, maya_version)
+        env, plugin_names, enabled_tool_ids = _prepare_env_and_plugins(api, repo, maya_version)
         repo_root = _repo_root_path(api, repo)
         defer_reference_load = UKORE_REFERENCE_EDITOR_TOOL_ID in enabled_tool_ids
         mel_command = _force_load_plugins_command(plugin_names) + _set_project_and_open_command(
@@ -265,7 +270,7 @@ def register(api) -> None:
             return True
         maya_exe, maya_version = found
 
-        env, plugin_names, _enabled_tool_ids = _prepare_env_and_plugins(api, tools_store, repo, maya_version)
+        env, plugin_names, _enabled_tool_ids = _prepare_env_and_plugins(api, repo, maya_version)
         repo_root = _repo_root_path(api, repo)
         mel_command = _force_load_plugins_command(plugin_names) + f'setProject "{_mel_string(repo_root)}";'
         subprocess.Popen([maya_exe, "-command", mel_command], env=env)
@@ -280,9 +285,7 @@ def register(api) -> None:
             key=PLUGIN_ID,
             label="Maya Launcher",
             order=110,
-            page_factory=lambda: MayaLauncherSettingsPage(
-                api=api, tools_store=tools_store, read_bridge=lambda: _read_bridge(api)
-            ),
+            page_factory=lambda: MayaLauncherSettingsPage(api=api),
             on_activated=lambda page: page.refresh(),
             category=CATEGORY_REPO,
         )

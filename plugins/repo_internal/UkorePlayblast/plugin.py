@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 TOOL_ID = "ukore_playblast"
 TOOL_LABEL = "UkorePlayblast"
 # Convention-only string match with plugins/repo_internal/maya_launcher/plugin.py
 # — both resolve to the same data/plugins/repo_internal/maya_launcher_env_bridge.json
 # via PluginConfigStore, no coupling API needed. See that plugin's README
 # for the full "contributions"/"labels" shape this writes into — same
-# pattern plugins/repo_internal/RigPublisher/plugin.py uses for its own Maya
+# pattern plugins/repo_internal/MayaPublisher/plugin.py uses for its own Maya
 # package.
 MAYA_ENV_BRIDGE_PLUGIN_ID = "maya_launcher_env_bridge"
 ANY_VERSION = "*"
@@ -25,7 +27,7 @@ def register(api) -> None:
     # maya-scripts/UkorePlayblast package — core.* importability
     # itself already comes from PublishApi's own contribution (it also
     # adds api.app_root to PYTHONPATH), not from this plugin's.
-    tool_root = api.app_root / "plugins" / "core" / "UkorePlayblast"
+    tool_root = Path(__file__).resolve().parent
 
     bridge = api.plugin_config_store(MAYA_ENV_BRIDGE_PLUGIN_ID, shared=True)
     contributions = bridge.get("contributions", {})

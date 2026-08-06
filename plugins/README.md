@@ -74,12 +74,26 @@ plugins/core/YourPluginName/
   "version": "0.1.0",
   "api_version": 1,
   "entry_point": "plugin.py",
-  "description": "One sentence describing what this plugin registers."
+  "description": "One sentence describing what this plugin registers.",
+  "requires": ["other_plugin_id"]
 }
 ```
 `id` must be globally unique across every plugin. `api_version` must match
 the app's current `PLUGIN_API_VERSION` (`interface/plugin_api.py`) or your
 plugin is skipped with a `PluginLoadFailure`, not a crash.
+
+`requires` (optional, defaults to `[]`) lists the plugin `id`s this plugin
+can't function without — for a `repo_internal`/`cache/plugins` plugin that
+depends on another opt-in plugin also being enabled for the repo, not for
+declaring a load-order dependency (there is none — see above). It's only
+enforced at the UI layer, in Settings > Requirements & Plugins
+(`interface/repo_settings/requirements_and_plugins_page.py`): enabling a
+plugin with unmet requirements prompts to enable those too; disabling a
+plugin something else still requires prompts a "this will break X" warning.
+`discover_plugins`/`apply_plugins` themselves never read or enforce it —
+a plugin missing its requirement still loads and registers fine, it just
+won't have been offered as enabled together automatically outside that one
+settings page.
 
 `entry_point` (conventionally `plugin.py`) needs exactly one function:
 ```python

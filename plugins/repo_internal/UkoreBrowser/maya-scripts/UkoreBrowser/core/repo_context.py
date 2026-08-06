@@ -5,10 +5,9 @@ opened outside of UkoreHub, or no repo has been selected yet).
 Path/pipeline-metadata resolution itself goes through PublishApi
 (plugins/repo_internal/PublishApi/maya-scripts/PublishApi/repo_paths.py) as of
 2026-07-19, instead of this file carrying its own duplicate copy of
-find_ukorehub_root()/store construction — so UkoreBrowser and the
-Publisher plugins (ModelPublisher/RigPublisher/AnimationPublisher) share
-exactly one source of truth for what the active repo/pipeline metadata is.
-See that plugin's README.
+find_ukorehub_root()/store construction — so UkoreBrowser and MayaPublisher
+share exactly one source of truth for what the active repo/pipeline
+metadata is. See that plugin's README.
 
 Lazy-locked per Maya session as of 2026-08-04: `get_active_repo()` reads
 UkoreHub's `local_config.json` fresh off disk every call, and

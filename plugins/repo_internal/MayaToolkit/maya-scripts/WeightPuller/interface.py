@@ -38,9 +38,9 @@ class MainWindow(ToolkitWindow):
         source_text = self.ui.lineEdit_source_keyword.text()
         target_text = self.ui.lineEdit_target_keyword.text()
 
-        from ngSkinTools2.api import get_layers_enabled
-
         try:
+            from ngSkinTools2.api import get_layers_enabled
+
             get_layers_enabled(selected_meshes)
             SkinWeight.move_weight_ngskintools(weight_percent, source_text, target_text)
             print("ngSkinTools2 weight moved")

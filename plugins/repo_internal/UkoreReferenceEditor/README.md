@@ -26,16 +26,15 @@ contributes `PYTHONPATH` (its own `maya-scripts/`, plus `api.app_root` so
 `core.store`/`core.paths` resolve inside Maya's Python) into
 `plugins/repo_internal/maya_launcher/`'s shared `maya_launcher_env_bridge`
 `PluginConfigStore` — see that plugin's README for the full bridge shape.
-This also means it shows up automatically in `MayaLauncherSettingsPage`'s
-per-repo enable/disable checkboxes, and can be turned off per-repo via
-`RepoToolsStore` like any other tool, with zero extra code here.
+This also means it can be turned off per-repo via Repository Setting >
+Enable Plugin (`Repo.required_plugin_ids`) like any other tool, with zero
+extra code here.
 
 The actual UI entry point ("Ukore Reference Editor...") and the automatic
 scene-open check both live in
 `plugins/repo_internal/MayaToolkit/maya-plug-ins/ukoreMaya.py` /
 `UkoreMaya/core/menu_utils.py` (`ukore_reference_editor()`) — this plugin is
-a pure library, the same relationship `PublishApi` has to
-`ModelPublisher`/`RigPublisher`/`AnimationPublisher`.
+a pure library, the same relationship `PublishApi` has to `MayaPublisher`.
 
 ## How a redirect is resolved
 
@@ -169,14 +168,26 @@ these two buttons.
 
 ## Repath — manual override
 
-Every row (both tabs) has a **Repath...** button, independent of
-status/scope — `interface.py`'s `_EntryTable._repath_row` opens
-`cmds.fileDialog2(fileMode=2, ...)` (Maya's own "pick a file OR a folder"
-mode) and resolves via `matcher.resolve_manual_target`: picking a **file**
-uses it directly; picking a **folder** searches it recursively
-(`Path.rglob`) for a file matching the current path's own filename, first
-match wins. This is the escape hatch for anything the automatic
-project/repo-matching algorithm above gets wrong or can't resolve at all.
+Every row (both tabs) has two buttons, independent of status/scope —
+`interface.py`'s `_EntryTable._repath_row(row, file_mode, caption)` backs
+both:
+
+- **Repath File...** — `cmds.fileDialog2(fileMode=1, ...)`, Maya's single-
+  existing-file mode; the chosen file is used directly as the redirect
+  target.
+- **Repath Search...** — `cmds.fileDialog2(fileMode=3, ...)`, Maya's
+  existing-directory-only mode (same as Find All Missing File's picker
+  below); the chosen folder is searched recursively (`Path.rglob`,
+  `matcher.resolve_manual_target`) for a file matching the current path's
+  own filename, first match wins.
+
+Both are the escape hatch for anything the automatic project/repo-matching
+algorithm above gets wrong or can't resolve at all. Deliberately two
+dedicated buttons rather than one `fileMode=2` ("pick a file OR a folder")
+button — Maya's own docs describe `fileMode=2` as returning "the name of a
+directory" even though files are displayed in it, which made picking an
+exact file unreliable (see
+`developer/bug-history/2026-08-05-repath-filemode2-native-dialog-directory-only.md`).
 
 ## Find All Missing File (Textures tab only)
 
@@ -293,7 +304,8 @@ behavior existed.
   from this plugin's own `maya-scripts/UkoreReferenceEditor/icons/`), File
   (filename only — see "File Info panel" below for the full path), Version,
   Next Version, Scope, Actions (Redirect when still missing after auto-fix
-  + always Update Version.../Repath.../Open in Ukore Browser). Textures
+  + always Update Version.../Repath File.../Repath Search.../Open in Ukore
+  Browser). Textures
   tab: same minus Loaded, Version, Next Version. Only File is
   `QHeaderView.Stretch` — the narrow columns (Loaded, Status, Version, Next
   Version, Scope, Actions) are `QHeaderView.ResizeToContents`, so an icon

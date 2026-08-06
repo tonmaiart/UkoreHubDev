@@ -26,6 +26,20 @@ def ensure_pyinstaller() -> None:
     subprocess.run([sys.executable, "-m", "pip", "install", "pyinstaller"], check=True)
 
 
+def ensure_build_dependencies() -> None:
+    """updater.py (bundled into the exe alongside exe_entry.py — see
+    build()) uses keyring for the GitHub token cache (tkinter itself is
+    stdlib, ships with Python, needs nothing installed) — needs to be
+    importable in *this* environment for PyInstaller's analysis to bundle
+    it. Installed here rather than added to launcher.py's own
+    REQUIRED_PACKAGES bootstrap — that one governs the already-running
+    app's environment, not this admin-only build step's."""
+    if importlib.util.find_spec("keyring") is not None:
+        return
+    print("build_exe.py: installing missing build dependency 'keyring>=24.0'...")
+    subprocess.run([sys.executable, "-m", "pip", "install", "keyring>=24.0"], check=True)
+
+
 def build(icon: Path, name: str) -> Path:
     build_dir = REPO_ROOT / "developer" / "build"
     entry = Path(__file__).resolve().parent / "exe_entry.py"
@@ -55,6 +69,7 @@ def main() -> None:
     args = parser.parse_args()
 
     ensure_pyinstaller()
+    ensure_build_dependencies()
     exe_path = build(args.icon, args.name)
     print(f"build_exe.py: built {exe_path}")
 

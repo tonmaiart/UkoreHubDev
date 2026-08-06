@@ -2,27 +2,30 @@
 
 Shared Maya-side library — the single source of truth for "where does a
 publish go" and "how do I create the next version folder" — consumed by
-`ModelPublisher`, `RigPublisher`, `AnimationPublisher`, and `UkoreBrowser`
-(its `core/repo_context.py`). Does not launch Maya; like every other Maya
-tool plugin here, `plugin.py` itself exists purely to contribute a
-`PYTHONPATH` entry to `plugins/repo_internal/maya_launcher/`'s shared
-`maya_launcher_env_bridge` `PluginConfigStore`.
+`MayaPublisher` and `UkoreBrowser` (its `core/repo_context.py`). Does not
+launch Maya; like every other Maya tool plugin here, `plugin.py` itself
+exists purely to contribute a `PYTHONPATH` entry to
+`plugins/repo_internal/maya_launcher/`'s shared `maya_launcher_env_bridge`
+`PluginConfigStore`.
 
-As of 2026-08-03, this is also where the three Publisher plugins' shared
-**ticket management** lives (`tickets.py` + `ticket_manager_dialog.py`,
-both Maya-side, under `maya-scripts/PublishApi/`) — each Publisher used to
-have its own UkoreHub-side Repo Studio Setting tab for a single per-repo
+As of 2026-08-03, this is also where MayaPublisher's shared **ticket
+management** lives (`tickets.py` + `ticket_manager_dialog.py`, both
+Maya-side, under `maya-scripts/PublishApi/`) — the original
+`ModelPublisher`/`RigPublisher`/`AnimationPublisher` each used to have
+their own UkoreHub-side Repo Studio Setting tab for a single per-repo
 Publish Path choice; that's gone now in favor of user-managed **tickets**,
 each with its own Publish Path and validation scripts, created/edited
 entirely from inside Maya. See "Tickets" below.
 
 Added 2026-07-19, alongside splitting the original `UkorePublisher` plugin
-into `ModelPublisher`/`RigPublisher`/`AnimationPublisher` — see
+into `ModelPublisher`/`RigPublisher`/`AnimationPublisher` (themselves
+merged into one `MayaPublisher` plugin on 2026-08-05 — see
+`plugins/repo_internal/MayaPublisher/README.md`) — see
 `plugins/repo_internal/maya_launcher/README.md` for the bridge convention this
-follows, and each Publisher plugin's own README for how it's actually used.
+follows.
 
-**Never gated by `plugins/repo_internal/maya_launcher/`'s per-repo `RepoToolsStore`
-toggle** — unlike every other tool plugin listed above, this one has no
+**Never gated by `plugins/repo_internal/maya_launcher/`'s per-repo Enable
+Plugin gating** — unlike every other tool plugin listed above, this one has no
 legitimate reason to ever be disabled per-repo (it's pure infrastructure,
 not an artist-facing feature), and `maya_launcher/plugin.py`'s
 `open_maya_file` force-includes its bridge contribution regardless of what
@@ -76,24 +79,37 @@ predated this plugin's existence hit `ModuleNotFoundError: No module named
     `<publish_root>/<subfolder>/vNNN/`. `publish_root` is always
     `tickets.get_publish_root_for_ticket(tool_id, ticket)`'s result;
     `subfolder` is the ticket's own `folder_name` (see "Tickets" below).
-- `maya-scripts/PublishApi/tickets.py` — user-managed **tickets** shared
-  by all three Publisher plugins (see "Tickets" below for the full shape).
+- `maya-scripts/PublishApi/tickets.py` — user-managed **tickets**, all
+  keyed under MayaPublisher's single `tool_id` ("maya_publisher") for
+  storage regardless of which mode a repo publishes as (see "Tickets"
+  below for the full shape).
 - `maya-scripts/PublishApi/ticket_manager_dialog.py` — `TicketManagerDialog`:
-  the shared "Manage Tickets..." `QDialog` every Publisher plugin's own
+  the shared "Manage Tickets..." `QDialog` MayaPublisher's own
   `interface.py` opens (parameterized by `tool_id`/`tool_label`/
-  `show_export_type`) — create/rename/delete tickets, pick each ticket's
-  own Publish Path from the active repo's declared pipeline connections
-  (same list `repo_paths.get_pipeline_refs()` resolves), a checkable list
-  to attach/detach each ticket's validation scripts (checking a box calls
-  `tickets.attach_script`/`detach_script` immediately, same
-  self-persisting-checkbox convention the Requirements & Plugins tab
-  uses), an
-  "Open Script Folder..." button (`os.startfile` on
-  `tickets.validation_scripts_dir(tool_id)`, for jumping straight to where
-  a TD would actually author one), and — only for `AnimationPublisher`
-  (`show_export_type=True`) — a Playblast/Unreal Export combo box per
-  ticket. "Save Publish Path" is an explicit button, not autosave-on-click
-  (same deliberate-commit reasoning the old, now-removed
+  `show_export_type`/`scripts_tool_id`) — create/rename/delete tickets,
+  pick each ticket's own Publish Path from the active repo's declared
+  pipeline connections (same list `repo_paths.get_pipeline_refs()`
+  resolves), and — only when `show_export_type=True` (MayaPublisher's
+  Animation mode) — a Playblast/Unreal Export combo box per ticket.
+  Two script panes side by side: "Available Scripts" (checkable, checking
+  a box calls `tickets.attach_script`/`detach_script` immediately, same
+  self-persisting-checkbox convention the Requirements & Plugins tab uses)
+  and "Run Order" (added 2026-08-05, just the checked ones in the order
+  `run_validation_scripts` will actually call them — "Move Up"/"Move Down"
+  call `tickets.move_script`). "Create Script..." (added 2026-08-05) seeds
+  a new file from `tickets.create_script`'s template and opens it; "Edit
+  Script..." and "Open Script Folder..." both use `os.startfile` (on
+  `tickets.validation_scripts_dir(scripts_tool_id)` or a specific file in
+  it) to hand off to whatever program is registered for `.py` files on
+  this machine — this dialog itself never edits a script's contents.
+  `scripts_tool_id` (defaults to `tool_id`) decouples the validation-script
+  *folder* lookup from ticket *storage*: MayaPublisher passes the repo's
+  configured mode's **old** tool id here (e.g. `"rig_publisher"`) so
+  `PublishValidation/rig_publisher/` keeps resolving for an
+  already-migrated repo without moving anything — see
+  `plugins/repo_internal/MayaPublisher/maya-scripts/MayaPublisher/function.py`'s
+  `MODE_TOOL_IDS`. "Save Publish Path" is an explicit button, not
+  autosave-on-click (same deliberate-commit reasoning the old, now-removed
   `publish_target_settings_page.py` adopted on the UkoreHub side).
 
 ## Tickets
@@ -111,18 +127,19 @@ Tickets..." button:
 - Each ticket has its own `publish_target` (a pipeline connection ref,
   same shape the old single per-repo choice used) — different tickets on
   the same repo can publish to entirely different destinations.
-- Each ticket has a list of attached **validation scripts** —
-  `ticket["script_names"]`, filenames referencing `.py` files that live in
-  a **fixed** folder, not owned per-ticket: `tickets.validation_scripts_dir(tool_id)`
-  = `<active repo's own local clone>/PublishValidation/<tool_id>/`. A TD
+- Each ticket has a list of attached **scripts** — `ticket["script_names"]`,
+  filenames referencing `.py` files that live in a **fixed** folder, not
+  owned per-ticket: `tickets.validation_scripts_dir(tool_id)` =
+  `<active repo's own local clone>/PublishValidation/<tool_id>/`. A TD
   writes/commits the actual scripts there entirely outside this tool (a
   text editor, checked into the repo like any other pipeline code, shared
   to the whole team via that repo's own git history) — "Manage Tickets..."
   only lets a studio admin pick which of the scripts already sitting in
   that folder apply to a given ticket, it never authors one. Each script
-  defines one `validate() -> bool` function; all of a ticket's attached
+  defines one `validate() -> bool` function (or, as of 2026-08-05,
+  `validate(context) -> bool` — see below); all of a ticket's attached
   scripts must return `True` (or be absent/have no `validate()`) for
-  `function.py`'s `publish()` to proceed. Modeled after
+  `function.py`'s `publish()` to be reported successful. Modeled after
   `plugins/repo_internal/MayaToolkit/maya-scripts/tmlib/core/QuickData.py`'s
   folder-of-scripts convention (used by the `PythonReader` toolkit,
   formerly "QuickScript") — same `importlib.util.spec_from_file_location`
@@ -131,8 +148,21 @@ Tickets..." button:
   script name a ticket still references that's since been removed/renamed
   in that folder is a hard failure (not a silent skip) — it means the
   ticket's configuration needs re-checking, not that the check passed.
-- `AnimationPublisher` tickets additionally carry an `export_type`
-  (`"playblast"` or `"unreal"`) — see that plugin's own README.
+  **2026-08-05: these scripts are no longer pure checks.** MayaPublisher's
+  `function.py` used to export/copy a file automatically once every
+  attached script returned `True`; now it doesn't export anything itself
+  at all — `run_validation_scripts(tool_id, ticket, context)` optionally
+  passes a `context` dict (`version_dir`, `version`, `ticket`, `mode`,
+  `tool_id` — inspected via the script's own `validate` signature, so the
+  original zero-argument contract still works unchanged) that a script
+  can use to actually export/copy whatever it decides belongs in
+  `context["version_dir"]`. See
+  `plugins/repo_internal/MayaPublisher/README.md`'s "Publish is a scripted
+  step" for the full reasoning and the caveat about scripts that do file
+  work then a later script fails.
+- Tickets on repos configured for MayaPublisher's Animation mode
+  additionally carry an `export_type` (`"playblast"` or `"unreal"`) — see
+  `plugins/repo_internal/MayaPublisher/README.md`.
 
 Storage: `data/plugins/core/<tool_id>.json`, key `"tickets"`, keyed by
 `"<project_id>:<repo_id>"` (the active repo doing the publishing). This is
@@ -167,6 +197,6 @@ Editor's graph.
 ## Working on this plugin
 
 Read/edit only files under this folder unless the change is specifically
-about how `ModelPublisher`/`RigPublisher`/`AnimationPublisher`/`UkoreBrowser`
-*consume* this API (a genuine cross-plugin task, not a reason to read them
-by default) — see the `ukorehub-plugin` skill.
+about how `MayaPublisher`/`UkoreBrowser` *consume* this API (a genuine
+cross-plugin task, not a reason to read them by default) — see the
+`ukorehub-plugin` skill.

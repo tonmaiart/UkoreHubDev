@@ -10,17 +10,24 @@ consolidation, then split back out to its own top-level plugin here on
 
 **UkorePublisher was extracted out of `maya-scripts/UkorePublisher/` on
 2026-07-19** into its own top-level plugin, then split again the same day
-into three type-specific plugins — `plugins/repo_internal/ModelPublisher/`,
-`plugins/repo_internal/RigPublisher/`, `plugins/repo_internal/AnimationPublisher/` — all
-built on the new `plugins/repo_internal/PublishApi/` shared library instead of a
-single shared UI/publish-path convention. `UkoreMaya/core/menu_utils.py`'s
-old single `publisher()` function became three:
-`model_publisher()`/`rig_publisher()`/`animation_publisher()`, each calling
-`tmlib.core.File.launch("ModelPublisher")`/`"RigPublisher"`/
-`"AnimationPublisher"` — `File.launch` resolves by Python module name
-(`import <Name>`), not by filesystem nesting, so this works the same way
-it always has once each new plugin's own `plugin.py` contributes its
-`PYTHONPATH` entry to the bridge (see below).
+into three type-specific plugins — `ModelPublisher`, `RigPublisher`,
+`AnimationPublisher` — all built on the new
+`plugins/repo_internal/PublishApi/` shared library instead of a single
+shared UI/publish-path convention. `UkoreMaya/core/menu_utils.py`'s old
+single `publisher()` function became three:
+`model_publisher()`/`rig_publisher()`/`animation_publisher()`, each
+calling `tmlib.core.File.launch("ModelPublisher")`/`"RigPublisher"`/
+`"AnimationPublisher"`. **2026-08-05**: those three plugins were merged
+back into one `plugins/repo_internal/MayaPublisher/` (a per-repo "Publish
+Mode" setting picks Rig/Model/Animation instead of enabling a separate
+plugin per mode) — `menu_utils.py`'s three functions collapsed into one
+`maya_publisher()` calling `File.launch("MayaPublisher")`, still wired up
+from the same three "...Publish..." menu items under
+`maya-plug-ins/ukoreMaya.py`'s Model/Rig/Animation menus.
+`File.launch` resolves by Python module name (`import <Name>`), not by
+filesystem nesting, so this works the same way it always has once each
+plugin's own `plugin.py` contributes its `PYTHONPATH` entry to the bridge
+(see below).
 
 Like every other Maya tool plugin here, this does **not** launch Maya
 itself and has no UI of its own inside UkoreHub — `plugin.py`'s
@@ -30,9 +37,9 @@ itself and has no UI of its own inside UkoreHub — `plugin.py`'s
 `PluginConfigStore`, read and merged by that plugin's `open_maya_file`
 when it actually launches Maya. No direct import relationship with
 `maya_launcher` — just the shared `PluginConfigStore` id convention (see
-that plugin's README for the full bridge shape). `RepoToolsStore` (owned
-by `maya_launcher`) is what lets a studio admin disable this tool per-repo;
-this plugin always contributes unconditionally.
+that plugin's README for the full bridge shape). Repository Setting >
+Enable Plugin (`Repo.required_plugin_ids`) is what lets a studio admin
+disable this tool per-repo; this plugin always contributes unconditionally.
 
 **`plugins/repo_internal/UkoreBrowser/` still depends on this plugin** staying
 enabled — it imports `tmlib`/`UkoreMaya` by name rather than vendoring

@@ -21,10 +21,11 @@ logic) — the 7 Maya tools that used to be nested inside it
 `maya_launcher`'s shared `maya_launcher_env_bridge` `PluginConfigStore`
 rather than living inside its folder — treat each one as its own separate
 plugin for scoping purposes, same as any other `plugins/core/<Name>/`.
-`plugins/core/PublishApi/`, `ModelPublisher/`, `RigPublisher/`, and
-`AnimationPublisher/` are four more plugins in the same family, added the
-same day (the original `UkorePublisher` was extracted then split into
-these) — same scoping rule applies. Treat every `plugins/core/<Name>/`,
+`PublishApi/` and `MayaPublisher/` (both now under `plugins/repo_internal/`)
+are two more plugins in the same family, added 2026-07-19 (the original
+`UkorePublisher` was extracted, split into three type-specific plugins,
+then those three merged back into one `MayaPublisher` on 2026-08-05) —
+same scoping rule applies. Treat every `plugins/core/<Name>/`,
 `plugins/repo_internal/<Name>/`, or `cache/plugins/<Name>/` as its own
 repo for context-budget purposes.
 

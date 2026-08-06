@@ -5,17 +5,24 @@ import shutil
 import winreg
 
 from PySide6.QtCore import QFileInfo, QSize, Qt
+from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QDialog,
     QDialogButtonBox,
     QFileDialog,
     QFileIconProvider,
+    QFrame,
     QHBoxLayout,
+    QLabel,
     QLineEdit,
     QListWidget,
     QListWidgetItem,
+    QMenu,
     QPushButton,
+    QScrollArea,
+    QStyle,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -23,6 +30,7 @@ from PySide6.QtWidgets import (
 from interface.settings_tab_registry import SettingsTabSpec
 
 PLUGIN_ID = "software_linker"
+_CARD_ICON_SIZE = 40
 
 # The same registry locations Windows' own "Programs and Features" /
 # Settings > Apps reads from.
@@ -167,41 +175,146 @@ def _link_rows(program_store):
     return rows
 
 
+class _ProgramLinkCard(QFrame):
+    """One program's link status: its own icon (Program Database's
+    icon_filename, resolved via program_store.resolve_icon_path — falls
+    back to a generic icon when the program has none set), name, linked
+    path, and status each on their own line, plus this row's own actions.
+    Replaces the old single-selection QListWidget + page-level button row:
+    "Browse Program..." and "Browse Path..." used to be two separate
+    buttons acting on whatever list row happened to be selected; here
+    "Browse Path..." is folded into the "Browse Program..." split button's
+    dropdown (QToolButton menu) and both act on this card's own program
+    directly, no selection state needed."""
+
+    def __init__(self, parent, *, program_store, config_store, key: str, program, label: str):
+        super().__init__(parent)
+        self.setObjectName("softwareLinkCard")
+        self._config_store = config_store
+        self._key = key
+
+        icon_label = QLabel()
+        icon_label.setFixedSize(_CARD_ICON_SIZE, _CARD_ICON_SIZE)
+        icon_label.setScaledContents(True)
+        icon_path = program_store.resolve_icon_path(program)
+        if icon_path and icon_path.exists():
+            icon_label.setPixmap(QPixmap(str(icon_path)))
+        else:
+            fallback_icon = self.style().standardIcon(QStyle.SP_ComputerIcon)
+            icon_label.setPixmap(fallback_icon.pixmap(_CARD_ICON_SIZE, _CARD_ICON_SIZE))
+
+        name_label = QLabel(label)
+        name_label.setProperty("cardTitle", True)
+
+        self._path_label = QLabel()
+        self._path_label.setProperty("secondary", True)
+        self._path_label.setWordWrap(True)
+
+        self._status_label = QLabel()
+
+        text_layout = QVBoxLayout()
+        text_layout.setContentsMargins(0, 0, 0, 0)
+        text_layout.setSpacing(2)
+        text_layout.addWidget(name_label)
+        text_layout.addWidget(self._path_label)
+        text_layout.addWidget(self._status_label)
+
+        browse_btn = QToolButton()
+        browse_btn.setText("Browse Program...")
+        browse_btn.setPopupMode(QToolButton.MenuButtonPopup)
+        browse_btn.clicked.connect(self._on_browse_program)
+        browse_menu = QMenu(browse_btn)
+        browse_menu.addAction("Browse Path...", self._on_browse_path)
+        browse_btn.setMenu(browse_menu)
+
+        clear_btn = QPushButton("Clear")
+        clear_btn.clicked.connect(self._on_clear)
+
+        button_col = QVBoxLayout()
+        button_col.setSpacing(4)
+        button_col.addWidget(browse_btn)
+        button_col.addWidget(clear_btn)
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(10, 8, 10, 8)
+        layout.setSpacing(10)
+        layout.addWidget(icon_label)
+        layout.addLayout(text_layout, 1)
+        layout.addLayout(button_col)
+
+        self.refresh()
+
+    def refresh(self) -> None:
+        linked_path = self._config_store.get(self._key)
+        if linked_path:
+            self._path_label.setText(linked_path)
+            self._status_label.setText("Linked")
+            self._status_label.setProperty("linkStatus", "linked")
+        else:
+            self._path_label.setText("No path linked")
+            self._status_label.setText("Not linked")
+            self._status_label.setProperty("linkStatus", "not_linked")
+        self._status_label.style().unpolish(self._status_label)
+        self._status_label.style().polish(self._status_label)
+
+    def _on_browse_program(self) -> None:
+        dialog = ProgramPickerDialog(self)
+        if dialog.exec() and dialog.selected_path():
+            self._config_store.set(self._key, dialog.selected_path())
+            self.refresh()
+
+    def _on_browse_path(self) -> None:
+        file_path, _filter = QFileDialog.getOpenFileName(self, "Select Executable")
+        if not file_path:
+            return
+        self._config_store.set(self._key, file_path)
+        self.refresh()
+
+    def _on_clear(self) -> None:
+        self._config_store.set(self._key, None)
+        self.refresh()
+
+
 class SoftwareLinkerPage(QWidget):
     """Lets the user link each Program Database entry to a local executable
     path on this machine — per-machine data (PluginConfigStore, shared=False),
     since "what's installed here" is never team-shared. Other plugins/add-ons
     (e.g. MayaLauncher) read the same mapping by calling
     api.plugin_config_store("software_linker", shared=False) themselves —
-    no coupling API needed, just agreeing on that id string."""
+    no coupling API needed, just agreeing on that id string. Renders one
+    _ProgramLinkCard per linkable (Program, version) slot instead of a
+    plain list row."""
 
     def __init__(self, parent=None, *, program_store, config_store):
         super().__init__(parent)
         self._program_store = program_store
         self._config_store = config_store
 
-        self.list_widget = QListWidget()
-        self.list_widget.setSelectionMode(QAbstractItemView.SingleSelection)
+        self._auto_detect_missing()
 
-        browse_program_btn = QPushButton("Browse Program...")
-        browse_program_btn.clicked.connect(self._on_browse_program)
-        browse_path_btn = QPushButton("Browse Path...")
-        browse_path_btn.clicked.connect(self._on_browse_path)
-        clear_btn = QPushButton("Clear Link")
-        clear_btn.clicked.connect(self._on_clear)
+        cards_container = QWidget()
+        self._cards_layout = QVBoxLayout(cards_container)
+        self._cards_layout.setContentsMargins(0, 0, 0, 0)
+        self._cards_layout.setSpacing(6)
+        for key, program, _version, label in _link_rows(self._program_store):
+            card = _ProgramLinkCard(
+                cards_container,
+                program_store=self._program_store,
+                config_store=self._config_store,
+                key=key,
+                program=program,
+                label=label,
+            )
+            self._cards_layout.addWidget(card)
+        self._cards_layout.addStretch(1)
 
-        button_row = QHBoxLayout()
-        button_row.addWidget(browse_program_btn)
-        button_row.addWidget(browse_path_btn)
-        button_row.addWidget(clear_btn)
-        button_row.addStretch()
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setFrameShape(QFrame.NoFrame)
+        scroll_area.setWidget(cards_container)
 
         layout = QVBoxLayout(self)
-        layout.addWidget(self.list_widget)
-        layout.addLayout(button_row)
-
-        self._auto_detect_missing()
-        self._refresh_list()
+        layout.addWidget(scroll_area)
 
     def _auto_detect_missing(self) -> None:
         # Best-effort only — checks the system PATH for an executable that
@@ -213,47 +326,6 @@ class SoftwareLinkerPage(QWidget):
             guess = shutil.which(program.name.lower().replace(" ", ""))
             if guess:
                 self._config_store.set(key, guess)
-
-    def _refresh_list(self) -> None:
-        self.list_widget.clear()
-        for key, _program, _version, label in _link_rows(self._program_store):
-            linked_path = self._config_store.get(key)
-            status = linked_path if linked_path else "Not linked"
-            item = QListWidgetItem(f"{label} — {status}")
-            item.setData(Qt.UserRole, key)
-            self.list_widget.addItem(item)
-
-    def _selected_link_key(self) -> str | None:
-        items = self.list_widget.selectedItems()
-        if not items:
-            return None
-        return items[0].data(Qt.UserRole)
-
-    def _on_browse_program(self) -> None:
-        key = self._selected_link_key()
-        if not key:
-            return
-        dialog = ProgramPickerDialog(self)
-        if dialog.exec() and dialog.selected_path():
-            self._config_store.set(key, dialog.selected_path())
-            self._refresh_list()
-
-    def _on_browse_path(self) -> None:
-        key = self._selected_link_key()
-        if not key:
-            return
-        file_path, _filter = QFileDialog.getOpenFileName(self, "Select Executable")
-        if not file_path:
-            return
-        self._config_store.set(key, file_path)
-        self._refresh_list()
-
-    def _on_clear(self) -> None:
-        key = self._selected_link_key()
-        if not key:
-            return
-        self._config_store.set(key, None)
-        self._refresh_list()
 
 
 def register(api) -> None:

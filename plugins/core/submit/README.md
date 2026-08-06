@@ -23,13 +23,16 @@ plugin would.
   set of named callbacks rather than a generic dispatcher.
 - `repo_git_status_page.py` — `RepoGitStatusPage`: the top-level Submit
   page. Drives the full sync/commit/pull/push workflow via the workers
-  below, and shows the Modified/Staged lists. The Modified list's items are
+  below, and shows the Modified/Staged lists. Both lists' items are
   checkable (`Qt.ItemIsUserCheckable`, `NoSelection` mode) rather than
-  row-selected — `_checked_modified_paths()` reads whichever items are
-  ticked, and both Stage and Revert act on that set, so multiple files can
-  be picked without holding Ctrl/Shift. A "Select All" button
-  (`_on_select_all_clicked`) toggles every item to checked, or back to
-  unchecked if all were already checked. The Sync/Refresh Status buttons
+  row-selected — `_checked_paths(list_widget)` reads whichever items are
+  ticked, and Stage/Revert (Modified) and Restore (Staged) act on that set,
+  so multiple files can be picked without holding Ctrl/Shift. Each panel
+  has its own "Select All" button (`self.select_all_button` for Modified,
+  `self.staged_select_all_button` for Staged), both wired to the shared
+  `_on_select_all_clicked(list_widget)` — it toggles every item in that
+  list to checked, or back to unchecked if all were already checked. The
+  Sync/Refresh Status buttons
   live under the log panel inside a "Git Log" `QGroupBox`, matching the
   Modified/Staged panel styling. Implements the optional
   `sync_active_repo(...)` protocol method —
@@ -37,7 +40,15 @@ plugin would.
   on launch/repo-switch, combining `set_repo()` + `start_sync()`. There is
   no commit-history UI on this tab anymore — see
   `plugins/core/Notification/README.md`'s "Team activity feed" for where
-  that moved.
+  that moved. Before the very first clone of a repo (`start_sync` sees
+  `git_service.is_cloned(dest_path)` is False) and only when the remote is
+  a github.com URL, `start_sync` runs `core.github.repo_access.
+  check_repo_access` in a `GitStreamWorker` first
+  (`_begin_access_check`/`_on_access_checked`) — if the current GitHub
+  account can't see the repo, an "Access Denied" dialog fires immediately
+  and the clone is never attempted, instead of letting git itself fail with
+  an opaque error. A repo that's already cloned, or whose remote isn't
+  github.com, skips straight to `_begin_sync_worker` as before.
 - `commit_dialog.py` — `CommitDialog`: commit message entry (+ amend
   checkbox), shown before the pull→push workflow starts.
 - `conflict_dialog.py` — `ConflictResolutionDialog`: per-file keep-ours/

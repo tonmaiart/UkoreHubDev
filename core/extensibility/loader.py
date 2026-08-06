@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from types import ModuleType
 
@@ -17,6 +17,7 @@ class PluginManifest:
     api_version: int
     entry_point: str
     description: str = ""
+    requires: list[str] = field(default_factory=list)
 
     @classmethod
     def from_dict(cls, data: dict) -> "PluginManifest":
@@ -27,6 +28,7 @@ class PluginManifest:
             api_version=int(data["api_version"]),
             entry_point=data["entry_point"],
             description=data.get("description", ""),
+            requires=list(data.get("requires", [])),
         )
 
 

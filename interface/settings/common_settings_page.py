@@ -7,10 +7,12 @@ from core.store import LocalConfigStore
 
 
 class CommonSettingsPage(QWidget):
-    # MainWindow connects this to the same logout flow the old Sidebar
-    # toggle button used to trigger directly (see interface/main_window.py's
-    # _on_logout_requested) — logout lives here now instead of in Sidebar's
-    # footer.
+    # MainWindow connects this to _on_logout_requested (also closing the
+    # dialog itself, since logout closes the whole app — see that method's
+    # docstring for why: login/token-caching now lives in the launcher exe,
+    # not here, so "logging out" means clearing the cached token and
+    # relaunching to the launcher's login screen, not just tearing down
+    # some in-app gate).
     logout_requested = Signal()
     # MainWindow connects this to the same os.execv restart MainWindow's
     # own "Update and Restart" sidebar button already uses (see

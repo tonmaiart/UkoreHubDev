@@ -25,13 +25,13 @@ it to keep working.
   does.
 - `settings_page.py` — `UkoreBrowserSettingsPage`: the "Repo Studio
   Setting" tab (Repository Setting popup > Ukore Browser) — unlike
-  `ModelPublisher`/`RigPublisher`/`AnimationPublisher`'s single-select
-  "which pipeline connection does this tool publish into" pickers, this
-  is a **multi-select** checkbox list (one row per active-repo pipeline
-  connection) letting a studio admin hide specific connections from
-  the root-tab row without removing the pipeline connection itself —
+  MayaPublisher's per-ticket "which pipeline connection does this ticket
+  publish into" picker (chosen entirely in Maya via Manage Tickets...),
+  this is a **multi-select** checkbox list (one row per active-repo
+  pipeline connection) letting a studio admin hide specific connections
+  from the root-tab row without removing the pipeline connection itself —
   UkoreBrowser genuinely wants to show several root tabs at once, unlike
-  the Publishers which each need exactly one destination. Stores the
+  MayaPublisher which needs exactly one destination per ticket. Stores the
   *hidden* set (opt-out), not the shown set, in this plugin's own
   `PluginConfigStore` — **`data/plugins/core/ukore_browser.json`, key
   `"repo_hidden_root_tabs"`. Not to be confused with**
@@ -56,9 +56,8 @@ it to keep working.
       `repo_paths` module (`get_active_repo()`, `get_pipeline_refs()`,
       `resolve_ref()`) rather than constructing its own
       `core.store`/`core.paths` calls — same source of truth
-      `ModelPublisher`/`RigPublisher`/`AnimationPublisher` build their
-      publish-root resolution on. Falls back to Maya's current workspace
-      dir if there's no active repo.
+      `MayaPublisher` builds its publish-root resolution on. Falls back to
+      Maya's current workspace dir if there's no active repo.
     - `browser_config.py` — recent-files persistence, stored **relative to
       the repo root** under `<repo_root>/.ukorehub/ukore_browser.json` (one
       file per repo, not a single global file mixing every repo/project).
@@ -92,7 +91,8 @@ resolve because `plugins/repo_internal/MayaToolkit/plugin.py` and
 `plugins/repo_internal/PublishApi/plugin.py` each contribute their own
 `maya-scripts/` folder to the same `maya_launcher_env_bridge` PYTHONPATH
 bridge this plugin uses — **if either is ever disabled for a repo (via
-`plugins/repo_internal/maya_launcher/`'s `RepoToolsStore` toggle), UkoreBrowser
+Repository Setting > Enable Plugin, which `plugins/repo_internal/maya_launcher/`
+gates its bridge merge on), UkoreBrowser
 breaks.** Don't "fix" this by vendoring `tmlib`/`UkoreMaya`/`PublishApi`'s
 logic in here without a deliberate decision to do so; see
 `plugins/repo_internal/maya_launcher/README.md` for the general shape of the
@@ -141,8 +141,8 @@ that affecting what the columns are rooted at.
 
 `core/repo_context.get_pipeline_root_tabs()` calls
 `PublishApi.repo_paths.resolve_ref()`/`get_custom_path()` (same source of
-truth `ModelPublisher`/`RigPublisher`/`AnimationPublisher` resolve their
-publish root through — see `plugins/repo_internal/PublishApi/README.md`)
+truth `MayaPublisher` resolves its publish root through — see
+`plugins/repo_internal/PublishApi/README.md`)
 — but **not** that module's own `get_pipeline_refs()`, since that takes no
 repo argument and always resolves whatever is *currently* live in
 UkoreHub, which would bypass the session lock above. Instead,

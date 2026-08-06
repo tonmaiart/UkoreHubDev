@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from interface.section_registry import SectionSpec
-from plugins.studio.DebugConsole.debug_console_page import DebugConsolePage
+from plugins.core.DebugConsole.debug_console_page import DebugConsolePage
 
 SECTION_KEY = "debug_console"
 

@@ -166,8 +166,7 @@ anymore.
   coordinates on top so the grid itself does scroll/pan with the node
   content, like graph paper. Darker than the app-wide theme background it
   would otherwise inherit, so the graph reads as its own recessed canvas.
-  - **Node visuals**: paints the repo's thumbnail fill-cropped (same crop
-    math as `interface/login/repo_picker.py`'s `_RepoCard.paintEvent`) plus
+  - **Node visuals**: paints the repo's thumbnail fill-cropped plus
     a name label; border/overlay react to two independent flags — `is_active`
     (thick border, `_EDGE_HIGHLIGHT_COLOR_HEX` — the same yellow as a
     highlighted pipeline edge, changed 2026-08-03 from the theme's plain
@@ -395,11 +394,10 @@ Don't import anything from this folder — construct your own
 `PluginConfigStore` with the same id string (the "convention, not import"
 pattern `plugins/README.md`'s "Sharing data with another plugin" section
 documents, same as `maya_launcher` reading `software_linker`'s config).
-`ModelPublisher`/`RigPublisher`/`AnimationPublisher`'s own Repo Studio
-Setting tabs and `plugins/repo_internal/PublishApi/`'s `repo_paths.py` (Maya-side,
+`plugins/repo_internal/PublishApi/`'s `repo_paths.py` (Maya-side,
 constructs the store straight off disk instead — no `PluginAPI` instance
-inside Maya's Python) are the current real consumers — read either for a
-live example. Since a `RepoRef.custom_path_id` is only meaningful against
+inside Maya's Python), consumed in turn by `MayaPublisher`'s tickets, is
+the current real consumer — read it for a live example. Since a `RepoRef.custom_path_id` is only meaningful against
 the **target** repo's own `custom_paths` entry, resolving a pipeline
 connection all the way to an actual filesystem path takes two lookups,
 not one:

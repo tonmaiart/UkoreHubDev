@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from interface.settings_tab_registry import CATEGORY_REPO, SettingsTabSpec
 from plugins.repo_internal.UkoreBrowser.settings_page import UkoreBrowserSettingsPage
 
@@ -14,7 +16,7 @@ ANY_VERSION = "*"
 
 
 def register(api) -> None:
-    tool_root = api.app_root / "plugins" / "core" / "UkoreBrowser"
+    tool_root = Path(__file__).resolve().parent
 
     bridge = api.plugin_config_store(MAYA_ENV_BRIDGE_PLUGIN_ID, shared=True)
     contributions = bridge.get("contributions", {})

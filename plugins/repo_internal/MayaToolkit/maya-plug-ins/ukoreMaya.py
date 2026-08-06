@@ -291,7 +291,7 @@ def loadMenu():
     cmds.menuItem(
         label="Model Publish...",
         parent=MENU_MODEL,
-        command="import UkoreMaya; from UkoreMaya.core import menu_utils; menu_utils.model_publisher()",
+        command="import UkoreMaya; from UkoreMaya.core import menu_utils; menu_utils.maya_publisher()",
     )
 
     # ---------------- Rig ----------------
@@ -433,7 +433,7 @@ def loadMenu():
     cmds.menuItem(
         label="Rig Publish...",
         parent=MENU_RIG,
-        command="import UkoreMaya; from UkoreMaya.core import menu_utils; menu_utils.rig_publisher()",
+        command="import UkoreMaya; from UkoreMaya.core import menu_utils; menu_utils.maya_publisher()",
     )
 
     # ---------------- Animation ----------------
@@ -482,7 +482,7 @@ def loadMenu():
     cmds.menuItem(
         label="Animation Publish...",
         parent=MENU_ANIM,
-        command="import UkoreMaya; from UkoreMaya.core import menu_utils; menu_utils.animation_publisher()",
+        command="import UkoreMaya; from UkoreMaya.core import menu_utils; menu_utils.maya_publisher()",
     )
 
     # ---------------- Simulation ----------------
@@ -580,11 +580,11 @@ def _on_scene_opened(*_args):
     """Runs Ukore Reference Editor's automatic check after every file open —
     File > Open done by hand later in the session, not just the initial
     launch through MayaLauncher. UkoreReferenceEditor may be disabled for
-    this repo via maya_launcher's RepoToolsStore (which drops it off
-    PYTHONPATH), so the import itself is optional; the check must also
-    never be able to block the artist from having their scene open, so any
-    other failure is swallowed too (after printing, so it's still visible
-    in the Script Editor).
+    this repo via Repository Setting > Enable Plugin (which drops it off
+    maya_launcher's assembled PYTHONPATH), so the import itself is
+    optional; the check must also never be able to block the artist from
+    having their scene open, so any other failure is swallowed too (after
+    printing, so it's still visible in the Script Editor).
 
     `auto_check_and_redirect()`'s return value says whether the opened
     scene has any reference at all or still has a missing texture after
@@ -632,11 +632,25 @@ def _unregister_ukore_reference_editor_callback():
 def _post_load_setup():
     function.auto_launch_ukore_file_browser()
     loadMenu()
-    _register_ukore_reference_editor_callback()
 
 
 def initializePlugin(plugin):
     pluginFn = om.MFnPlugin(plugin)
+
+    # Registered immediately, NOT deferred like _post_load_setup below —
+    # om.MSceneMessage.addCallback has no "MayaWindow" UI dependency, and it
+    # has to be in place before Maya's very first scene open. MayaLauncher
+    # force-loads this plugin and then issues `file -open` in the same
+    # `-command` MEL string (plugins/repo_internal/maya_launcher/plugin.py's
+    # _set_project_and_open_command) — kAfterOpen fires synchronously as
+    # part of that `file -open` call, before Maya's evalDeferred queue gets
+    # a turn. Registering this alongside loadMenu() in the deferred
+    # _post_load_setup meant the callback wasn't registered yet for that
+    # very first Launch-triggered open, so Ukore Reference Editor's
+    # auto-redirect/auto-load-as-is never ran for it — only for a later
+    # manual File > Open in the same session. See
+    # developer/bug-history/2026-08-05-reference-editor-callback-registered-too-late-for-first-open.md.
+    _register_ukore_reference_editor_callback()
 
     # Deferred rather than called directly — MayaLauncher force-loads this
     # plugin via `loadPlugin` inside the `-command` MEL string it launches

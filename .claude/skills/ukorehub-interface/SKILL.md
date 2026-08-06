@@ -1,6 +1,6 @@
 ---
 name: ukorehub-interface
-description: Reference for UkoreHub's interface/ layer (C:\Tonmai\UkoreHub) — the PySide6 GUI, organized by window (sidebar/, login/, explorer/, submit/, about/, settings/, plus a shared/ for multi-window files): MainWindow's left-hand Sidebar / SectionTabList navigation, the extension registries (SectionRegistry, SettingsTabRegistry, FileOpenerRegistry), PluginAPI composition, and the builtin_*.py dogfooding pattern. Use this whenever adding a page, a settings tab, a top-level section, or any UI-facing plugin registration — or whenever the task touches interface/main_window.py, any interface/<window>/ folder, interface/plugin_api.py, or any interface/*_registry.py, even if the user doesn't say "interface" explicitly (e.g. "add a settings page", "show this as its own tab").
+description: Reference for UkoreHub's interface/ layer (C:\Tonmai\UkoreHub) — the PySide6 GUI, organized by window (sidebar/, explorer/, submit/, about/, settings/, plus a shared/ for multi-window files): MainWindow's left-hand Sidebar / SectionTabList navigation, the extension registries (SectionRegistry, SettingsTabRegistry, FileOpenerRegistry), PluginAPI composition, and the builtin_*.py dogfooding pattern. Use this whenever adding a page, a settings tab, a top-level section, or any UI-facing plugin registration — or whenever the task touches interface/main_window.py, any interface/<window>/ folder, interface/plugin_api.py, or any interface/*_registry.py, even if the user doesn't say "interface" explicitly (e.g. "add a settings page", "show this as its own tab"). GitHub login itself moved to developer/packaging/updater.py (the launcher exe) — this layer only shows the signed-in username (Sidebar) and Logout (Settings > Common), see the "GitHub login" section below.
 ---
 
 # UkoreHub interface/ — architecture reference
@@ -15,7 +15,7 @@ first for the current file listing — this skill is the architecture and the
 A task about `interface/` stays inside `interface/` — don't open `core/`
 files unless the change genuinely needs a new `core/` primitive to build
 on. `interface/` is organized by window, not by suffix convention:
-`sidebar/`, `login/`, `explorer/`, `submit/`, `about/`, `settings/` each
+`sidebar/`, `explorer/`, `submit/`, `about/`, `settings/` each
 own one area of the app end-to-end (page + its own dialogs + its own
 workers) — a task about one window opens only that folder, plus
 `main_window.py` or the relevant root-level `*_registry.py` only if the
@@ -59,8 +59,12 @@ right:
     than two independent `QButtonGroup`s (the old MenuBar's design), there
     is nothing to keep in sync by hand anymore — `SectionTabList` emits one
     `navigation_changed(key)` signal for every row, Setting included.
-  - A **footer** (`sidebarFooter`) with sync status, the Update button,
-    and GitHub login/logout (`interface/login/github_auth_widget.py`).
+  - A **footer** (`sidebarFooter`) with sync status, the Update button, and
+    an account row (`account_label`, display-only GitHub username +
+    `setting_button`) — actual login happens entirely in the launcher exe
+    (`developer/packaging/updater.py`) before this app ever opens; logout
+    lives in Settings > Common instead, see the "GitHub login" section
+    below.
 - **A view stack** (`MainWindow.view_stack`) with one full-width top-level
   page per **non-persistent** `SectionRegistry` section (Explorer/Submit/
   About — every section is standalone, there's no shared sidebar-backed
@@ -86,7 +90,7 @@ right:
   never reaches it — `_apply_to_persistent_pages()` pushes `set_repo(...)`
   to every persistent page directly instead, called alongside
   `_apply_to_current_page()` wherever the active repo actually changes
-  (login restore, relogin, `_set_active_repo` — deliberately **not** on
+  (startup's `_start_app`, `_set_active_repo` — deliberately **not** on
   every plain navigation switch in `_on_navigation_changed`, since a
   persistent page's content doesn't depend on which ordinary section is
   showing). `SectionSpec.wire`/`background_threads`/`page_factory` all
@@ -97,6 +101,26 @@ right:
   hooks; if you're writing a new settings page, write directly through
   whatever store you're editing the moment the user changes a value, the
   same way every existing settings page does.
+
+## GitHub login
+
+There is no login domain in `interface/` anymore (the old `login/` folder —
+`LoginOverlay`, `GitHubLoginDialog`, `GitHubAuthWidget`, `LoginGate` — was
+deleted). GitHub login (OAuth device flow) and the token cache live
+entirely in `developer/packaging/updater.py`, run by the launcher exe
+(`UkoreHub.exe`) *before* `launcher.py`/`MainWindow` are even spawned —
+`launcher.py` just loads whatever token got cached
+(`core/github/token_store.py`'s `TokenStore`) and calls
+`git_service.set_github_token(...)`.
+
+`MainWindow` still has two small login-adjacent pieces, both display/exit
+only, no auth logic: `Sidebar.account_label` (pushed from
+`local_config_store.github_username` in `MainWindow._start_app`) and
+Settings > Common's Logout button (`CommonSettingsPage.logout_requested` →
+`MainWindow._on_logout_requested`), which clears the cached token/username
+via a `TokenStore` reference `MainWindow` holds for exactly this purpose,
+then relaunches `UkoreHub.exe` (via `_relaunch_to_login`) so its login step
+runs again. `MainWindow`'s constructor takes `token_store` for this reason.
 
 ## The registries
 
@@ -229,12 +253,15 @@ git sync/pull against whatever it's pointed at the moment a `QThread`
 worker's `.start()` is called, independent of whether `app.exec()` ever
 runs, and a real UkoreHub.exe may already be running concurrently):
 construct `QApplication`, all registries, and `MainWindow` without calling
-`app.exec()`. Pre-seed the scratch `local_config_store` with a fake
-`github_username` and a fake token in the scratch `token_store` before
-constructing `MainWindow`, so it skips drawing `LoginOverlay` entirely
-(that path otherwise just sits there waiting for a click, indistinguishable
-from a real hang); also `patch.object` `_check_for_update` to a no-op, and
-end with
+`app.exec()`. `MainWindow` no longer has any login gate of its own (GitHub
+login now happens in the launcher exe before this process is even spawned —
+see the "GitHub login" section above — `MainWindow` just always builds the
+real UI immediately), so there's nothing to pre-seed/skip there anymore —
+it does still take a `token_store` constructor argument (any `TokenStore`
+pointed at the scratch `data/` copy works, even with no token ever saved to
+it — it's only read if the smoke test clicks Logout);
+`patch.object` `_check_for_update` to a no-op (the self-updater plugin's own
+startup check, unrelated to login), and end with
 `sys.stdout.flush(); os._exit(0)` — `os._exit` is required because Qt/
 Windows can hang on normal process teardown after `QApplication` is
 destroyed without an explicit `app.quit()`; without the `os._exit(0)` the

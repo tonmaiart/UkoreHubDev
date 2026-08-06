@@ -35,7 +35,7 @@ _CUSTOM_PATHS_SETTINGS_KEY = "project_editor_custom_paths"
 
 # The built-in CATEGORY_REPO tabs that make up "Repository" — everything
 # else registered under CATEGORY_REPO (every plugin's own settings tab,
-# e.g. Maya Launcher, UkoreShot, ModelPublisher, ...) falls under
+# e.g. Maya Launcher, UkoreShot, MayaPublisher, ...) falls under
 # "Plugins" instead. Hardcoded rather than a new SettingsTabSpec field
 # since there are only ever these four built-ins to name.
 _REPOSITORY_KEYS = {
@@ -172,7 +172,7 @@ class RepoSettingsDialog(QDialog):
     def __init__(self, parent=None, *, settings_tab_registry: SettingsTabRegistry, title: str = "Repository Setting"):
         super().__init__(parent)
         self.setWindowTitle(title)
-        self.resize(820, 640)
+        self.resize(1100, 820)
 
         self.panel = RepoSettingsPanel(settings_tab_registry=settings_tab_registry)
 
