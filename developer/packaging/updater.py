@@ -50,6 +50,7 @@ import sys
 import threading
 import tkinter as tk
 import webbrowser
+from datetime import datetime, timezone
 from pathlib import Path
 from tkinter import messagebox, ttk
 
@@ -510,6 +511,7 @@ class _UpdaterWindow:
         except TokenStoreFallbackUsed as exc:
             messagebox.showwarning("GitHub Login", str(exc))
         self.local_config_store.set_github_username(dialog.username)
+        self.local_config_store.set_github_login_at(datetime.now(timezone.utc).isoformat())
         self.switch_account_button.pack(pady=(4, 0))
         self.status_var.set(f"Signed in as {dialog.username}")
         self._finish()
@@ -520,6 +522,7 @@ class _UpdaterWindow:
             self._continue_after_id = None
         self.token_store.clear_token()
         self.local_config_store.set_github_username(None)
+        self.local_config_store.set_github_login_at(None)
         self._start_login_flow()
 
     def _finish(self) -> None:
