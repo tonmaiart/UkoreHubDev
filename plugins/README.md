@@ -31,8 +31,8 @@ it's on by default per repo vs. opt-in:
   only for a repo that requires it. Not bundled with the app in any sense —
   see `plugin_source()` returning `"repo"` for one of these
   (`core/extensibility/loader.py`). `AdvancedSkeleton`, `DreamwallPicker`,
-  `mGear`, `StudioLibrary`, and `UkoreShot` are the first plugins converted
-  to this shape; a `plugin.py` here locates its own folder via
+  `mGear`, `StudioLibrary`, `UkoreShot`, and `MayaNgSkin` are the first
+  plugins converted to this shape; a `plugin.py` here locates its own folder via
   `Path(__file__).resolve().parent` rather than `api.app_root`, since it
   isn't at a fixed path relative to the app install. Note there's no
   auto-fetch/clone mechanism implemented anywhere yet — `launcher.py` only

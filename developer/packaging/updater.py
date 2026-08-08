@@ -41,6 +41,7 @@ also stdlib-only (only pulls in core/paths.py and core/theme.py).
 """
 from __future__ import annotations
 
+import contextlib
 import os
 import queue
 import shutil
@@ -138,6 +139,67 @@ def bootstrap_git_repo(repo_root: Path, remote_url: str, branch: str) -> None:
         _run_git(["checkout", "-f", "-B", branch, "--track", f"origin/{branch}"], cwd=repo_root)
 
 
+def _running_self_exe_path(repo_root: Path) -> Path | None:
+    """Path of the exe currently running this process, if we ARE
+    UkoreHub.exe launched from repo_root — None for `python updater.py`/
+    pytest, where nothing needs relocating and git can touch the working
+    tree freely."""
+    if not getattr(sys, "frozen", False):
+        return None
+    exe_path = repo_root / "UkoreHub.exe"
+    try:
+        return exe_path if Path(sys.executable).resolve() == exe_path.resolve() else None
+    except OSError:
+        return None
+
+
+def _cleanup_stale_relocated_exe(repo_root: Path) -> None:
+    """Best-effort delete of a previous run's renamed-aside exe that never
+    got cleaned up (e.g. the process was killed mid-update) — safe to retry
+    since by the time a new UkoreHub.exe is running, nothing else should
+    still have the old one open."""
+    for stale in repo_root.glob("UkoreHub.exe.old-*"):
+        try:
+            stale.unlink()
+        except OSError:
+            pass
+
+
+@contextlib.contextmanager
+def _relocate_self_exe(repo_root: Path):
+    """Windows refuses to unlink/overwrite the .exe file that's currently
+    executing (`unable to unlink old 'UkoreHub.exe': Invalid argument` from
+    `git checkout`/`git pull`), but it does allow renaming it — a running
+    process keeps its open file handle regardless of what the directory
+    entry is called, the same trick self-updating browsers use. Move
+    UkoreHub.exe out of the way before any git operation that might touch
+    it, so checkout/pull can write a fresh one at that path unobstructed;
+    delete the leftover on success, or put it back if the update failed so
+    "continue with the current version" (see the caller's error dialog)
+    stays true."""
+    exe_path = _running_self_exe_path(repo_root)
+    if exe_path is None:
+        yield
+        return
+    _cleanup_stale_relocated_exe(repo_root)
+    relocated = exe_path.with_name(f"UkoreHub.exe.old-{os.getpid()}")
+    try:
+        exe_path.rename(relocated)
+    except OSError as exc:
+        raise UpdaterError(f"could not prepare self-update: {exc}") from exc
+    try:
+        yield
+    except Exception:
+        if not exe_path.exists():
+            relocated.rename(exe_path)
+        raise
+    else:
+        try:
+            relocated.unlink()
+        except OSError:
+            pass
+
+
 def ensure_up_to_date(
     repo_root: Path,
     remote_url: str = UKOREHUB_REMOTE_URL,
@@ -149,15 +211,21 @@ def ensure_up_to_date(
     its own configured upstream (@{u}) — same as core/self_update.py's
     check_for_update/pull_update — rather than assuming everyone is on
     `branch`. An admin checkout intentionally sitting on `dev` must not get
-    silently pulled onto `main`."""
-    if not is_git_repo(repo_root):
-        bootstrap_git_repo(repo_root, remote_url, branch)
-        return
-    _run_git(["fetch"], cwd=repo_root)
-    local_head = _run_git(["rev-parse", "HEAD"], cwd=repo_root)
-    upstream_head = _run_git(["rev-parse", "@{u}"], cwd=repo_root)
-    if local_head != upstream_head:
-        _run_git(["pull"], cwd=repo_root)
+    silently pulled onto `main`.
+
+    The whole thing runs inside _relocate_self_exe: UkoreHub.exe is
+    git-tracked and not gitignored (see developer/packaging/README.md), so
+    both the fresh-bootstrap checkout and an ordinary fetch+pull can end up
+    trying to overwrite the very exe currently running this code."""
+    with _relocate_self_exe(repo_root):
+        if not is_git_repo(repo_root):
+            bootstrap_git_repo(repo_root, remote_url, branch)
+            return
+        _run_git(["fetch"], cwd=repo_root)
+        local_head = _run_git(["rev-parse", "HEAD"], cwd=repo_root)
+        upstream_head = _run_git(["rev-parse", "@{u}"], cwd=repo_root)
+        if local_head != upstream_head:
+            _run_git(["pull"], cwd=repo_root)
 
 
 # -- GitHub login (tkinter port of the old interface/login/ in-app gate) ---

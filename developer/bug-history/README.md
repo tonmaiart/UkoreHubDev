@@ -32,6 +32,8 @@ references both.
 - [2026-08-05 — QuickData.py crashed the whole MayaToolkit plugin when ngSkinTools2 wasn't installed](2026-08-05-quickdata-hardcoded-ngskintools-import.md) — `plugins/repo_internal/MayaToolkit/maya-scripts/tmlib/core/QuickData.py`, `WeightPuller/interface.py`
 - [2026-08-05 — Ukore Reference Editor's Repath button couldn't pick a file, only a folder](2026-08-05-repath-filemode2-native-dialog-directory-only.md) — `plugins/repo_internal/UkoreReferenceEditor/maya-scripts/UkoreReferenceEditor/interface.py`
 - [2026-08-05 — Ukore Reference Editor's auto-redirect/auto-load never ran for the very first Launch-triggered scene open](2026-08-05-reference-editor-callback-registered-too-late-for-first-open.md) — `plugins/repo_internal/MayaToolkit/maya-plug-ins/ukoreMaya.py` (`initializePlugin`)
+- [2026-08-08 — UkoreHub.exe self-update failed with "unable to unlink old 'UkoreHub.exe'"](2026-08-08-self-update-locked-own-exe.md) — `developer/packaging/updater.py` (`ensure_up_to_date`)
+- [2026-08-08 — External Plugins' "Stage Untracked & Push" nearly staged/pushed the whole UkoreHub app repo into a repo plugin's remote](2026-08-08-external-plugins-broken-git-dir-resolved-to-app-repo.md) — `plugins/core/ExternalPlugins/`, `core/git_service.py` (`is_repo_root`)
 
 ## Adding a new entry
 

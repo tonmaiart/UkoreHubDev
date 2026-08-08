@@ -31,7 +31,13 @@ run manually by an admin, only when rebranding the icon or changing
     pull` if it's already a clone, or via `git init`+`git remote
     add`+`git fetch`+`git checkout` first if it's a plain folder with no
     `.git` (e.g. someone used GitHub's "Download ZIP" instead of `git
-    clone`). Only after that does it check for a `python(w)` interpreter
+    clone`). Both paths run inside `_relocate_self_exe`: `UkoreHub.exe` is
+    git-tracked (see below), so a `pull`/`checkout` that changes it would
+    otherwise try to overwrite the very exe currently running this code —
+    Windows refuses that unlink but allows a rename, so the running exe
+    gets renamed aside first and deleted afterward (see
+    `developer/bug-history/2026-08-08-self-update-locked-own-exe.md`).
+    Only after that does it check for a `python(w)` interpreter
     (same Download-button treatment, linking to the python.org installer,
     since it's needed to spawn `launcher.py`) and `git-lfs` (optional —
     warns and continues if missing).
