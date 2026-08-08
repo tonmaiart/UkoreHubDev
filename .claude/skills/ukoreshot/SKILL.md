@@ -1,14 +1,18 @@
 ---
 name: ukoreshot
-description: Working reference for plugins/core/UkoreShot/ (C:\Tonmai\UkoreHub) — UkoreHub's per-repo playblast video library/review plugin. Use this whenever a task names UkoreShot specifically, or targets a path under plugins/core/UkoreShot/ (its player/drawing/comment UI, its video-naming/filter logic, its icons, or its own bug-history) — before the general ukorehub-plugin skill's folder-scoping rule, since this skill covers UkoreShot's own internal subfolder split (core/interface/images/bug-history) that the general skill doesn't know about. Also load this for plugins/core/UkorePlayblast/ tasks that touch the shared naming convention between the two plugins.
+description: Working reference for cache/plugins/UkoreShot/ (C:\Tonmai\UkoreHub) — UkoreHub's per-repo playblast video library/review plugin. As of 2026-08-08 this is its own standalone git repo (github.com/tonmaiart/UkoreShot), cloned into the host app's cache/plugins/UkoreShot/ rather than bundled in this repo. Use this whenever a task names UkoreShot specifically, or targets a path under cache/plugins/UkoreShot/ (its player/drawing/comment UI, its video-naming/filter logic, its icons, or its own bug-history) — before the general ukorehub-plugin skill's folder-scoping rule, since this skill covers UkoreShot's own internal subfolder split (core/interface/images/bug-history) that the general skill doesn't know about. Also load this for plugins/repo_internal/UkorePlayblast/ tasks that touch the shared naming convention between the two plugins.
 ---
 
 # UkoreShot — structure and domain knowledge
 
-`plugins/core/UkoreShot/` is a normal `plugins/core/<Name>/` plugin
-(the `ukorehub-plugin` skill's "stay inside your plugin folder" rule
-applies against every *other* plugin as always), but internally it's
-split into subfolders — read only the one your task needs, same
+`cache/plugins/UkoreShot/` is a "repo plugin" — its own separate git
+clone (`github.com/tonmaiart/UkoreShot`), not bundled/git-tracked inside
+this UkoreHub repo at all (moved out 2026-08-08; before that it was
+bundled at `plugins/repo_internal/UkoreShot/`, and before that
+`plugins/core/UkoreShot/` — same feature, just relocated twice). The
+`ukorehub-plugin` skill's "stay inside your plugin folder" rule still
+applies against every *other* plugin as always, but internally UkoreShot
+is split into subfolders — read only the one your task needs, same
 token-budget reasoning as staying inside the plugin at all:
 
 - `core/` — non-UI logic (video-root path resolution, comment JSON
@@ -23,17 +27,25 @@ token-budget reasoning as staying inside the plugin at all:
 **Read that subfolder's own `README.md` before opening its individual
 files** — each is a full, current description of what's inside, written
 so you don't need to open every file to place them in context. The
-top-level `plugins/core/UkoreShot/README.md` is now a short index/rule
+top-level `cache/plugins/UkoreShot/README.md` is now a short index/rule
 page, not the content itself — start there only to decide which subfolder
 you need, then go read that subfolder's README.
 
 `manifest.json`/`plugin.py`/`__init__.py` stay at the plugin's top level
-(outside all four subfolders) — the plugin loader
+(outside all four subfolders) — the host app's plugin loader
 (`core/extensibility/loader.py`) requires both directly there. Everything
-else is free to live wherever makes sense internally, since `plugin.py`
-only ever reaches `interface/`/`core/` through normal absolute Python
-imports (`from plugins.core.UkoreShot.interface.video_library_page import UkoreShotPage`,
-etc.), never anything path-based.
+else is free to live wherever makes sense internally — but note `plugin.py`
+does **not** reach `interface/`/`core/` via a `plugins.*` dotted import the
+way a bundled plugin would, since this repo isn't nested under the host
+app's own `plugins/` package. Its first lines instead register its own
+folder as a real package under a private synthetic name (`ukoreshot_plugin`)
+via `importlib.util.spec_from_file_location(..., submodule_search_locations=...)`
+before importing anything — every sibling file then imports as
+`from ukoreshot_plugin.core import ...` / `from ukoreshot_plugin.interface...
+import ...`. See `plugin.py` itself, or the top-level `README.md`'s "Plugin
+entry point" section, for the exact bootstrap. Don't "fix" this back to a
+`plugins.*`-style import — it would break, since that package doesn't
+exist from this repo's own position on disk.
 
 ## The `core` naming collision
 
@@ -49,11 +61,13 @@ relative or plugin-scoped; it's already correct.
 
 ## Companion plugin: UkorePlayblast (Maya-side, separate codebase)
 
-`plugins/core/UkorePlayblast/` is the Maya-side tool that writes the
-video files this plugin's library reads — a completely separate Python
-environment (Maya's own interpreter, not UkoreHub's desktop app), so
-**nothing in either plugin imports from the other**. Where both sides need
-to agree on something, it's duplicated deliberately rather than shared:
+`plugins/repo_internal/UkorePlayblast/` (in the host UkoreHub repo —
+stayed bundled there when UkoreShot moved out to its own repo) is the
+Maya-side tool that writes the video files this plugin's library reads —
+a completely separate Python environment (Maya's own interpreter, not
+UkoreHub's desktop app), so **nothing in either plugin imports from the
+other**. Where both sides need to agree on something, it's duplicated
+deliberately rather than shared:
 
 - **Flat naming convention** — `SEQ_ShotCode_Variation_index_version.ext`
   (e.g. `KBA_KBA030_Blocking_001_v001.mov`), written by
@@ -125,12 +139,15 @@ root `CLAUDE.md` gives for `data/thumbnails/` etc.) — check
 ## Bug history
 
 Check `bug-history/README.md`'s index first (plugin-local, going forward
-from 2026-07-21). If it doesn't cover what you're touching, that same
-README points at three repo-root `developer/bug-history/` entries from before this
-folder existed — a native-video-widget mouse-event bug, a
-draw/text-tool-simultaneously bug, and a Custom-Path leading-slash bug
-shared with `UkorePlayblast`. After fixing any real bug here, add a new
-entry to `bug-history/README.md`'s index (or the repo-root one instead, if
-the "Lesson" is a generic Qt/Python gotcha rather than something specific
-to this plugin's own architecture — see that README's own guidance on the
+from 2026-07-21 — this folder moved with the rest of the plugin into
+`cache/plugins/UkoreShot/bug-history/` on 2026-08-08, still the same
+history). If it doesn't cover what you're touching, that same README
+points at three entries in the *host app's* repo-root
+`developer/bug-history/` from before this folder existed — a
+native-video-widget mouse-event bug, a draw/text-tool-simultaneously bug,
+and a Custom-Path leading-slash bug shared with `UkorePlayblast`. After
+fixing any real bug here, add a new entry to this plugin's own
+`bug-history/README.md` (or the host app's repo-root one instead, if the
+"Lesson" is a generic Qt/Python gotcha rather than something specific to
+this plugin's own architecture — see that README's own guidance on the
 distinction).

@@ -11,7 +11,7 @@ picking Publish Mode). This plugin's own
 hardcoded "Quick Playblast" (Animation menu), which had no options dialog
 at all — resolution, format/codec, quality, frame range, camera, sound,
 and show-ornaments were all either hardcoded or implicit. Writes into
-whichever folder `plugins/repo_internal/UkoreShot/` has configured for the active
+whichever folder `cache/plugins/UkoreShot/` has configured for the active
 repo, so a playblast immediately shows up in that plugin's video
 library/review tab. Renamed from `UkoreShotPlayblast` on 2026-07-20 (id
 `ukore_shot_playblast` -> `ukore_playblast`) — see `developer/bug-history/` entries
@@ -48,7 +48,7 @@ KBA_KBA030_Blocking_001_v001.mov
   sequence/shot/variation, are sanitized to letters-and-digits-only
   (`_sanitize_token`) before ever landing in a filename — the stem is
   split on `"_"` into exactly 5 parts by both this plugin's own
-  `_FILENAME_PATTERN` and `plugins/repo_internal/UkoreShot/video_naming.py` (the
+  `_FILENAME_PATTERN` and `cache/plugins/UkoreShot/video_naming.py` (the
   desktop-side reader of these same files), so nothing in the first three
   tokens may itself contain an underscore.
 
@@ -109,7 +109,7 @@ scheme are **left exactly where they are** (confirmed with the user
 2026-07-20, "ปล่อยไว้เหมือนเดิม") — nothing here migrates or renames them.
 They're simply invisible to `_matching_versions`' flat top-level scan (so
 they can never collide with a new flat-named file), and
-`plugins/repo_internal/UkoreShot/video_naming.py`'s parser treats anything that
+`cache/plugins/UkoreShot/video_naming.py`'s parser treats anything that
 doesn't match the new flat convention as unparseable, bucketing it under
 "Unknown" in that plugin's filter sidebar rather than erroring or hiding
 it.
@@ -199,7 +199,7 @@ it.
   image mode" above). Resolves the active repo via
   `PublishApi.repo_paths.get_active_repo()`, the video root via
   `_resolve_video_root` (mirrors
-  `plugins/repo_internal/UkoreShot/video_path_store.py`'s `resolve_video_root`
+  `cache/plugins/UkoreShot/video_path_store.py`'s `resolve_video_root`
   exactly — reads `data/plugins/core/ukore_shot.json` and
   `PublishApi.repo_paths.get_custom_paths`/`get_custom_path` directly off
   disk, no shared "bridge" file needed for this), this repo's options via

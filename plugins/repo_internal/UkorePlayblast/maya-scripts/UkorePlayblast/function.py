@@ -27,7 +27,7 @@ _SHOT_CODE_PATTERN = re.compile(r"^([A-Za-z]+)(\d+)")
 # convention" section. Every one of the first three tokens is sanitized to
 # letters/digits only before a filename is ever built (_sanitize_token),
 # so splitting a stem on "_" and expecting exactly 5 parts is safe; this
-# is also what lets plugins/repo_internal/UkoreShot/video_naming.py (the
+# is also what lets cache/plugins/UkoreShot/video_naming.py (the
 # desktop-side reader of these same filenames) parse them back reliably.
 _FILENAME_PATTERN = re.compile(r"^([^_]+)_([^_]+)_([^_]+)_(\d+)_v(\d+)$")
 
@@ -47,7 +47,7 @@ def _sanitize_token(value: str) -> str:
 
 
 def _resolve_video_root(project_id: str, repo_id: str, repo_path):
-    """Mirrors plugins/repo_internal/UkoreShot/video_path_store.py's
+    """Mirrors cache/plugins/UkoreShot/video_path_store.py's
     resolve_video_root exactly (same resolution order: explicit choice,
     else the repo's only declared Custom Path, else nothing) — duplicated
     for the same "Maya's Python can't import the desktop-side plugins/
