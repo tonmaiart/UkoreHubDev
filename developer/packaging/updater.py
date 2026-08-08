@@ -346,6 +346,7 @@ class _UpdaterWindow:
     def __init__(self, repo_root: Path):
         self.repo_root = repo_root
         self._data_dir = repo_root / "data"
+        self._cache_dir = repo_root / "cache"
         self._interpreter: str | None = None
         self.token_store: TokenStore | None = None
         self.local_config_store: LocalConfigStore | None = None
@@ -460,8 +461,14 @@ class _UpdaterWindow:
     def _on_prelaunch_ready(self, interpreter: str) -> None:
         self._interpreter = interpreter
         self._data_dir.mkdir(exist_ok=True)
-        self.token_store = TokenStore(self._data_dir / "github_token.json")
-        self.local_config_store = LocalConfigStore(self._data_dir / "local_config.json")
+        self._cache_dir.mkdir(exist_ok=True)
+        # github_token.json/local_config.json live under cache/, not data/ —
+        # same per-machine, gitignored files launcher.py itself reads/writes
+        # (see its own cache_dir comment) — so a copy of data/ alone (e.g. a
+        # manual zip release, rather than a fresh git clone) never carries a
+        # cached login along with it.
+        self.token_store = TokenStore(self._cache_dir / "github_token.json")
+        self.local_config_store = LocalConfigStore(self._cache_dir / "local_config.json")
         self.system_config_store = SystemConfigStore(self._data_dir / "system_config.json")
         self._check_login()
 

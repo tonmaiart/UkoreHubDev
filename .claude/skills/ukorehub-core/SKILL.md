@@ -63,7 +63,7 @@ another JSON writer.
   **Shared/git-tracked.**
 - `SystemConfigStore` → `data/system_config.json` — studio-wide settings
   (currently just the GitHub OAuth client ID). **Shared/git-tracked.**
-- `LocalConfigStore` → `data/local_config.json` — per-machine state
+- `LocalConfigStore` → `cache/local_config.json` — per-machine state
   (workspace root, theme, active repo, recent files). **Gitignored.**
 - `ProgramStore` → `data/programs.json` — the shared software catalog
   (`name`, `version`, `description`, `icon_filename`). **Shared/git-tracked.**
@@ -71,7 +71,7 @@ another JSON writer.
 The shared-vs-local split (tracked in git vs gitignored) is a recurring
 pattern in this codebase — it reappears for `PluginConfigStore`
 (`shared=True/False`, writing to `data/plugins/core/` vs
-`data/plugins/local/`) and, along a different axis (bundled vs. fetched
+`cache/plugin_local_config/`) and, along a different axis (bundled vs. fetched
 separately, not shared-vs-per-machine), for the plugin source roots
 themselves: `plugins/core/` and `plugins/repo_internal/` are both
 git-tracked and bundled with the app; `cache/plugins/` is gitignored, each
