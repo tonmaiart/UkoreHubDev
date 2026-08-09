@@ -19,7 +19,7 @@ token-budget reasoning as staying inside the plugin at all:
   persistence, playblast filename parsing). No PySide6 here.
 - `interface/` — every PySide6 widget/page/dialog.
 - `images/` — this plugin's own icon PNGs (see "Icons" below — this is a
-  deliberate exception to the rest of the app's `data/icons/` convention).
+  deliberate exception to the rest of the app's `assets/icons/` convention).
 - `bug-history/` — bugs fixed specifically in this plugin's own code,
   going forward from 2026-07-21 (older UkoreShot bugs are still at the
   repo-root `developer/bug-history/` — see that folder's README for the pointers).
@@ -127,12 +127,12 @@ sidebar, and keyboard shortcuts — see `interface/README.md`'s
 ## Icons
 
 This plugin's icons live in its own `images/` folder, **not** the shared
-`data/icons/` every other plugin uses (see root `CLAUDE.md`'s "Project
+`assets/icons/` every other plugin uses (see root `CLAUDE.md`'s "Project
 layout") — confirmed with the user 2026-07-21 as a deliberate exception.
 `interface/player_widget.py` resolves `_ICONS_DIR` as
 `Path(__file__).resolve().parents[1] / "images"`. Never open the PNGs
 themselves speculatively (same "don't open image directories" reasoning
-root `CLAUDE.md` gives for `data/thumbnails/` etc.) — check
+root `CLAUDE.md` gives for `assets/thumbnails/` etc.) — check
 `player_widget.py`'s `_..._ICON_PATH` constants instead, or
 `images/README.md`'s file list.
 

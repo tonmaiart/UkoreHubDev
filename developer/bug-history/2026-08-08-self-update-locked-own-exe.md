@@ -22,7 +22,7 @@ Restarting sometimes "fixed" it, sometimes didn't — looked flaky/random.
 `git checkout`/`git pull` against the repo root to self-update. `UkoreHub.exe`
 is git-tracked and deliberately **not** gitignored (see
 `developer/packaging/README.md` — it's a shared studio-wide binary rebuilt
-and recommitted on every release, same pattern as `data/thumbnails/`).
+and recommitted on every release, same pattern as `assets/thumbnails/`).
 
 So any release that changes `UkoreHub.exe`'s bytes makes git try to
 unlink/overwrite the working-tree copy of `UkoreHub.exe` — which is the
