@@ -1,6 +1,6 @@
 ---
 name: ukorehub-core
-description: Reference for UkoreHub's core/ layer (C:\Tonmai\UkoreHub) — the non-UI data model, git subprocess wrapper, config/data stores, and the plugin extensibility system (hooks, loader, PluginConfigStore, FileOpenerRegistry). Use this whenever reading, writing, or planning changes to core/models.py, core/store.py, core/program_store.py, core/git_service.py, core/github/, or core/extensibility/ — or whenever the task involves UkoreHub plugins, git hooks, or the Project/Repo/Program data model, even if the user doesn't say "core" explicitly (e.g. "add a git hook", "create a new plugin", "what programs does this repo require").
+description: Reference for UkoreHub's core/ layer (C:\Tonmai\UkoreHub) — the non-UI data model, git subprocess wrapper, config/data stores, and the plugin extensibility system (hooks, loader, PluginConfigStore, FileOpenerRegistry). Use this whenever reading, writing, or planning changes to core/models.py, core/store.py, core/git_service.py, core/github/, or core/extensibility/ — or whenever the task involves UkoreHub plugins, git hooks, or the Project/Repo/Program data model, even if the user doesn't say "core" explicitly (e.g. "add a git hook", "create a new plugin", "what programs does this repo require").
 ---
 
 # UkoreHub core/ — architecture reference

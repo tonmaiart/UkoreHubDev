@@ -107,12 +107,15 @@ about" — a per-repo info page (`interface/about/repo_about_page.py`,
 needed. If asked about it: it no longer exists.
 
 **Editing an existing repo's required Programs** (the old
-"Requirement" sub-tab's job) got a real replacement 2026-07-29: Repository
-Setting > **Requirements** (`plugins/core/project_editor/
-requirements_settings_page.py`, registered in `plugin.py`) hosts the same
-`RequirementsTreeWidget` the Add-Repo dialog uses, self-persisting on every
-check-state change — no Save button, same convention as Enable Plugin/
-Custom Paths. Includes the per-version pin picker for a multi-version
-Program (e.g. choosing 2024 vs 2026 for "Autodesk Maya" — see
-`core/models.py`'s `Repo.program_version_pins` and
-`plugins/core/maya_launcher/link_resolution.py`).
+"Requirement" sub-tab's job) got a real replacement 2026-07-29, now living
+at Settings > Repo > **Requirements & Plugins** (`interface/repo_settings/
+requirements_and_plugins_page.py`, merged there 2026-08-04 from its
+original standalone tab) — hosts the same `RequirementsTreeWidget` the
+Add-Repo dialog uses, self-persisting on every check-state change — no
+Save button, same convention as Enable Plugin/Custom Paths. Includes the
+per-version pin picker for a multi-version Program (e.g. choosing 2024 vs
+2026 for "Autodesk Maya" — see `core/models.py`'s `Repo.program_version_pins`
+and `plugins/repo_internal/maya_launcher/link_resolution.py`). As of
+2026-08-09, Program Database (and the `Program` catalog entries themselves)
+is scoped per-Project, not studio-wide — see `core/models.py`'s
+`Project.programs`.
