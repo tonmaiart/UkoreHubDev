@@ -15,8 +15,8 @@ composed on top of a Qt-free `core/` primitive.
 
 Everything is wired via **constructor injection from `launcher.py`** — no
 global singletons, no service locator. `core/` classes take their
-dependencies (a `Path`, another store, a `HookRegistry`) as constructor
-params, which is exactly why the 121-test suite can construct
+dependencies (a `Path`, another store, an `AppLifecycleHooks`) as
+constructor params, which is exactly why the 121-test suite can construct
 `GitService()`, `ProgramStore(tmp_path / "programs.json")`, etc. directly in
 tests with zero mocking. Preserve this pattern in new code.
 
@@ -94,13 +94,12 @@ adding new per-machine state, put it in `LocalConfigStore`, not a new file.
 ## `core/git_service.py`
 
 Wraps `git`/`git-lfs` as subprocess calls (clone, pull, push, commit, stage,
-status, conflict resolution, commit log). Takes an optional
-`hooks: HookRegistry` in its constructor; `clone`/`pull`/`push`/`commit` each
-take an optional keyword-only `context: GitHookContext | None = None` and
-fire `GitHookEvent.BEFORE_*`/`AFTER_*`/`*_FAILED` around the operation —
-**only when both `hooks` and `context` are provided**, so existing callers
-that don't pass `context` are unaffected (this is why none of the original
-git-service tests needed updating when hooks were added).
+status, conflict resolution, commit log). No hook firing of its own — an
+earlier `hooks: HookRegistry`/`context: GitHookContext` constructor+per-call
+mechanism (firing `GitHookEvent.BEFORE_*`/`AFTER_*`/`*_FAILED` around each
+operation) was removed since nothing in `plugins/` ever subscribed to it;
+`interface/main_window.py`'s three fixed app-lifecycle points
+(`AppLifecycleHooks`, see `core/events/hooks.py` below) replaced it.
 
 ## `core/auth/` and `core/vcs/` — GitHub/Google integration
 
@@ -135,9 +134,12 @@ files, none importing each other:
   `plugins/core/software_linker`'s config for a worked example (or
   `plugins/README.md`'s "Sharing data with another plugin" section for the
   general write-up).
-- **`hooks.py`** — `GitHookEvent`, `GitHookContext` (`project`, `repo`,
-  `repo_path`, `extra`), `HookRegistry` (`subscribe`/`fire`). Deliberately
-  plain Python, not `QObject` — see the Qt-free rule above.
+- **`hooks.py`** — `AppLifecycleContext` (`project`, `repo`, `repo_path`,
+  `extra`), `AppLifecycleHooks`: a fixed three-point plugin lifecycle
+  (`on_app_start`/`on_repo_changed`/`on_app_close`, fired from
+  `interface/main_window.py`) — replaced an older open-ended `GitHookEvent`
+  pub/sub with zero real subscribers. Deliberately plain Python, not
+  `QObject` — see the Qt-free rule above.
 - **`file_opener.py`** — `FileOpenerRegistry`/`FileOpenerSpec`: lets a
   plugin claim responsibility for opening a file extension (e.g. launching
   Maya with custom env vars instead of the OS file association) instead of

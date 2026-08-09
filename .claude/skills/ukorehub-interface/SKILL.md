@@ -42,7 +42,7 @@ right:
     only version was re-added the same day at the user's request);
     clicking a repo node in Project Editor's `QGraphicsView` graph
     (`plugins/core/project_editor/`) is the only way to change the
-    active repo now, via `SectionHost.set_active_repo` (see below) — a
+    active repo now, via `UICommandService.set_active_repo` (see below) — a
     single click, not a double-click (changed the same day too; a
     not-yet-cloned repo gets a one-time confirmation first).
     `MainWindow` pushes into it directly from `_restore_active_repo`/

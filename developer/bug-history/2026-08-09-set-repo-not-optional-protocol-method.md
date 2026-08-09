@@ -16,7 +16,7 @@ attribute 'set_repo'` / `'BananaSketchPage' object has no attribute
 workspace_root)` unconditionally on whatever page was current, treating
 `set_repo` as a mandatory interface every `SectionSpec.page_factory`-built
 page must implement. It never was documented as mandatory in
-`interface/section_registry.py`'s `SectionSpec`/`SectionHost` — pages with no
+`interface/section_registry.py`'s `SectionSpec`/`UICommandService` — pages with no
 notion of "active repo" (`plugins/core/DebugConsole/debug_console_page.py`,
 `cache/plugins/BananaSketch/interface/editor_page.py`) simply never
 implemented it, and nothing surfaced that gap until a user actually switched

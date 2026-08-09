@@ -25,14 +25,18 @@ the GitHub username/avatar). Wired through
   requirement (`core/program_store.py`,
   `interface/settings/program_database_page.py`). "Program" here means one
   catalog entry, not the app.
-- **Repository Setting** — a *per-repo* settings popup, opened from
-  Project Editor's node right-click menu ("Repository Setting..."), not
-  the sidebar's app-level Setting button. See
-  `plugins/core/project_editor/repo_settings_panel.py`. As of
-  2026-07-20 its tabs are grouped under two headers — "Repository" (Local
-  Repository, Custom Paths, Enable Plugin, Browser) and "Plugins" (every
-  plugin-contributed `CATEGORY_REPO` tab) — matching the app-level
-  Setting popup's own General/Developer grouping.
+- **Repository Setting** — the phrase used for *per-repo* settings, opened
+  from Project Editor's node right-click menu ("Repository Setting...").
+  Not a popup of its own anymore — it opens the same app-level Setting
+  dialog (`interface/settings/settings_view.py`'s `SettingsDialog`),
+  landing on its **Repo Setting (Dev)** top tab, which groups tabs under
+  two headers — "Repository" (Local Repository, Custom Paths, Enable
+  Plugin, Browser) and "Plugins" (every plugin-contributed `CATEGORY_REPO`
+  tab). Before this refactor (2026-07-15 through 2026-08-09) it was its
+  own popup (`plugins/core/project_editor/repo_settings_panel.py`,
+  retired) to avoid duplicating these tabs in both Settings and here — the
+  same reasoning now argues for one dialog instead of one popup, since
+  both ever only rendered the same `SettingsTabRegistry` entries.
 
 ## "Viewgraph"
 
@@ -41,9 +45,10 @@ Editor's node-graph view: the `QGraphicsView` showing every repo in a
 project as a node, with pipeline connections drawn as edges between them.
 Code name: `ProjectGraphView`
 (`plugins/core/project_editor/project_graph_view.py`), hosted inside
-`ProjectEditorPage`. Always visible, docked beside whichever section is
-currently showing (`SectionSpec.persistent=True`) — not a page you
-navigate to via the sidebar.
+`ProjectEditorPage`. An ordinary Sidebar row/`view_stack` page like every
+other section — before this refactor it was always visible, docked beside
+whichever section was currently showing (`SectionSpec.persistent=True`,
+now removed).
 
 ## Custom Path — "Input" vs "Output"
 

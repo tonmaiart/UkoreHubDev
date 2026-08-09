@@ -67,10 +67,10 @@ the other plugin's source:
   (e.g. Submit jumping to Explorer's `"repo_browser"` key) plus an
   optional protocol method on the target page (`browse_to_path(path)`,
   same shape as the existing `set_repo()` convention every page
-  implements), invoked generically through `SectionHost` — never by
+  implements), invoked generically through `UICommandService` — never by
   importing the other plugin's page type. See
   `plugins/core/submit/plugin.py`'s `_wire` for the working example and
-  `plugins/README.md`'s "SectionSpec.wire/SectionHost" section.
+  `plugins/README.md`'s "SectionSpec.wire/UICommandService" section.
 
 Reading the *skill or README section* that documents a convention is fine
 and expected — reading another plugin's source to reverse-engineer the same

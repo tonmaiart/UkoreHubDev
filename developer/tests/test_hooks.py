@@ -1,63 +1,63 @@
 from pathlib import Path
 
-from core.events.hooks import GitHookContext, GitHookEvent, HookRegistry
+from core.events.hooks import AppLifecycleContext, AppLifecycleHooks
 
 
-def _context(tmp_path) -> GitHookContext:
-    return GitHookContext(project=None, repo=None, repo_path=Path(tmp_path))
+def _context(tmp_path) -> AppLifecycleContext:
+    return AppLifecycleContext(project=None, repo=None, repo_path=Path(tmp_path))
 
 
 def test_subscribe_and_fire_calls_handler(tmp_path):
-    registry = HookRegistry()
+    hooks = AppLifecycleHooks()
     received = []
-    registry.subscribe(GitHookEvent.AFTER_COMMIT, received.append)
+    hooks.subscribe_app_start(received.append)
 
     context = _context(tmp_path)
-    failures = registry.fire(GitHookEvent.AFTER_COMMIT, context)
+    failures = hooks.fire_app_start(context)
 
     assert received == [context]
     assert failures == []
 
 
 def test_fire_with_no_subscribers_is_noop(tmp_path):
-    registry = HookRegistry()
-    assert registry.fire(GitHookEvent.AFTER_COMMIT, _context(tmp_path)) == []
+    hooks = AppLifecycleHooks()
+    assert hooks.fire_app_start(_context(tmp_path)) == []
 
 
 def test_multiple_handlers_all_run(tmp_path):
-    registry = HookRegistry()
+    hooks = AppLifecycleHooks()
     calls = []
-    registry.subscribe(GitHookEvent.AFTER_PUSH, lambda ctx: calls.append("a"))
-    registry.subscribe(GitHookEvent.AFTER_PUSH, lambda ctx: calls.append("b"))
+    hooks.subscribe_repo_changed(lambda ctx: calls.append("a"))
+    hooks.subscribe_repo_changed(lambda ctx: calls.append("b"))
 
-    registry.fire(GitHookEvent.AFTER_PUSH, _context(tmp_path))
+    hooks.fire_repo_changed(_context(tmp_path))
 
     assert calls == ["a", "b"]
 
 
 def test_handler_exception_is_isolated_and_collected(tmp_path):
-    registry = HookRegistry()
+    hooks = AppLifecycleHooks()
     calls = []
 
     def broken(_ctx):
         raise RuntimeError("boom")
 
-    registry.subscribe(GitHookEvent.AFTER_PULL, broken)
-    registry.subscribe(GitHookEvent.AFTER_PULL, lambda ctx: calls.append("still runs"))
+    hooks.subscribe_repo_changed(broken)
+    hooks.subscribe_repo_changed(lambda ctx: calls.append("still runs"))
 
-    failures = registry.fire(GitHookEvent.AFTER_PULL, _context(tmp_path))
+    failures = hooks.fire_repo_changed(_context(tmp_path))
 
     assert calls == ["still runs"]
     assert len(failures) == 1
     assert isinstance(failures[0], RuntimeError)
 
 
-def test_events_are_isolated_from_each_other(tmp_path):
-    registry = HookRegistry()
+def test_lifecycle_points_are_isolated_from_each_other(tmp_path):
+    hooks = AppLifecycleHooks()
     calls = []
-    registry.subscribe(GitHookEvent.BEFORE_COMMIT, lambda ctx: calls.append("before"))
-    registry.subscribe(GitHookEvent.AFTER_COMMIT, lambda ctx: calls.append("after"))
+    hooks.subscribe_app_start(lambda ctx: calls.append("start"))
+    hooks.subscribe_app_close(lambda ctx: calls.append("close"))
 
-    registry.fire(GitHookEvent.BEFORE_COMMIT, _context(tmp_path))
+    hooks.fire_app_start(_context(tmp_path))
 
-    assert calls == ["before"]
+    assert calls == ["start"]
