@@ -34,6 +34,7 @@ references both.
 - [2026-08-05 — Ukore Reference Editor's auto-redirect/auto-load never ran for the very first Launch-triggered scene open](2026-08-05-reference-editor-callback-registered-too-late-for-first-open.md) — `plugins/repo_internal/MayaToolkit/maya-plug-ins/ukoreMaya.py` (`initializePlugin`)
 - [2026-08-08 — UkoreHub.exe self-update failed with "unable to unlink old 'UkoreHub.exe'"](2026-08-08-self-update-locked-own-exe.md) — `developer/packaging/updater.py` (`ensure_up_to_date`)
 - [2026-08-08 — External Plugins' "Stage Untracked & Push" nearly staged/pushed the whole UkoreHub app repo into a repo plugin's remote](2026-08-08-external-plugins-broken-git-dir-resolved-to-app-repo.md) — `plugins/core/ExternalPlugins/`, `core/git_service.py` (`is_repo_root`)
+- [2026-08-09 — UkoreHub auto-update failed: "local changes to data/projects.json would be overwritten by merge"](2026-08-09-shared-data-git-pull-conflict.md) — `developer/packaging/updater.py`, `core/store.py`, `core/program_store.py` (fixed by moving shared JSON stores off git onto Google Cloud Storage — see `core/cloud_sync.py`)
 
 ## Adding a new entry
 

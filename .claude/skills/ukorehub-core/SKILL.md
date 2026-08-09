@@ -60,23 +60,34 @@ All JSON-file stores share one helper: `_atomic_write(path, data)` in
 another JSON writer.
 
 - `MetadataStore` → `data/projects.json` — the Project/Repo registry.
-  **Shared/git-tracked.**
+  **Shared/cloud-synced** (Google Cloud Storage, see `core/cloud_sync.py`
+  — no longer git-tracked, see bug-history 2026-08-09).
 - `SystemConfigStore` → `data/system_config.json` — studio-wide settings
-  (currently just the GitHub OAuth client ID). **Shared/git-tracked.**
+  (GitHub OAuth client ID, GCS bucket name). **Shared/cloud-synced.**
 - `LocalConfigStore` → `cache/local_config.json` — per-machine state
   (workspace root, theme, active repo, recent files). **Gitignored.**
 - `ProgramStore` → `data/programs.json` — the shared software catalog
-  (`name`, `version`, `description`, `icon_filename`). **Shared/git-tracked.**
+  (`name`, `version`, `description`, `icon_filename`). **Shared/cloud-synced.**
 
-The shared-vs-local split (tracked in git vs gitignored) is a recurring
-pattern in this codebase — it reappears for `PluginConfigStore`
-(`shared=True/False`, writing to `data/plugins/core/` vs
-`cache/plugin_local_config/`) and, along a different axis (bundled vs. fetched
-separately, not shared-vs-per-machine), for the plugin source roots
-themselves: `plugins/core/` and `plugins/repo_internal/` are both
-git-tracked and bundled with the app; `cache/plugins/` is gitignored, each
-entry its own separate git clone. When adding new per-machine state, put
-it in `LocalConfigStore`, not a new file.
+`MetadataStore`/`SystemConfigStore`/`ProgramStore` each take an optional
+`on_save: Callable[[], None] | None` constructor param, fired at the end of
+`save()` — `launcher.py` wires it to `core/cloud_sync.py`'s
+`GcsJsonSync.push`, after pulling the latest blob before construction. The
+stores themselves stay backend-agnostic (still plain local JSON
+read/write) — `google-cloud-storage` is never imported from `core/store.py`
+or `core/program_store.py` directly, only from `core/cloud_sync.py`, kept
+isolated so it never leaks into `developer/packaging/updater.py`'s frozen
+`UkoreHub.exe` import graph.
+
+The shared-vs-local split (cloud-synced/git-tracked vs. gitignored) is a
+recurring pattern in this codebase — it reappears for `PluginConfigStore`
+(`shared=True/False`, writing to `data/plugins/core/` — cloud-synced, same
+`on_save` mechanism — vs `cache/plugin_local_config/`) and, along a
+different axis (bundled vs. fetched separately, not shared-vs-per-machine),
+for the plugin source roots themselves: `plugins/core/` and
+`plugins/repo_internal/` are both git-tracked and bundled with the app;
+`cache/plugins/` is gitignored, each entry its own separate git clone. When
+adding new per-machine state, put it in `LocalConfigStore`, not a new file.
 
 ## `core/git_service.py`
 
