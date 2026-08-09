@@ -76,7 +76,7 @@ another JSON writer.
 stores themselves stay backend-agnostic (still plain local JSON
 read/write) — `google-cloud-storage` is never imported from `core/store.py`
 or `core/program_store.py` directly, only from `core/cloud_sync.py`, kept
-isolated so it never leaks into `developer/packaging/updater.py`'s frozen
+isolated so it never leaks into `updater.py (UkoreHubLauncher repo)`'s frozen
 `UkoreHub.exe` import graph.
 
 The shared-vs-local split (cloud-synced/git-tracked vs. gitignored) is a

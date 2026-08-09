@@ -66,3 +66,17 @@ self-contained/frozen entry point that's also committed into the repo it
 updates itself from, it needs the same rename-aside treatment before the
 git operation, not just a `-f` force-checkout retry (force-checkout still
 hits the same unlink call and fails the same way).
+
+## Update (2026-08-09): root cause removed for the frequent case
+
+The rename-aside fix above still works and is still needed, but only for
+a now-rare case. `UkoreHub.exe` moved out of this repo entirely into its
+own repo, [`UkoreHubLauncher`](https://github.com/tonmaiart/UkoreHubLauncher)
+— see `developer/README.md`'s "Repo split" section. Artists now get
+`UkoreHub.exe` in an outer folder with a nested `app/` clone of this repo
+inside it; the exe self-updates its own (rarely-changing) repo with
+`_relocate_self_exe` still wrapping that pull, but the frequent case —
+an ordinary app-code release touching `app/` — never contains
+`UkoreHub.exe` at all, so it structurally cannot hit this bug anymore.
+Existing single-folder installs (exe and app code in the same folder) are
+not auto-migrated; artists reinstall by hand into the new layout.

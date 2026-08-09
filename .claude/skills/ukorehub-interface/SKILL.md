@@ -1,6 +1,6 @@
 ---
 name: ukorehub-interface
-description: Reference for UkoreHub's interface/ layer (C:\Tonmai\UkoreHub) — the PySide6 GUI, organized by window (sidebar/, explorer/, submit/, about/, settings/, plus a shared/ for multi-window files): MainWindow's left-hand Sidebar / SectionTabList navigation, the extension registries (SectionRegistry, SettingsTabRegistry, FileOpenerRegistry), PluginAPI composition, and the builtin_*.py dogfooding pattern. Use this whenever adding a page, a settings tab, a top-level section, or any UI-facing plugin registration — or whenever the task touches interface/main_window.py, any interface/<window>/ folder, interface/plugin_api.py, or any interface/*_registry.py, even if the user doesn't say "interface" explicitly (e.g. "add a settings page", "show this as its own tab"). GitHub login itself moved to developer/packaging/updater.py (the launcher exe) — this layer only shows the signed-in username (Sidebar) and Logout (Settings > Common), see the "GitHub login" section below.
+description: Reference for UkoreHub's interface/ layer (C:\Tonmai\UkoreHub) — the PySide6 GUI, organized by window (sidebar/, explorer/, submit/, about/, settings/, plus a shared/ for multi-window files): MainWindow's left-hand Sidebar / SectionTabList navigation, the extension registries (SectionRegistry, SettingsTabRegistry, FileOpenerRegistry), PluginAPI composition, and the builtin_*.py dogfooding pattern. Use this whenever adding a page, a settings tab, a top-level section, or any UI-facing plugin registration — or whenever the task touches interface/main_window.py, any interface/<window>/ folder, interface/plugin_api.py, or any interface/*_registry.py, even if the user doesn't say "interface" explicitly (e.g. "add a settings page", "show this as its own tab"). GitHub login itself moved to updater.py (UkoreHubLauncher repo) (the launcher exe) — this layer only shows the signed-in username (Sidebar) and Logout (Settings > Common), see the "GitHub login" section below.
 ---
 
 # UkoreHub interface/ — architecture reference
@@ -62,7 +62,7 @@ right:
   - A **footer** (`sidebarFooter`) with sync status, the Update button, and
     an account row (`account_label`, display-only GitHub username +
     `setting_button`) — actual login happens entirely in the launcher exe
-    (`developer/packaging/updater.py`) before this app ever opens; logout
+    (`updater.py (UkoreHubLauncher repo)`) before this app ever opens; logout
     lives in Settings > Common instead, see the "GitHub login" section
     below.
 - **A view stack** (`MainWindow.view_stack`) with one full-width top-level
@@ -107,7 +107,7 @@ right:
 There is no login domain in `interface/` anymore (the old `login/` folder —
 `LoginOverlay`, `GitHubLoginDialog`, `GitHubAuthWidget`, `LoginGate` — was
 deleted). GitHub login (OAuth device flow) and the token cache live
-entirely in `developer/packaging/updater.py`, run by the launcher exe
+entirely in `updater.py (UkoreHubLauncher repo)`, run by the launcher exe
 (`UkoreHub.exe`) *before* `launcher.py`/`MainWindow` are even spawned —
 `launcher.py` just loads whatever token got cached
 (`core/github/token_store.py`'s `TokenStore`) and calls

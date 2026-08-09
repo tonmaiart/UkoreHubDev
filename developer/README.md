@@ -6,10 +6,14 @@ unit when publishing to the release repo's `main`. Lives only in this repo
 `UkoreHubRelease` repo never has a `developer/` folder (nor `.claude/`),
 only the plain app code artists actually run.
 
-- [`packaging/`](packaging/README.md) - admin-only tooling to build
-  `UkoreHub.exe`.
-- `build/` - PyInstaller intermediates from `packaging/build_exe.py`,
-  gitignored, regenerated every build.
+`UkoreHub.exe` itself (and the admin tooling that builds it) used to live
+here too, under `packaging/` - it moved out into its own separate repo,
+[`UkoreHubLauncher`](https://github.com/tonmaiart/UkoreHubLauncher), so an
+ordinary app release can never again try to overwrite the exe file that's
+busy running it. See
+[`bug-history/2026-08-08-self-update-locked-own-exe.md`](bug-history/2026-08-08-self-update-locked-own-exe.md)
+and that repo's own README.md.
+
 - `tests/` - pytest suite (`pytest.ini` at repo root points `testpaths` here).
 - [`bug-history/`](bug-history/README.md) - record of real bugs fixed in
   this codebase, with reusable "Lesson" entries.
@@ -25,17 +29,24 @@ UkoreHubDev. `build/` never ships either way (gitignored).
 
 ## Repo split
 
-Two separate GitHub repos, not two branches of one repo:
+Three separate GitHub repos, not branches of one repo:
 - **`UkoreHubDev`** (this repo, remote `origin`) - all day-to-day work
   (features, fixes, edits, `.claude/` skills, this folder) happens directly
   on its `main` branch. There is no `dev` branch here - this repo's `main`
   *is* the working branch, unrelated to (and never pushed directly to) the
-  other repo's `main` below.
+  other repos' `main` below.
 - **`UkoreHubRelease`** (remote `release`, added automatically by
-  `commit-main.ps1` if missing) - holds only `main`, a clean mirror of this
-  repo's `main` minus the folders above. This is the repo artists actually
-  clone/pull from (see the pre-launch updater in
-  [`packaging/updater.py`](packaging/updater.py)).
+  `commit-main.ps1` if missing; GitHub repo name is `UkoreHub`) - holds
+  only `main`, a clean mirror of this repo's `main` minus the folders
+  above. This is the app repo artists actually clone/pull from - see the
+  nested `app/` clone described in
+  [`UkoreHubLauncher`](https://github.com/tonmaiart/UkoreHubLauncher)'s
+  README.md.
+- **`UkoreHubLauncher`** - a wholly separate repo (not published to via
+  `commit-main.ps1` or anything else here) holding `UkoreHub.exe` and the
+  admin tooling that builds it. Edited directly in its own local clone,
+  outside this repo entirely. See its own README.md for why it's split out
+  and how the two repos relate on an artist's machine.
 
 To publish this repo's current state to `UkoreHubRelease`'s `main`:
 

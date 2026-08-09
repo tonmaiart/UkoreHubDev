@@ -61,9 +61,9 @@ class itself.
 
 **Never import `google-cloud-storage` or `google-auth-oauthlib` from
 `core/store.py`, `core/program_store.py`, `core/extensibility/config_store.py`,
-or anything else reachable from `developer/packaging/updater.py`'s import
+or anything else reachable from `updater.py (UkoreHubLauncher repo)`'s import
 graph.** That module is inside the frozen `UkoreHub.exe`'s PyInstaller
-bundle (`developer/packaging/build_exe.py`'s plain `--onefile` build has no
+bundle (`build_exe.py (UkoreHubLauncher repo)`'s plain `--onefile` build has no
 hidden-imports list — it just follows `exe_entry.py`'s/`updater.py`'s own
 imports, which include `core.store`). If a cloud dependency leaked into a
 module on that import path, it would get dragged into the frozen exe and
