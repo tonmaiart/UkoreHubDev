@@ -123,6 +123,30 @@ def is_git_repo(repo_root: Path) -> bool:
     return (repo_root / ".git").exists()
 
 
+def _untrack_paths_deleted_upstream(repo_root: Path, local_head: str, upstream_head: str) -> None:
+    """Best-effort: `git rm --cached` every path that's tracked at
+    `local_head` but no longer present at `upstream_head` — leaves the
+    actual file on disk untouched, only drops it from git's index. A file
+    the running app writes to directly with no commit step (e.g.
+    data/projects.json before it moved to cloud sync — see
+    developer/bug-history/2026-08-09-shared-data-git-pull-conflict.md) is
+    always "locally modified" from git's point of view, so the moment an
+    incoming pull tries to delete that same file from tracking, git
+    refuses with "local changes would be overwritten by merge" instead of
+    just applying the deletion. Untracking it first (independent of
+    whether it's actually dirty right now) makes that conflict
+    impossible, and is a no-op for a clean file pull would have deleted
+    anyway."""
+    deleted = _run_git(["diff", "--name-only", "--diff-filter=D", local_head, upstream_head], cwd=repo_root)
+    for path in deleted.splitlines():
+        if not path:
+            continue
+        try:
+            _run_git(["rm", "--cached", "--ignore-unmatch", "-r", path], cwd=repo_root)
+        except UpdaterError:
+            pass  # best-effort — the retried pull below still surfaces a real remaining conflict
+
+
 def bootstrap_git_repo(repo_root: Path, remote_url: str, branch: str) -> None:
     """Turns a plain folder (e.g. a GitHub "Download ZIP" extract, which has
     no .git directory at all) into a real git working tree tracking
@@ -226,7 +250,19 @@ def ensure_up_to_date(
         local_head = _run_git(["rev-parse", "HEAD"], cwd=repo_root)
         upstream_head = _run_git(["rev-parse", "@{u}"], cwd=repo_root)
         if local_head != upstream_head:
-            _run_git(["pull"], cwd=repo_root)
+            try:
+                _run_git(["pull"], cwd=repo_root)
+            except UpdaterError as exc:
+                # See _untrack_paths_deleted_upstream's docstring — a file
+                # the app writes to directly (no commit step) blocks the
+                # merge the moment an incoming commit stops tracking it.
+                # Retry exactly once after untracking whatever the incoming
+                # commits actually delete; any other failure (or a repeat of
+                # this one) is a real conflict worth surfacing as-is.
+                if "would be overwritten by merge" not in str(exc):
+                    raise
+                _untrack_paths_deleted_upstream(repo_root, local_head, upstream_head)
+                _run_git(["pull"], cwd=repo_root)
 
 
 # -- GitHub login (tkinter port of the old interface/login/ in-app gate) ---

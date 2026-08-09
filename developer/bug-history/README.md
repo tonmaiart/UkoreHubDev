@@ -35,6 +35,7 @@ references both.
 - [2026-08-08 — UkoreHub.exe self-update failed with "unable to unlink old 'UkoreHub.exe'"](2026-08-08-self-update-locked-own-exe.md) — `developer/packaging/updater.py` (`ensure_up_to_date`)
 - [2026-08-08 — External Plugins' "Stage Untracked & Push" nearly staged/pushed the whole UkoreHub app repo into a repo plugin's remote](2026-08-08-external-plugins-broken-git-dir-resolved-to-app-repo.md) — `plugins/core/ExternalPlugins/`, `core/git_service.py` (`is_repo_root`)
 - [2026-08-09 — UkoreHub auto-update failed: "local changes to data/projects.json would be overwritten by merge"](2026-08-09-shared-data-git-pull-conflict.md) — `developer/packaging/updater.py`, `core/store.py`, `core/program_store.py` (fixed by moving shared JSON stores off git onto Google Cloud Storage — see `core/cloud_sync.py`)
+- [2026-08-09 — Self-update kept failing on the same "would be overwritten by merge" error even after the fix above](2026-08-09-self-update-pull-still-blocked-during-cutover.md) — `developer/packaging/updater.py`, `core/self_update.py` (the one pull that crosses from "still tracked" to "no longer tracked" hits the identical conflict, forever, on any machine not yet past it — read this one even if you think the entry above already covers it)
 
 ## Adding a new entry
 
