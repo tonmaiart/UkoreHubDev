@@ -1,4 +1,4 @@
-from core.theme import DEFAULT_THEME_NAME, build_stylesheet, get_theme, list_theme_names
+from interface.theme import DEFAULT_THEME_NAME, build_stylesheet, get_theme, list_theme_names
 
 
 def test_list_theme_names_includes_default():

@@ -110,7 +110,7 @@ deleted). GitHub login (OAuth device flow) and the token cache live
 entirely in `updater.py (UkoreHubLauncher repo)`, run by the launcher exe
 (`UkoreHub.exe`) *before* `launcher.py`/`MainWindow` are even spawned —
 `launcher.py` just loads whatever token got cached
-(`core/github/token_store.py`'s `TokenStore`) and calls
+(`core/auth/token_store.py`'s `SecureTokenStore`) and calls
 `git_service.set_github_token(...)`.
 
 `MainWindow` still has two small login-adjacent pieces, both display/exit

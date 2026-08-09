@@ -1,4 +1,4 @@
-from core.store import MetadataStore
+from core.storage.metadata_store import MetadataStore
 
 
 def test_set_repo_thumbnail_persists(tmp_path):

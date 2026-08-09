@@ -1,4 +1,4 @@
-from core.store import SystemConfigStore
+from core.storage.config_store import SystemConfigStore
 
 
 def test_defaults_when_no_file(tmp_path):

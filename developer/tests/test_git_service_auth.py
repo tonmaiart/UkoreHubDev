@@ -1,4 +1,4 @@
-from core.git_service import GitService, _non_interactive_env
+from core.vcs.git_service import GitService, _non_interactive_env
 
 
 def test_no_auth_args_when_no_token():

@@ -2,9 +2,9 @@ import subprocess
 
 import pytest
 
+from core.events.hooks import GitHookContext, GitHookEvent, HookRegistry
 from core.exceptions import GitOperationError
-from core.extensibility.hooks import GitHookContext, GitHookEvent, HookRegistry
-from core.git_service import GitService
+from core.vcs.git_service import GitService
 
 
 def _run_git(args, cwd):

@@ -4,7 +4,11 @@ import types
 
 import pytest
 
-from core.github.token_store import TokenStore, TokenStoreFallbackUsed
+from core.auth.token_store import SecureTokenStore, TokenStoreFallbackUsed
+
+
+def _github_token_store(fallback_path):
+    return SecureTokenStore("UkoreHub", "github_access_token", fallback_path, token_label="GitHub")
 
 
 @pytest.fixture
@@ -22,7 +26,7 @@ def failing_keyring(monkeypatch):
 
 
 def test_save_token_falls_back_to_file(tmp_path, failing_keyring):
-    store = TokenStore(tmp_path / "token.json")
+    store = _github_token_store(tmp_path / "token.json")
     with pytest.raises(TokenStoreFallbackUsed):
         store.save_token("abc123")
     fallback_path = tmp_path / "token.json"
@@ -32,14 +36,14 @@ def test_save_token_falls_back_to_file(tmp_path, failing_keyring):
 
 
 def test_load_token_from_fallback(tmp_path, failing_keyring):
-    store = TokenStore(tmp_path / "token.json")
+    store = _github_token_store(tmp_path / "token.json")
     with pytest.raises(TokenStoreFallbackUsed):
         store.save_token("abc123")
     assert store.load_token() == "abc123"
 
 
 def test_clear_token_removes_fallback_file(tmp_path, failing_keyring):
-    store = TokenStore(tmp_path / "token.json")
+    store = _github_token_store(tmp_path / "token.json")
     with pytest.raises(TokenStoreFallbackUsed):
         store.save_token("abc123")
     store.clear_token()

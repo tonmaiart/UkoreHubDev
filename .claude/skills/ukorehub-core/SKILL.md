@@ -1,6 +1,6 @@
 ---
 name: ukorehub-core
-description: Reference for UkoreHub's core/ layer (C:\Tonmai\UkoreHub) — the non-UI data model, git subprocess wrapper, config/data stores, and the plugin extensibility system (hooks, loader, PluginConfigStore, FileOpenerRegistry). Use this whenever reading, writing, or planning changes to core/models.py, core/store.py, core/git_service.py, core/github/, or core/extensibility/ — or whenever the task involves UkoreHub plugins, git hooks, or the Project/Repo/Program data model, even if the user doesn't say "core" explicitly (e.g. "add a git hook", "create a new plugin", "what programs does this repo require").
+description: Reference for UkoreHub's core/ layer (C:\Tonmai\UkoreHub) — the non-UI data model, git subprocess wrapper, config/data stores, and the plugin extensibility system (hooks, loader, PluginConfigStore, FileOpenerRegistry). Use this whenever reading, writing, or planning changes to core/models.py, core/store.py, core/git_service.py, core/auth/, core/vcs/, or core/extensibility/ — or whenever the task involves UkoreHub plugins, git hooks, or the Project/Repo/Program data model, even if the user doesn't say "core" explicitly (e.g. "add a git hook", "create a new plugin", "what programs does this repo require").
 ---
 
 # UkoreHub core/ — architecture reference
@@ -21,18 +21,19 @@ params, which is exactly why the 121-test suite can construct
 tests with zero mocking. Preserve this pattern in new code.
 
 **Before touching anything below, check for a folder README first** —
-`core/README.md`, `core/github/README.md`, `core/extensibility/README.md`
-are the authoritative, current file listings. This skill is architecture
-and *why*, not a file-by-file index; the READMEs are the index.
+`core/README.md`, `core/auth/README.md`, `core/vcs/README.md`,
+`core/extensibility/README.md` are the authoritative, current file
+listings. This skill is architecture and *why*, not a file-by-file index;
+the READMEs are the index.
 
 ## Scoped editing
 
 A task about `core/` stays inside `core/` — don't open `interface/` files
 unless the change genuinely requires updating a call site there too (e.g. a
 `core/store.py` field rename that `interface/` reads).
-Within `core/` itself, `github/` and `extensibility/` are independent
-clusters (see their own READMEs) — a task about one doesn't need the other
-opened. `data/*.json` are the files these stores read/write, not code;
+Within `core/` itself, `auth/`, `vcs/`, and `extensibility/` are
+independent clusters (see their own READMEs) — a task about one doesn't
+need the others opened. `data/*.json` are the files these stores read/write, not code;
 don't open them to "see the data" unless the task specifically needs a
 concrete example (and even then, prefer `data/programs.json`/
 `data/system_config.json`, or the `data/projects.json` index, which are all
@@ -101,12 +102,17 @@ fire `GitHookEvent.BEFORE_*`/`AFTER_*`/`*_FAILED` around the operation —
 that don't pass `context` are unaffected (this is why none of the original
 git-service tests needed updating when hooks were added).
 
-## `core/github/` — GitHub integration
+## `core/auth/` and `core/vcs/` — GitHub/Google integration
 
-`auth.py` (OAuth Device Flow), `commits_api.py` (REST commit history,
-preferred over local `git log` when reachable), `token_store.py`
-(keyring-backed, falls back to a gitignored local file). None of the three
-import each other; only `auth.py` touches `core.exceptions`.
+`core/github/` no longer exists (2026-08-09 reorg, fully removed
+2026-08-09): `token_store.py` merged into `core/auth/token_store.py`'s
+`SecureTokenStore`; `commits_api.py`/`repo_access.py` moved to `core/vcs/`;
+`auth.py`'s `fetch_avatar_bytes` moved to `core/auth/github_auth.py`. The
+rest of `auth.py` (OAuth Device Flow helpers — `request_device_code`,
+`poll_for_token`, `fetch_username`) had no live call site left in this repo
+(GitHub login moved entirely to the separate `UkoreHubLauncher` repo) and
+was deleted outright rather than migrated. See `core/auth/README.md` and
+`core/vcs/README.md`.
 
 ## `core/extensibility/` — the plugin system
 

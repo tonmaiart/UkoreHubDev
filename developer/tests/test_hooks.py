@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from core.extensibility.hooks import GitHookContext, GitHookEvent, HookRegistry
+from core.events.hooks import GitHookContext, GitHookEvent, HookRegistry
 
 
 def _context(tmp_path) -> GitHookContext:

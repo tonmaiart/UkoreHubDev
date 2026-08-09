@@ -2,7 +2,7 @@ import subprocess
 
 import pytest
 
-from core.git_service import GitService
+from core.vcs.git_service import GitService
 
 
 def _run_git(args, cwd):

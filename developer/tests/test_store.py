@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from core.exceptions import ValidationError
-from core.store import MetadataStore
+from core.storage.metadata_store import MetadataStore
 
 
 @pytest.fixture

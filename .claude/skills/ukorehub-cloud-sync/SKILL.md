@@ -93,9 +93,10 @@ instead:
   old context, that's stale — the OAuth client type is **"Desktop app."**
 - **`GoogleTokenStore`** (same file) persists the refresh token via the OS
   keyring, falling back to a gitignored `cache/gcs_refresh_token.json` —
-  same keyring/fallback-file shape as `core/github/token_store.py`'s
-  `TokenStore`, deliberately duplicated rather than shared (that class
-  lives in `core/github/`, scoped to GitHub only per its own README).
+  same keyring/fallback-file shape as `core/auth/token_store.py`'s
+  `SecureTokenStore`, which is in fact the same shared class now (one
+  `SecureTokenStore` used for both GitHub's and Google's tokens, see
+  `core/auth/README.md`).
 - **`core/cloud_sync.py`**'s `GcsJsonSync` builds a
   `google.oauth2.credentials.Credentials` from the stored refresh token +
   `client_id`/`client_secret`/`project_id` and hands it to

@@ -1,11 +1,10 @@
-from core.store import LocalConfigStore
-from core.theme import DEFAULT_THEME_NAME
+from core.storage.config_store import LocalConfigStore
 
 
 def test_defaults_when_no_file(tmp_path):
     store = LocalConfigStore(tmp_path / "local_config.json")
     assert store.workspace_root is None
-    assert store.theme == DEFAULT_THEME_NAME
+    assert store.theme == "grey_dark"
     assert store.active_project_id is None
     assert store.active_repo_id is None
     assert store.github_username is None
