@@ -22,6 +22,9 @@ and that repo's own README.md.
 - `commit-main.ps1` - publishes this repo's current `main` onto the
   `UkoreHubRelease` repo's `main`, stripping `.claude/` and `developer/`
   itself in the process. See below.
+- `commit-release-fast.ps1` - fast `git add -A` + commit + push straight to
+  **this repo's own** `origin/main` - unrelated to the `UkoreHubRelease`
+  publish flow above despite the similar name. See below.
 
 Because the release repo's `main` never has a `developer/` folder,
 publishing also drops the `tests/` suite - it only exists here, in
@@ -88,6 +91,37 @@ After that, `git commit-release` (from anywhere inside the repo, Git Bash
 or PowerShell) does the same thing as the invocation below - and extra
 args pass straight through, e.g. `git commit-release -NoPush` or
 `git commit-release -Message "..."`.
+
+## Fast WIP commits: `commit-release-fast.ps1`
+
+For everyday work on **this repo's own** `main` (not the release publish
+flow above) - stages everything, commits, and pushes to `origin/main` in
+one shot, no confirmation prompt:
+
+```powershell
+developer/commit-release-fast.ps1
+developer/commit-release-fast.ps1 -Message "WIP: cloud data admin plugin"
+```
+
+Must be run from `main`. If nothing's changed, it exits without creating an
+empty commit. Never uses `--force` or `--no-verify` - a rejected push or a
+failing pre-commit hook stops the script and reports the git error rather
+than working around it, same as every other git operation in this repo.
+Omitting `-Message` falls back to a timestamped "Fast commit: ..." message -
+fine for WIP, but prefer a real message when the change is worth describing
+for later.
+
+### Shortcut: `git commit-release-fast`
+
+Same per-machine git-alias pattern as `git commit-release` above - each dev
+who wants it runs this once:
+
+```bash
+git config alias.commit-release-fast '!powershell -ExecutionPolicy Bypass -File "$(git rev-parse --show-toplevel)/developer/commit-release-fast.ps1"'
+```
+
+After that, `git commit-release-fast` (or `git commit-release-fast -Message "..."`)
+works from anywhere inside the repo.
 
 ### Running it from Git Bash / MINGW64
 
