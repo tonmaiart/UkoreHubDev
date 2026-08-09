@@ -35,10 +35,11 @@ clusters (see their own READMEs) — a task about one doesn't need the other
 opened. `data/*.json` are the files these stores read/write, not code;
 don't open them to "see the data" unless the task specifically needs a
 concrete example (and even then, prefer `data/programs.json`/
-`data/system_config.json` which are small, over `data/projects.json` which
-can grow large with many repos/thumbnails). Never open anything under
-`projects/` (the gitignored workspace root of real cloned repos) — see root
-`CLAUDE.md`.
+`data/system_config.json`, or the `data/projects.json` index, which are all
+small, over an individual `data/projects/<id>.json` blob, which can grow
+large for a project with many repos/thumbnails). Never open anything under
+`storage/` (the gitignored workspace root of real cloned repos, not to be
+confused with `data/projects/`) — see root `CLAUDE.md`.
 
 ## Data model (`core/models.py`)
 
