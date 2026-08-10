@@ -58,6 +58,14 @@ def build(icon: Path, name: str) -> Path:
         sys.executable, "-m", "PyInstaller",
         "--onefile",
         "--noconsole",
+        # PyInstaller's own build cache can silently skip re-bundling a
+        # sibling module that changed without updater.py itself changing —
+        # e.g. editing r2_credentials.py (real key rotation) without
+        # touching updater.py produced a byte-identical, stale exe here
+        # once. --clean forces a full re-analysis every time; this script
+        # is admin-only/infrequent, so the extra build time is cheap
+        # insurance against silently shipping stale-baked credentials.
+        "--clean",
         f"--name={name}",
         f"--distpath={REPO_ROOT}",
         f"--workpath={BUILD_WORK_DIR}",
