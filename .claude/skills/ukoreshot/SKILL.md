@@ -1,6 +1,6 @@
 ---
 name: ukoreshot
-description: Working reference for cache/plugins/UkoreShot/ (C:\Tonmai\UkoreHub) — UkoreHub's per-repo playblast video library/review plugin. As of 2026-08-08 this is its own standalone git repo (github.com/tonmaiart/UkoreShot), cloned into the host app's cache/plugins/UkoreShot/ rather than bundled in this repo. Use this whenever a task names UkoreShot specifically, or targets a path under cache/plugins/UkoreShot/ (its player/drawing/comment UI, its video-naming/filter logic, its icons, or its own bug-history) — before the general ukorehub-plugin skill's folder-scoping rule, since this skill covers UkoreShot's own internal subfolder split (core/interface/images/bug-history) that the general skill doesn't know about. Also load this for plugins/repo_internal/UkorePlayblast/ tasks that touch the shared naming convention between the two plugins.
+description: Working reference for cache/plugins/UkoreShot/ (C:\Tonmai\UkoreHub) — UkoreHub's per-repo playblast video library/review plugin. As of 2026-08-08 this is its own standalone git repo (github.com/tonmaiart/UkoreShot), cloned into the host app's cache/plugins/UkoreShot/ rather than bundled in this repo. Use this whenever a task names UkoreShot specifically, or targets a path under cache/plugins/UkoreShot/ (its player/drawing/comment UI, its video-naming/filter logic, its icons, or its own bug-history) — before the general ukorehub-plugin skill's folder-scoping rule, since this skill covers UkoreShot's own internal subfolder split (core/interface/images/bug-history) that the general skill doesn't know about. Also load this for cache/plugins/UkorePlayblast/ tasks that touch the shared naming convention between the two plugins.
 ---
 
 # UkoreShot — structure and domain knowledge
@@ -9,7 +9,9 @@ description: Working reference for cache/plugins/UkoreShot/ (C:\Tonmai\UkoreHub)
 clone (`github.com/tonmaiart/UkoreShot`), not bundled/git-tracked inside
 this UkoreHub repo at all (moved out 2026-08-08; before that it was
 bundled at `plugins/repo_internal/UkoreShot/`, and before that
-`plugins/core/UkoreShot/` — same feature, just relocated twice). The
+`plugins/core/UkoreShot/` — same feature, just relocated twice;
+`plugins/repo_internal/` itself was removed entirely on 2026-08-10, once
+every plugin still bundled there also moved out to its own git repo). The
 `ukorehub-plugin` skill's "stay inside your plugin folder" rule still
 applies against every *other* plugin as always, but internally UkoreShot
 is split into subfolders — read only the one your task needs, same
@@ -61,8 +63,10 @@ relative or plugin-scoped; it's already correct.
 
 ## Companion plugin: UkorePlayblast (Maya-side, separate codebase)
 
-`plugins/repo_internal/UkorePlayblast/` (in the host UkoreHub repo —
-stayed bundled there when UkoreShot moved out to its own repo) is the
+`cache/plugins/UkorePlayblast/` (its own separate git clone — stayed
+bundled at `plugins/repo_internal/UkorePlayblast/` when UkoreShot first
+moved out to its own repo, then moved out itself on 2026-08-10 once
+`plugins/repo_internal/` was removed entirely) is the
 Maya-side tool that writes the video files this plugin's library reads —
 a completely separate Python environment (Maya's own interpreter, not
 UkoreHub's desktop app), so **nothing in either plugin imports from the

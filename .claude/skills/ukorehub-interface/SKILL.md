@@ -172,7 +172,7 @@ Notable surface:
 - `api.app_root` → `Path` to the UkoreHub install root itself (i.e.
   `launcher.py`'s own `REPO_ROOT`), for a plugin that needs to
   reference other paths inside the UkoreHub installation (like
-  `plugins/repo_internal/PublishApi/plugin.py` contributing `api.app_root`
+  `plugins/core/UkoreBrowser/plugin.py` contributing `api.app_root`
   itself onto `PYTHONPATH` so its vendored Maya-side code can
   `import core.store`) without guessing paths from `__file__`.
 - `api.register_file_opener(plugin_id, extensions, opener)`,
@@ -266,10 +266,11 @@ startup check, unrelated to login), and end with
 Windows can hang on normal process teardown after `QApplication` is
 destroyed without an explicit `app.quit()`; without the `os._exit(0)` the
 script can look hung even though it actually finished. Note that
-constructing a real `QWebEngineProfile`/`QWebEngineView`
-(`web_engine_profile.py`, `about/browser_link_page.py`) can itself be slow
-to spin up cold (Chromium subsystem init) and can hang a headless script
-before it ever reaches `MainWindow.__init__`'s return — if you only need
+constructing a real `QWebEngineProfile`/`QWebEngineView` (both long since
+removed along with the rest of QtWebEngine — Browser Links, the feature
+that used to embed one, was removed entirely 2026-08-10) used to be slow
+to spin up cold (Chromium subsystem init) and could hang a headless script
+before it ever reached `MainWindow.__init__`'s return — if you only need
 to verify import paths after moving/renaming files, a plain
 `importlib.import_module` sweep over every `interface/**/*.py` is a much
 faster, sufficient check that needs no GUI at all.

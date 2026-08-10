@@ -28,10 +28,10 @@ overwrites on every pull.
 | `data/programs.json` (`ProgramStore`) | Cloud-synced | Blob `programs.json` |
 | `data/system_config.json` (`SystemConfigStore`) | Cloud-synced | Blob `system_config.json` |
 | `data/plugins/core/*.json` (`PluginConfigStore`, `shared=True`) | Cloud-synced | Blob `plugins/core/<plugin_id>.json` |
-| `assets/thumbnails/`, `assets/program_icons/`, `assets/browser_link_icons/`, `assets/icons/` | Git-tracked | Split out of `data/` into their own `assets/` tree on 2026-08-09, same day as this migration — binary images, never cloud-synced. See `assets/README.md`. |
+| `assets/thumbnails/`, `assets/program_icons/`, `assets/icons/` | Git-tracked | Split out of `data/` into their own `assets/` tree on 2026-08-09, same day as this migration — binary images, never cloud-synced. See `assets/README.md`. |
 | `cache/local_config.json`, `cache/plugin_local_config/*.json` (`shared=False`) | Local-only, gitignored | Per-machine, never synced anywhere |
 | `cache/github_token.json`, `cache/gcs_refresh_token.json` | Local-only, gitignored | Real credentials — never open/quote/surface contents |
-| `plugins/core/`, `plugins/repo_internal/` (the plugin *code* itself) | Git-tracked | Bundled with the app, unrelated to this system |
+| `plugins/core/` (the plugin *code* itself) | Git-tracked | Bundled with the app, unrelated to this system |
 
 If a task adds a new **studio-wide** setting, it almost certainly belongs
 in `SystemConfigStore` (cloud-synced) or a `shared=True` `PluginConfigStore`

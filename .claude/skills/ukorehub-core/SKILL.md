@@ -86,8 +86,8 @@ recurring pattern in this codebase — it reappears for `PluginConfigStore`
 (`shared=True/False`, writing to `data/plugins/core/` — cloud-synced, same
 `on_save` mechanism — vs `cache/plugin_local_config/`) and, along a
 different axis (bundled vs. fetched separately, not shared-vs-per-machine),
-for the plugin source roots themselves: `plugins/core/` and
-`plugins/repo_internal/` are both git-tracked and bundled with the app;
+for the plugin source roots themselves: `plugins/core/` is git-tracked and
+bundled with the app;
 `cache/plugins/` is gitignored, each entry its own separate git clone. When
 adding new per-machine state, put it in `LocalConfigStore`, not a new file.
 

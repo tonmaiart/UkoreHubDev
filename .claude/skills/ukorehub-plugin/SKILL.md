@@ -1,39 +1,39 @@
 ---
 name: ukorehub-plugin
-description: Token-scoping discipline for UkoreHub's plugins/ folder (C:\Tonmai\UkoreHub) — when a task names a specific plugin (Explorer, Submit, SoftwareLinker, MayaLauncher, or a new one) or the target path is under plugins/core/<Name>/, plugins/repo_internal/<Name>/, or cache/plugins/<Name>/, read and edit ONLY that plugin's own folder — never open a sibling plugin's source as a side effect. Use this for any plugin-specific task even if the user doesn't say "scope" or "context" explicitly; for how plugins are discovered/authored in general see plugins/README.md, and for the plugin discovery mechanics see the ukorehub-core skill.
+description: Token-scoping discipline for UkoreHub's plugins/ folder (C:\Tonmai\UkoreHub) — when a task names a specific plugin (Explorer, Submit, SoftwareLinker, MayaLauncher, or a new one) or the target path is under plugins/core/<Name>/ or cache/plugins/<Name>/, read and edit ONLY that plugin's own folder — never open a sibling plugin's source as a side effect. Use this for any plugin-specific task even if the user doesn't say "scope" or "context" explicitly; for how plugins are discovered/authored in general see plugins/README.md, and for the plugin discovery mechanics see the ukorehub-core skill.
 ---
 
 # Working on a single plugin — stay inside its folder
 
-`plugins/core/`, `plugins/repo_internal/`, and `cache/plugins/` hold
+`plugins/core/` and `cache/plugins/` hold
 UkoreHub's own sub-systems, sitting side by side (see `plugins/README.md`
-for the full authoring guide and what distinguishes the three). Reading
+for the full authoring guide and what distinguishes the two). Reading
 one plugin has **zero information value** for working on a different one,
 even though some plugins are larger, multi-file
 trees
 rather than the single-`plugin.py` shape `software_linker` uses —
 `explorer`/`submit` are ordinary multi-file plugins.
 `plugins/core/maya_launcher/` itself is small (just the launch/env-merge
-logic) — the 6 Maya tools that used to be nested inside it
-(`AdvancedSkeleton`, `MayaNgskin`, `MayaToolkit`, `mGear`,
-`DreamwallPicker`, `StudioLibrary`)
-were each their own top-level
+logic) — the 7 Maya tools that used to be nested inside it
+(`AdvancedSkeleton`, `MayaNgskin`, `MayaToolkit`, `mGear`, `UkoreBrowser`,
+`DreamwallPicker`, `StudioLibrary`) are each their own top-level
 `plugins/core/<Name>/` plugin as of 2026-07-19, contributing to
 `maya_launcher`'s shared `maya_launcher_env_bridge` `PluginConfigStore`
 rather than living inside its folder — treat each one as its own separate
 plugin for scoping purposes, same as any other `plugins/core/<Name>/`.
-`PublishApi/` and `MayaPublisher/` (both now under `plugins/repo_internal/`)
+`PublishApi/` and `MayaPublisher/` (both now their own `cache/plugins/`
+clones, moved out of the removed `plugins/repo_internal/` on 2026-08-10)
 are two more plugins in the same family, added 2026-07-19 (the original
 `UkorePublisher` was extracted, split into three type-specific plugins,
 then those three merged back into one `MayaPublisher` on 2026-08-05) —
-same scoping rule applies. Treat every `plugins/core/<Name>/`,
-`plugins/repo_internal/<Name>/`, or `cache/plugins/<Name>/` as its own
+same scoping rule applies. Treat every `plugins/core/<Name>/` or
+`cache/plugins/<Name>/` as its own
 repo for context-budget purposes.
 
 ## Rule
 
 1. Identify the one plugin folder the task is actually about
-   (`plugins/core/<Name>/`, `plugins/repo_internal/<Name>/`, or
+   (`plugins/core/<Name>/` or
    `cache/plugins/<Name>/`).
 2. Read that plugin's own `README.md` first if it has one — same
    folder-README convention as `core/README.md`/`interface/README.md` (root

@@ -31,12 +31,41 @@ the GitHub username/avatar). Wired through
   dialog (`interface/settings/settings_view.py`'s `SettingsDialog`),
   landing on its **Repo Setting (Dev)** top tab, which groups tabs under
   two headers — "Repository" (Local Repository, Custom Paths, Enable
-  Plugin, Browser) and "Plugins" (every plugin-contributed `CATEGORY_REPO`
+  Plugin) and "Plugins" (every plugin-contributed `CATEGORY_REPO`
   tab). Before this refactor (2026-07-15 through 2026-08-09) it was its
   own popup (`plugins/core/project_editor/repo_settings_panel.py`,
   retired) to avoid duplicating these tabs in both Settings and here — the
   same reasoning now argues for one dialog instead of one popup, since
   both ever only rendered the same `SettingsTabRegistry` entries.
+
+## "UkoreBrowser" vs. "Browser Links" (removed)
+
+Added 2026-08-10 after "ลบ UkoreBrowser Plugin" got taken literally and
+removed the wrong one of these two similarly-named, completely unrelated
+things — always ask which one is meant if a request just says "Browser"
+without one of the fuller names below:
+
+- **`UkoreBrowser`** — a Maya-side asset-browser **plugin**, launched from
+  inside Maya (Ukore Studio Tool menu's "Ukore File Browser..." item, plus
+  an auto-launch hook), not a UkoreHub UI panel. Was bundled at
+  `plugins/repo_internal/UkoreBrowser/`; as of 2026-08-10 (once every
+  `repo_internal` plugin moved out to its own GitHub repo)
+  it's its own separate git clone under `cache/plugins/UkoreBrowser/`
+  instead, same move `UkoreShot`/`MayaNgSkin` made earlier. See its own
+  README. Opt-in per repo like any other `cache/plugins/` plugin. **Still
+  exists** — kept after this same-day mix-up.
+- **Browser Links** (a.k.a. the old **"Browser"** tab in Repository
+  Setting's "Repository" group) — an unrelated core UkoreHub feature that
+  used to exist: per-repo custom URL shortcuts (`core/models.py`'s old
+  `BrowserLink`, `Repo.browser_links`) rendered as dynamic Sidebar rows,
+  opening in the OS's default browser on click. **Removed entirely
+  2026-08-10** (the same day as the mix-up above, once it turned out this
+  one — not `UkoreBrowser` — was the actual removal target) — no longer a
+  feature, no Settings tab, no `BrowserLink` model, no dynamic Sidebar row
+  mechanism (`SectionTabList.add_dynamic_tab`/`clear_dynamic_tabs` were
+  removed with it). If asked about it: it no longer exists; see git history
+  around this date if it needs to come back. Was never Maya-related and
+  was never a plugin, despite the name collision with `UkoreBrowser` above.
 
 ## "Viewgraph"
 
@@ -103,6 +132,24 @@ identity**, not Project identity — see
 `plugins/core/UkoreReferenceEditor/matcher.py`'s `find_match_for_path`
 (repo-first matching) and `core.py`'s `_build_ref_entry`/`_build_texture_entry`
 (via `_classify_path`, `matched_repo.id == active_repo.id`).
+
+## "Program Launcher"
+
+As of 2026-08-10, this is `plugins/core/software_linker/`'s sidebar tab
+(`SoftwareLinkerPage`, label "Program Launcher") — **not** a plugin folder
+named `program_launcher`. There used to be a separate
+`plugins/core/program_launcher/` plugin with exactly that name (a
+repo-scoped card grid, `Repo.required_program_ids` only, double-click to
+launch, "Software Linker Setting" button jumping to a separate Settings >
+Software Linker tab); it was retired the same day and its double-click
+launch + `ProgramLaunchRegistry` wiring folded into `software_linker`,
+which also absorbed the sidebar tab slot (order 40) and the "Program
+Launcher" label itself. The old Settings > Software Linker tab is gone
+too — linking now happens directly on this same sidebar tab. If asked to
+"fix Program Launcher" or find `plugins/core/program_launcher/`, it means
+`plugins/core/software_linker/plugin.py`'s `SoftwareLinkerPage` — see that
+plugin's own README.md for the current shape (project-scoped, not
+repo-scoped, unlike the retired version).
 
 ## Repo About (removed)
 
