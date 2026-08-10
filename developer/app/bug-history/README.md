@@ -39,6 +39,8 @@ references both.
 - [2026-08-09 — Two Maya-side scripts silently lost the active repo after `local_config.json` moved to `cache/`](2026-08-09-maya-scripts-stale-data-local-config-path.md) — `plugins/repo_internal/PublishApi/maya-scripts/PublishApi/repo_paths.py`, `plugins/repo_internal/UkoreReferenceEditor/maya-scripts/UkoreReferenceEditor/repo_paths.py`
 - [2026-08-09 — Switching to DebugConsole or BananaSketch crashed with `AttributeError: ... has no attribute 'set_repo'`](2026-08-09-set-repo-not-optional-protocol-method.md) — `interface/main_window.py` (`_apply_to_current_page`, `_apply_to_persistent_pages`)
 - [2026-08-10 — External Plugins' per-project filter silently emptied Requirements & Plugins' External list for existing catalog entries](2026-08-10-external-plugins-project-filter-orphaned-existing-entries.md) — `plugins/core/ExternalPlugins/`, `interface/repo_settings/requirements_and_plugins_page.py`
+- [2026-08-10 — External Plugins catalog page showed no entries after adding them, even though Requirements & Plugins showed them fine](2026-08-10-external-plugins-stale-shared-catalog-cache.md) — `plugins/core/ExternalPlugins/catalog_store.py`, `core/vcs/cloud_sync.py` (systemic — any long-lived `PluginConfigStore(shared=True)` is at risk, read even if your change is elsewhere)
+- [2026-08-10 — External Plugins page/auto-sync engine pointed at `app/cache/plugins` instead of the real `cache/plugins`](2026-08-10-external-plugins-plugins-root-used-app-root-not-cache-dir.md) — `plugins/core/ExternalPlugins/plugin.py` (pre-existing bug, not specific to this plugin — read before deriving a cache/plugins-style path from `api.app_root` anywhere)
 
 ## Adding a new entry
 
