@@ -53,6 +53,12 @@ app/data/plugins/core/*.json
 # studio-wide binary artists' installs self-update from.
 /developer/launcher/build/
 *.spec
+# The real shared Cloudflare R2 key, filled in locally from
+# r2_credentials.example.py (tracked) before running build_exe.py - baked
+# into UkoreHubLauncher.exe at build time, never committed here. See
+# developer/launcher/launcher_build/r2_credentials.example.py and the
+# ukorehub-cloud-sync skill.
+/developer/launcher/launcher_build/r2_credentials.py
 # Old UkoreHubLauncher.exe renamed aside by updater.py's
 # _relocate_self_exe during a self-update (Windows won't let git overwrite
 # the exe while it's running, but it will let it be renamed) - cleaned up

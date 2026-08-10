@@ -35,6 +35,15 @@ the exe, published via `git release-launcher` (see `../README.md`).
     `icon.ico`/"UkoreHubLauncher".
   - `icon.ico` — the icon baked into `UkoreHubLauncher.exe`. Swap this file
     and rerun `build_exe.py` to rebrand.
+  - `r2_credentials.example.py` — tracked template for the real,
+    **gitignored** `r2_credentials.py` sibling module `updater.py` imports
+    to bake the studio's shared Cloudflare R2 key into the exe (see the
+    `ukorehub-cloud-sync` skill). Copy the example, fill in the four real
+    values (rotate them first if they were ever exposed insecurely), then
+    run `build_exe.py`/`git release-launcher` as usual — no other build
+    step needed, it bundles the same way `updater.py` itself does.
+    Skipping this file entirely is fine for ordinary dev-mode testing;
+    the built exe just launches with cloud sync disabled.
 - `build/` — PyInstaller's intermediates (gitignored, regenerated every
   build) — kept here rather than at the repo root so it stays grouped with
   the rest of this dev-only folder.

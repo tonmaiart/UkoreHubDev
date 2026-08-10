@@ -83,6 +83,19 @@ from core.github import auth as github_auth
 from core.github.token_store import TokenStore, TokenStoreFallbackUsed
 from core.store import LocalConfigStore, SystemConfigStore
 
+# The shared Cloudflare R2 key for cloud sync (app/core/vcs/cloud_sync.py) —
+# baked into this exe at build time via a gitignored sibling module (see
+# r2_credentials.example.py's docstring for the "copy, fill in, rebuild"
+# steps), never committed here or read from any JSON store. Every value is
+# None on a checkout that hasn't created r2_credentials.py yet (e.g. a
+# fresh dev machine) — _launch() below only sets the UKOREHUB_R2_* env vars
+# when they're actually present, so app/launcher.py's own _build_cloud_sync
+# falls back to local-only, same as "not configured" today.
+try:
+    from r2_credentials import R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME
+except ImportError:
+    R2_ACCOUNT_ID = R2_ACCESS_KEY_ID = R2_SECRET_ACCESS_KEY = R2_BUCKET_NAME = None
+
 # The app repo (what `app/` clones/updates) — unchanged from before the split.
 UKOREHUB_REMOTE_URL = "https://github.com/tonmaiart/UkoreHub.git"
 UKOREHUB_BRANCH = "main"
@@ -321,9 +334,9 @@ def ensure_up_to_date(
     There is nothing in either working tree worth a merge conflict over:
     per-machine files (cache/, storage/) live outside both these
     directories entirely (see _UpdaterWindow), and the shared registries
-    under the app repo's data/ are re-synced from GCS on every launch
-    (core/cloud_sync.py in the app repo) — the git-tracked copy is a
-    fallback, not the source of truth, so overwriting it here is safe. The
+    under the app repo's data/ are re-synced from Cloudflare R2 on every
+    launch (core/vcs/cloud_sync.py in the app repo) — the git-tracked copy
+    is a fallback, not the source of truth, so overwriting it here is safe. The
     clean step (_clean_untracked) only ever removes files this repo
     genuinely doesn't want lying around — never the per-machine/in-flight
     ones above.
@@ -535,7 +548,7 @@ class _UpdaterWindow:
         self.repo_root = repo_root
         # Nested app-repo clone — see module docstring.
         self.app_root = repo_root / APP_DIRNAME
-        # data/ is the app's own git-tracked/GCS-synced registry — stays
+        # data/ is the app's own git-tracked/R2-synced registry — stays
         # under app_root, force-reset along with the rest of the app on
         # every update (see ensure_up_to_date's docstring).
         self._data_dir = self.app_root / "data"
@@ -825,6 +838,19 @@ def _launch(app_root: Path, interpreter: str, cache_dir: Path, storage_dir: Path
     env = os.environ.copy()
     env["UKOREHUB_CACHE_DIR"] = str(cache_dir)
     env["UKOREHUB_STORAGE_DIR"] = str(storage_dir)
+    # Shared R2 cloud-sync key (see the module-level R2_* import above) —
+    # only set when this build actually has one baked in, so a dev build
+    # without r2_credentials.py still launches, just with cloud sync
+    # disabled (app/launcher.py's _build_cloud_sync treats a missing var
+    # as "not configured").
+    for env_name, value in (
+        ("UKOREHUB_R2_ACCOUNT_ID", R2_ACCOUNT_ID),
+        ("UKOREHUB_R2_ACCESS_KEY_ID", R2_ACCESS_KEY_ID),
+        ("UKOREHUB_R2_SECRET_ACCESS_KEY", R2_SECRET_ACCESS_KEY),
+        ("UKOREHUB_R2_BUCKET_NAME", R2_BUCKET_NAME),
+    ):
+        if value:
+            env[env_name] = value
     subprocess.Popen(
         [interpreter, str(launcher_path)],
         cwd=str(app_root),
