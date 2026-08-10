@@ -39,8 +39,8 @@ surfaces as its own explicit status (`_BROKEN_GIT`, "Broken .git directory
 — delete the folder and Clone again") instead of silently being treated
 as a normal, working clone. `is_cloned()` itself was left unchanged (still
 just the cheap existence check) — it's used elsewhere in the app
-(`project_graph_view.py`'s per-node render, `Notification`'s repo-switch
-poll, `submit`'s status page) as a fast, best-effort UI status signal
+(`project_graph_view.py`'s per-node render, `submit`'s commit history/status
+polls) as a fast, best-effort UI status signal
 where a subprocess call per check would be real added cost for a
 same-day-rare edge case; `is_repo_root()` is the deliberately slower,
 opt-in check for a caller about to mutate a repo.
