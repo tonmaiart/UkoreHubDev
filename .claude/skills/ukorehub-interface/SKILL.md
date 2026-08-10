@@ -172,7 +172,7 @@ Notable surface:
 - `api.app_root` → `Path` to the UkoreHub install root itself (i.e.
   `launcher.py`'s own `REPO_ROOT`), for a plugin that needs to
   reference other paths inside the UkoreHub installation (like
-  `plugins/core/UkoreBrowser/plugin.py` contributing `api.app_root`
+  `plugins/repo_internal/PublishApi/plugin.py` contributing `api.app_root`
   itself onto `PYTHONPATH` so its vendored Maya-side code can
   `import core.store`) without guessing paths from `__file__`.
 - `api.register_file_opener(plugin_id, extensions, opener)`,

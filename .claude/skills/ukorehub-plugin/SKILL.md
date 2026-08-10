@@ -14,9 +14,10 @@ trees
 rather than the single-`plugin.py` shape `software_linker` uses —
 `explorer`/`submit` are ordinary multi-file plugins.
 `plugins/core/maya_launcher/` itself is small (just the launch/env-merge
-logic) — the 7 Maya tools that used to be nested inside it
-(`AdvancedSkeleton`, `MayaNgskin`, `MayaToolkit`, `mGear`, `UkoreBrowser`,
-`DreamwallPicker`, `StudioLibrary`) are each their own top-level
+logic) — the 6 Maya tools that used to be nested inside it
+(`AdvancedSkeleton`, `MayaNgskin`, `MayaToolkit`, `mGear`,
+`DreamwallPicker`, `StudioLibrary`)
+were each their own top-level
 `plugins/core/<Name>/` plugin as of 2026-07-19, contributing to
 `maya_launcher`'s shared `maya_launcher_env_bridge` `PluginConfigStore`
 rather than living inside its folder — treat each one as its own separate
