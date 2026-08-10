@@ -41,6 +41,7 @@ references both.
 - [2026-08-10 — External Plugins' per-project filter silently emptied Requirements & Plugins' External list for existing catalog entries](2026-08-10-external-plugins-project-filter-orphaned-existing-entries.md) — `plugins/core/ExternalPlugins/`, `interface/repo_settings/requirements_and_plugins_page.py`
 - [2026-08-10 — External Plugins catalog page showed no entries after adding them, even though Requirements & Plugins showed them fine](2026-08-10-external-plugins-stale-shared-catalog-cache.md) — `plugins/core/ExternalPlugins/catalog_store.py`, `core/vcs/cloud_sync.py` (systemic — any long-lived `PluginConfigStore(shared=True)` is at risk, read even if your change is elsewhere)
 - [2026-08-10 — External Plugins page/auto-sync engine pointed at `app/cache/plugins` instead of the real `cache/plugins`](2026-08-10-external-plugins-plugins-root-used-app-root-not-cache-dir.md) — `plugins/core/ExternalPlugins/plugin.py` (pre-existing bug, not specific to this plugin — read before deriving a cache/plugins-style path from `api.app_root` anywhere)
+- [2026-08-11 — Remaining `resolve_repo_path`-from-name call sites fixed (completes 2026-07-20 entry)](2026-08-11-resolve-repo-path-stale-name-remaining-callers-fixed.md) — `interface/main_window.py`, `interface/repo_settings/local_repository_page.py`, `plugins/core/explorer/repo_browser_page.py`, `plugins/core/submit/repo_git_status_page.py`
 
 ## Adding a new entry
 
