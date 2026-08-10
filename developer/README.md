@@ -1,152 +1,122 @@
 # developer/
 
-Dev-only tooling and docs, grouped together so they can be stripped as one
-unit when publishing to the release repo's `main`. Lives only in this repo
-(`UkoreHubDev`, remote `origin`) - the published `main` on the separate
-`UkoreHubRelease` repo never has a `developer/` folder (nor `.claude/`),
-only the plain app code artists actually run.
+Dev-only tooling and docs, grouped together so it's automatically excluded
+from both release publishes (see below) without an exclude-list — neither
+release repo's `main` ever has a `developer/` folder (nor `.claude/`).
+Split into two folders:
 
-`UkoreHub.exe` itself (and the admin tooling that builds it) used to live
-here too, under `packaging/` - it moved out into its own separate repo,
-[`UkoreHubLauncher`](https://github.com/tonmaiart/UkoreHubLauncher), so an
-ordinary app release can never again try to overwrite the exe file that's
-busy running it. See
-[`bug-history/2026-08-08-self-update-locked-own-exe.md`](bug-history/2026-08-08-self-update-locked-own-exe.md)
-and that repo's own README.md.
+- [`app/`](app/README.md) — dev docs/tests for the actual app (`../app/`):
+  `GLOSSARY.md`, `bug-history/`, `tests/`.
+- [`launcher/`](launcher/README.md) — `UkoreHubLauncher.exe`'s own source
+  (`launcher_build/`) and its `bug-history/`.
 
-- `tests/` - pytest suite (`pytest.ini` at repo root points `testpaths` here).
-- [`bug-history/`](bug-history/README.md) - record of real bugs fixed in
-  this codebase, with reusable "Lesson" entries.
-- [`GLOSSARY.md`](GLOSSARY.md) - maps casual/colloquial terms used in this
-  project onto their actual feature/file.
-- `commit-main.ps1` - publishes this repo's current `main` onto the
-  `UkoreHubRelease` repo's `main`, stripping `.claude/` and `developer/`
-  itself in the process. See below.
-- `commit-release-fast.ps1` - fast `git add -A` + commit + push to
-  **this repo's own** `origin/main`, then calls `commit-main.ps1` to publish
-  the result to `UkoreHubRelease` too. See below.
+Plus two scripts, right here (repo-wide tooling, not specific to either
+side):
 
-Because the release repo's `main` never has a `developer/` folder,
-publishing also drops the `tests/` suite - it only exists here, in
-UkoreHubDev. `build/` never ships either way (gitignored).
+- `release_app.ps1` — publishes `../app/`'s contents to the `UkoreHub`
+  release repo.
+- `release_launcher.ps1` — rebuilds the exe, then publishes it to the
+  `UkoreHubLauncher` release repo.
 
 ## Repo split
 
-Three separate GitHub repos, not branches of one repo:
-- **`UkoreHubDev`** (this repo, remote `origin`) - all day-to-day work
-  (features, fixes, edits, `.claude/` skills, this folder) happens directly
-  on its `main` branch. There is no `dev` branch here - this repo's `main`
-  *is* the working branch, unrelated to (and never pushed directly to) the
-  other repos' `main` below.
-- **`UkoreHubRelease`** (remote `release`, added automatically by
-  `commit-main.ps1` if missing; GitHub repo name is `UkoreHub`) - holds
-  only `main`, a clean mirror of this repo's `main` minus the folders
-  above. This is the app repo artists actually clone/pull from - see the
-  nested `app/` clone described in
-  [`UkoreHubLauncher`](https://github.com/tonmaiart/UkoreHubLauncher)'s
-  README.md.
-- **`UkoreHubLauncher`** - a wholly separate repo (not published to via
-  `commit-main.ps1` or anything else here) holding `UkoreHub.exe` and the
-  admin tooling that builds it. Edited directly in its own local clone,
-  outside this repo entirely. See its own README.md for why it's split out
-  and how the two repos relate on an artist's machine.
+One dev repo, two release repos:
+- **`UkoreHubDev`** (this repo, remote `origin`) — all day-to-day work
+  (app features/fixes, launcher changes, `.claude/` skills, this folder)
+  happens directly on its `main` branch. There is no `dev` branch here —
+  this repo's `main` *is* the working branch, unrelated to (and never
+  pushed directly to) the release repos' `main` below. Used to be two
+  separate dev repos (`UkoreHubDev` for the app, `UkoreHubLauncherDev` for
+  the launcher exe) — merged into this one so there's a single place to
+  work; the old `UkoreHubLauncherDev` repo still exists as an untouched
+  archive of its own history but nothing is edited there anymore.
+- **`UkoreHub`** (remote `release`, added automatically by
+  `release_app.ps1` if missing) — holds only `main`, a clean mirror of
+  this repo's `../app/` contents (flattened up to its own root). This is
+  the app repo artists actually clone/pull from — see the nested `app/`
+  clone described in `../developer/launcher/README.md`.
+- **`UkoreHubLauncher`** (remote `release-launcher`, added automatically by
+  `release_launcher.ps1` if missing) — holds only the tracked
+  `UkoreHubLauncher.exe` at its root. Artists' installs self-update from
+  here (rare — only when an admin rebuilds/republishes it).
 
-To publish this repo's current state to `UkoreHubRelease`'s `main`:
-
-```powershell
-developer/commit-main.ps1
-```
-
-Requirements:
-- Must be run from this repo's `main` branch.
-- The working tree must be clean (commit or stash first) - the script
-  refuses to run otherwise, so it never syncs uncommitted work.
-
-What it does: fetches the `release` remote (`UkoreHubRelease`) and checks
-its `main` out into a temporary `git worktree` on a throwaway local branch
-(`release-sync`) - or starts an orphan branch if `release/main` doesn't
-exist yet - replaces its tracked files with this repo's current `main`
-tree, deletes `.claude/` and `developer/` from that copy, commits the
-result, and **pushes `release-sync` to `release/main`** - all without
-touching your working directory or switching your current branch. If the
-push fails (network, diverged remote, etc.) the commit still lands locally
-on `release-sync`; the script warns you to push manually once resolved.
-
-Pass `-Message "..."` to use a custom commit message instead of the
-default (which references the commit being synced). Pass `-NoPush` to
-commit to the local `release-sync` branch only and push it yourself later.
-
-### Shortcut: `git commit-release`
-
-The `-ExecutionPolicy Bypass -File ...` invocation below is wordy enough
-that it's worth a git alias instead. This is a per-machine setting stored
-in `.git/config`, not tracked by the repo, so each dev who wants the
-shortcut runs this once:
-
-```bash
-git config alias.commit-release '!powershell -ExecutionPolicy Bypass -File "$(git rev-parse --show-toplevel)/developer/commit-main.ps1"'
-```
-
-After that, `git commit-release` (from anywhere inside the repo, Git Bash
-or PowerShell) does the same thing as the invocation below - and extra
-args pass straight through, e.g. `git commit-release -NoPush` or
-`git commit-release -Message "..."`.
-
-## Fast WIP commits + release publish: `commit-release-fast.ps1`
-
-For everyday work: stages everything, commits, and pushes to **this repo's
-own** `origin/main` in one shot, no confirmation prompt - then calls
-`commit-main.ps1` to publish that same state to `UkoreHubRelease` too, so
-one command does both steps:
+## Publishing: `release_app.ps1`
 
 ```powershell
-developer/commit-release-fast.ps1
-developer/commit-release-fast.ps1 -Message "WIP: cloud data admin plugin"
-developer/commit-release-fast.ps1 -NoRelease   # origin/main only, skip the release-repo publish
+git release-app
+git release-app -Message "Add cloud data admin plugin"
+git release-app -NoRelease   # origin/main only, skip the release-repo publish
 ```
 
-Must be run from `main`. If nothing's changed locally, it skips straight to
-the release-repo publish step (still useful if a previous run's release
-publish failed but the origin push already succeeded) instead of creating
-an empty commit. Never uses `--force` or `--no-verify` - a rejected push or
-a failing pre-commit hook stops the script before the release-repo step
-ever runs, and reports the git error rather than working around it, same as
-every other git operation in this repo. Omitting `-Message` falls back to a
-timestamped "Fast commit: ..." message for the origin commit - fine for
-WIP, but prefer a real message when the change is worth describing for
-later; the release-repo publish always uses `commit-main.ps1`'s own default
-message regardless.
+Must be run from `main`. Stages everything (`git add -A`) across the whole
+repo, commits, and pushes to **this repo's own** `origin/main` in one shot,
+no confirmation prompt — then publishes that same state to `UkoreHub` too:
+fetches `release`, checks its `main` out into a temporary `git worktree`
+(or starts an orphan branch if it doesn't exist yet), replaces its tracked
+files with `../app/`'s contents (checked out from this repo's `main`,
+then flattened up to the worktree root so the release repo's root looks
+like a plain checkout — see `release_app.ps1`'s own comments for the
+hidden-file-safety details), commits, and pushes. Never uses `--force` or
+`--no-verify` on either push — a rejected push or a failing pre-commit hook
+stops the script and reports the git error rather than working around it.
+If nothing's changed locally, it skips straight to the release-repo
+publish step (still useful if a previous run's release publish failed but
+the origin push already succeeded) instead of creating an empty commit.
+Omitting `-Message` falls back to a timestamped "Fast commit: ..." message
+for the origin commit — fine for WIP, but prefer a real message when the
+change is worth describing for later; the release-repo publish always uses
+its own "Sync from main @ &lt;hash&gt;: ..." message regardless.
 
-### Shortcut: `git commit-release-fast`
+## Publishing: `release_launcher.ps1`
 
-Same per-machine git-alias pattern as `git commit-release` above - each dev
-who wants it runs this once:
+```powershell
+git release-launcher
+git release-launcher -Message "Rebuild: v1.2.0 icon refresh"
+git release-launcher -NoRelease
+```
+
+Must be run from `main`. Same shape as `release_app.ps1`, with two
+differences: it rebuilds `UkoreHubLauncher.exe`
+(`developer/launcher/launcher_build/build_exe.py`) *before* staging
+anything — a failed build stops the script, nothing gets committed — and a
+rejected push **force-pushes** instead of stopping to reconcile, on both
+the `origin` push and the release-repo push (local is always authoritative
+here — a plain `git pull`/merge between these repos can fail hard with
+"refusing to merge unrelated histories" with no one watching to reconcile
+it; see
+`developer/launcher/bug-history/2026-08-09-fast-commit-push-rejected-unrelated-histories.md`).
+The release-repo publish checks out only the tracked `UkoreHubLauncher.exe`
+file (no flatten step needed — the release repo's root only ever holds
+that one file).
+
+## Git aliases: `git release-app` / `git release-launcher`
+
+Per-machine settings stored in `.git/config`, not tracked by the repo —
+each dev who wants the shortcut runs these once:
 
 ```bash
-git config alias.commit-release-fast '!powershell -ExecutionPolicy Bypass -File "$(git rev-parse --show-toplevel)/developer/commit-release-fast.ps1"'
+git config alias.release-app '!powershell -ExecutionPolicy Bypass -File "$(git rev-parse --show-toplevel)/developer/release_app.ps1"'
+git config alias.release-launcher '!powershell -ExecutionPolicy Bypass -File "$(git rev-parse --show-toplevel)/developer/release_launcher.ps1"'
 ```
 
-After that, `git commit-release-fast` (or `git commit-release-fast -Message "..."`)
-works from anywhere inside the repo.
+After that, `git release-app` / `git release-launcher` (from anywhere
+inside the repo, Git Bash or PowerShell) do the same thing as the
+invocations above — extra args pass straight through, e.g.
+`git release-app -NoRelease` or `git release-launcher -Message "..."`.
 
-### Running it from Git Bash / MINGW64
+### Running the scripts directly from Git Bash / MINGW64
 
-`.ps1` files aren't shell scripts - running `developer/commit-main.ps1`
+`.ps1` files aren't shell scripts — running `developer/release_app.ps1`
 directly from Git Bash tries to execute it as bash and fails with a
 `syntax error near unexpected token` on the `<#` comment block. Invoke
 PowerShell explicitly instead:
 
 ```bash
-powershell -File developer/commit-main.ps1
+powershell -File developer/release_app.ps1
 ```
 
-From an actual PowerShell window, `.\developer\commit-main.ps1` works
-directly - no need for `powershell -File`.
-
-Also, when pasting a failing command's output back into a terminal for a
-retry, paste only the command itself, not the whole block including old
-error text or shell prompts (e.g. a stray `tomatactics@... (dev)` line) -
-PowerShell will try to run every pasted line as its own command.
+From an actual PowerShell window, `.\developer\release_app.ps1` works
+directly — no need for `powershell -File`.
 
 ### "running scripts is disabled on this system"
 
@@ -155,11 +125,11 @@ signed or not. Two ways around it:
 
 - One-off, no permanent change (recommended):
   ```powershell
-  powershell -ExecutionPolicy Bypass -File .\developer\commit-main.ps1
+  powershell -ExecutionPolicy Bypass -File .\developer\release_app.ps1
   ```
-- Permanent, for this Windows user account - changes a machine security
+- Permanent, for this Windows user account — changes a machine security
   setting, so run it yourself rather than scripting it:
   ```powershell
   Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
   ```
-  After this, plain `.\developer\commit-main.ps1` works every time.
+  After this, plain `.\developer\release_app.ps1` works every time.
