@@ -216,9 +216,10 @@ class RepoBrowserWidget(QWidget):
         path = Path(path)
         self._root = path
         self.fs_model.setRootPath(str(path))
+        
         self._last_opened_store = LastOpenedStore(
             repo_root=path, 
-            cache_dir=self._cache_dir,  # ส่ง App Cache Root เข้าไป
+            cache_dir=self._cache_dir, 
             repo_id=repo_id, 
             max_entries=_MAX_LAST_OPENED
         )
