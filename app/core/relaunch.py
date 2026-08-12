@@ -15,10 +15,6 @@ def relaunch_ukorehub_exe(repo_root: Path) -> bool:
     # repo_root คือ root/app
     # repo_root.parent คือ root/ ซึ่งเป็นที่อยู่ของ UkoreHubLauncher.exe
     exe_path = repo_root.parent / "UkoreHubLauncher.exe"
-    
-    # เช็กเคสเผื่อมีกรณีใช้ชื่อ UkoreHub.exe อยู่บ้าง
-    if not exe_path.is_file():
-        exe_path = repo_root.parent / "UkoreHub.exe"
 
     if not exe_path.is_file():
         return False
