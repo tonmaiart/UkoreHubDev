@@ -37,14 +37,18 @@ def _safe_username() -> str:
 
 
 class LastOpenedStore:
-    def __init__(self, repo_root: Path, repo_id: str, max_entries: int = 20):
+    def __init__(self, repo_root: Path, cache_dir: Path, repo_id: str, max_entries: int = 20):
         self.repo_root = Path(repo_root)
         self.max_entries = max_entries
-        self._config_path = _CACHE_ROOT / _FILENAME_TEMPLATE.format(
+        
+        # ใช้ cache_dir ของระบบ (App Cache Root) เป็นฐานหลัก
+        explorer_cache_root = Path(cache_dir) / "explorer"
+        
+        self._config_path = explorer_cache_root / _FILENAME_TEMPLATE.format(
             repo_id=_SAFE_USERNAME_PATTERN.sub("_", repo_id), username=_safe_username()
         )
         self._relpaths: list[str] = self._load()
-
+        
     def _load(self) -> list[str]:
         if not self._config_path.is_file():
             return []
