@@ -1,7 +1,7 @@
 import pytest
 
 from core.exceptions import ValidationError
-from interface.section_registry import SectionRegistry, SectionSpec
+from plugin_api import SectionRegistry, SectionSpec
 
 
 def _spec(key, order=0, **kwargs):

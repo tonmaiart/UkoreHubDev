@@ -18,8 +18,7 @@
        push (origin/main moved from something other than this checkout) is
        different: this script never stops to let a human reconcile that by
        hand - it force-pushes local main over whatever's on origin instead.
-       Local is always authoritative here (see
-       developer/launcher/bug-history/2026-08-09-fast-commit-push-rejected-unrelated-histories.md).
+       Local is always authoritative here (see the ukorehub-launcher skill).
     2. Release repo (UkoreHubLauncher, remote `release-launcher`, added
        automatically if missing): mirrors just the tracked
        `UkoreHubLauncher.exe` file at this repo's root onto

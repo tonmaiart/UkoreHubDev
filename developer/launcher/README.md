@@ -2,10 +2,11 @@
 
 `UkoreHubLauncher.exe`'s own source and dev docs. The exe itself lives at
 the repo root (`../../UkoreHubLauncher.exe`, git-tracked deliberately, not
-gitignored) — this folder holds everything that builds it, plus its own
-`bug-history/`. Never published (see [`../README.md`](../README.md) for
-the publish mechanics) — artists only ever get the committed `.exe`, not
-this source.
+gitignored) — this folder holds everything that builds it. Never published
+(see [`../README.md`](../README.md) for the publish mechanics) — artists
+only ever get the committed `.exe`, not this source. See the
+`ukorehub-launcher` skill for recurring self-update/release pitfalls in
+this area.
 
 Used to be its own separate dev repo, `UkoreHubLauncherDev`, publishing to
 a separate `UkoreHubLauncher` release repo — merged into this repo (as
@@ -47,9 +48,6 @@ the exe, published via `git release-launcher` (see `../README.md`).
 - `build/` — PyInstaller's intermediates (gitignored, regenerated every
   build) — kept here rather than at the repo root so it stays grouped with
   the rest of this dev-only folder.
-- [`bug-history/`](bug-history/README.md) — record of real bugs fixed in
-  this launcher tooling. Read before changing code in an area that already
-  has an entry.
 
 For `app/`'s own dev-only docs/tests, see [`../app/`](../app/README.md)
 instead — a launcher-side task never touches `../../app/` or `../app/`,

@@ -26,13 +26,13 @@ app/data/plugins/core/*.json
 # live here, per-machine and potentially huge; never tracked. Named
 # storage/ (not projects/) specifically to avoid colliding with
 # app/data/projects/ (the per-project metadata blobs - see
-# app/data/README.md).
+# developer/app/docs/data-layout.md).
 /app/storage/
 # Every per-machine, gitignored file UkoreHub itself owns lives under here -
-# see app/cache/README.md. Includes app/cache/plugins/, per-user clones of
-# repo plugins (each its own git clone/remote/history, fetched/updated on
-# demand for a repo that declares it as a requirement - see
-# app/plugins/README.md).
+# no README of its own (gitignored). Includes app/cache/plugins/, per-user
+# clones of repo plugins (each its own git clone/remote/history,
+# fetched/updated on demand for a repo that declares it as a requirement -
+# see developer/app/docs/plugins-guide.md).
 /app/cache/
 # Per-machine workspace choice (see developer/launcher/launcher_build/
 # updater.py's ensure_workspace_dir) - the folder itself usually lives on

@@ -102,6 +102,24 @@ right:
   whatever store you're editing the moment the user changes a value, the
   same way every existing settings page does.
 
+**Never call `show()`/`showMaximized()`/`resize()`/`setGeometry()` on
+`MainWindow` before `app.exec()` has processed at least one event** — Qt
+reports `isMaximized() == True` immediately, but the real Windows geometry
+only follows once the window has actually been shown. Only ever call
+`show()`/`showMaximized()` once per launch, deferred via
+`QTimer.singleShot(0, ...)` right after `app.exec()` starts — verify any
+window-state fix by launching the real app and checking actual window
+geometry, not by reading the code.
+
+**A wrapper/delegate split can silently swallow an `AttributeError`**: this
+app normally runs via `pythonw.exe` (no console), and PySide6 slots swallow
+exceptions through `sys.excepthook` — so a handler that calls a method only
+the delegate implements, not the wrapper, can fail with zero visible
+output. When a "clicking X does nothing" report involves a
+wrapper/delegate pair, verify the delegate actually implements the method
+being called, and reproduce the real call path (not just object
+construction) rather than trusting a headless construction-only check.
+
 ## GitHub login
 
 There is no login domain in `interface/` anymore (the old `login/` folder —
@@ -121,6 +139,15 @@ Settings > Common's Logout button (`CommonSettingsPage.logout_requested` →
 via a `TokenStore` reference `MainWindow` holds for exactly this purpose,
 then relaunches `UkoreHub.exe` (via `_relaunch_to_login`) so its login step
 runs again. `MainWindow`'s constructor takes `token_store` for this reason.
+
+**`_relaunch_to_login` must strip `_PYI_*` env vars before spawning the new
+process**: any `subprocess.Popen` that spawns a PyInstaller onefile exe from
+a process descended from an already-running onefile exe inherits PyInstaller
+bootloader env vars meant for its own multiprocessing support — left in
+place, they poison the second, unrelated onefile launch (pointing it at an
+already-deleted temp extraction folder). Only bites when one onefile exe
+(re)launches another onefile exe; spawning a plain interpreter is
+unaffected.
 
 ## The registries
 
@@ -175,6 +202,14 @@ Notable surface:
   `plugins/core/UkoreBrowser/plugin.py` contributing `api.app_root`
   itself onto `PYTHONPATH` so its vendored Maya-side code can
   `import core.store`) without guessing paths from `__file__`.
+  **Not the same thing as `api.cache_dir`** (per-machine `CACHE_DIR`,
+  deliberately outside `app/` in a real install — see root `CLAUDE.md`'s
+  "Program folder stays program-only"): the two only coincide in a narrow
+  dev-checkout case. Manually reconstructing `cache/plugins/` as
+  `api.app_root / "cache" / "plugins"` instead of `api.cache_dir /
+  "plugins"` silently points at a folder nothing else in the app uses, with
+  no error, just an empty list. Always use `api.cache_dir / "plugins"` for
+  the local `cache/plugins/` root.
 - `api.register_file_opener(plugin_id, extensions, opener)`,
   `api.register_section(...)`, `api.register_settings_tab(...)` — one
   register method per registry above.
@@ -194,6 +229,15 @@ whenever the active repo or the visible top-level tab changes. If you're
 adding a new page that cares which repo is active, implement this method
 rather than inventing a new callback — it's how every existing page stays
 in sync.
+
+**Treat `set_repo`/`browse_to_path`/any such page method as an optional
+protocol, never call it unconditionally.** `SectionSpec.page_factory`
+accepts pages from any plugin, and some (DebugConsole, `cache/plugins/`
+entries like BananaSketch) have no notion of an "active repo" at all.
+`MainWindow._apply_to_current_page`/`_apply_to_persistent_pages` check via
+`getattr(...)`/`callable(...)` before calling — before adding a new
+unconditional `page.<method>(...)` call in `main_window.py`, check whether
+every current page actually implements it.
 
 ## File-open flow — where a plugin actually intercepts a double-click
 

@@ -1,7 +1,7 @@
 import pytest
 
 from core.exceptions import ValidationError
-from interface.settings_tab_registry import SettingsTabRegistry, SettingsTabSpec
+from plugin_api import SettingsTabRegistry, SettingsTabSpec
 
 
 def _spec(key, order=0, **kwargs):

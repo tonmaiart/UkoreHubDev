@@ -23,8 +23,9 @@ token-budget reasoning as staying inside the plugin at all:
 - `images/` — this plugin's own icon PNGs (see "Icons" below — this is a
   deliberate exception to the rest of the app's `assets/icons/` convention).
 - `bug-history/` — bugs fixed specifically in this plugin's own code,
-  going forward from 2026-07-21 (older UkoreShot bugs are still at the
-  repo-root `developer/bug-history/` — see that folder's README for the pointers).
+  going forward from 2026-07-21 (older UkoreShot bugs, from before this
+  folder existed, are folded into this skill's "Known pitfalls" section
+  below instead — the host app's own repo-root bug-history was retired).
 
 **Read that subfolder's own `README.md` before opening its individual
 files** — each is a full, current description of what's inside, written
@@ -140,18 +141,26 @@ root `CLAUDE.md` gives for `assets/thumbnails/` etc.) — check
 `player_widget.py`'s `_..._ICON_PATH` constants instead, or
 `images/README.md`'s file list.
 
-## Bug history
+## Known pitfalls
 
-Check `bug-history/README.md`'s index first (plugin-local, going forward
-from 2026-07-21 — this folder moved with the rest of the plugin into
-`cache/plugins/UkoreShot/bug-history/` on 2026-08-08, still the same
-history). If it doesn't cover what you're touching, that same README
-points at three entries in the *host app's* repo-root
-`developer/bug-history/` from before this folder existed — a
-native-video-widget mouse-event bug, a draw/text-tool-simultaneously bug,
-and a Custom-Path leading-slash bug shared with `UkorePlayblast`. After
-fixing any real bug here, add a new entry to this plugin's own
-`bug-history/README.md` (or the host app's repo-root one instead, if the
-"Lesson" is a generic Qt/Python gotcha rather than something specific to
-this plugin's own architecture — see that README's own guidance on the
-distinction).
+**A Qt widget attribute on one widget can never override native-window
+Z-ordering of a *different* native widget** (`QVideoWidget`/`QOpenGLWidget`/
+`QAxWidget`) — if mouse events never arrive at an overlay at all, suspect
+native-window Z-order first, not Qt stacking attributes
+(`WA_AlwaysStackOnTop`), and consider replacing the native widget with a
+`QVideoSink` + manual `QPainter` paint instead. Don't trust
+`QStackedLayout(StackAll)` to make a stacked widget visible/interactive
+without checking `isVisible()` directly. When a report says "still doesn't
+work" and it doesn't reproduce interactively, add cheap structured logging
+via `cache/plugins/DebugConsole/` + `core/extensibility/debug_log.py`
+before guessing again.
+
+**Bug history**: check `bug-history/README.md`'s index first
+(plugin-local, going forward from 2026-07-21 — this folder moved with the
+rest of the plugin into `cache/plugins/UkoreShot/bug-history/` on
+2026-08-08, still the same history; the host app's own repo-root
+`developer/app/bug-history/` was retired entirely — the three older
+repo-root entries this plugin used to fall back on are folded into the
+pitfall above and the `ukorehub-plugin` skill's leading-slash note
+instead). After fixing any real bug here, add a new entry to this plugin's
+own `bug-history/README.md`.

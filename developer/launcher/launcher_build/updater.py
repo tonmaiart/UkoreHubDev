@@ -7,9 +7,9 @@ repo's README. `UkoreHubLauncher.exe` lives and self-updates here; `launcher.py`
 and everything under `core/`/`interface/`/`plugins/` live in a nested
 `app/` clone this module bootstraps/updates independently. Splitting them
 means an ordinary app release can never again try to overwrite the exe
-file that's busy executing this very code (see
-UkoreHubDev's `developer/bug-history/2026-08-08-self-update-locked-own-exe.md`
-for the bug this eliminates for the frequent case) — only a rare
+file that's busy executing this very code (see UkoreHubDev's
+`ukorehub-launcher` skill for the bug this eliminates for the frequent
+case) — only a rare
 launcher-repo release (rebranding the icon, changing this file) still
 needs the `_relocate_self_exe` rename-aside trick below.
 
@@ -279,9 +279,8 @@ def _relocate_self_exe(repo_root: Path):
 # without one (see CLAUDE.md's "release repo never carries dev-only
 # files"). Mirrors this repo's own .gitignore 1:1, so the clean below
 # behaves the same whether or not a .gitignore happens to be present in
-# the checkout it's running against. See
-# developer/bug-history/2026-08-09-self-update-clean-wiped-workspace-config.md
-# for the incident this fixes — a customer machine that had no .gitignore
+# the checkout it's running against. See UkoreHubDev's `ukorehub-launcher`
+# skill for the incident this fixes — a customer machine that had no .gitignore
 # in its checkout (the release repo) hit `git clean -fd` deleting both
 # launcher_config.json (re-triggering the workspace prompt on every launch)
 # and the running exe's own renamed-aside `.old-<pid>` file (aborting the

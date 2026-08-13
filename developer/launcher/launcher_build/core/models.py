@@ -40,7 +40,7 @@ class Repo:
     # Formerly an opt-out list over plugins/core entries. No longer read
     # anywhere (2026-08-04 — every plugins/core plugin is unconditionally
     # visible for every repo now, see interface/main_window.py's
-    # _apply_plugin_visibility and plugins/README.md); kept as a field
+    # _apply_plugin_visibility and developer/app/docs/plugins-guide.md); kept as a field
     # purely so existing persisted JSON with this key still round-trips
     # cleanly. See required_plugin_ids below for the opt-in model actually
     # in use, for plugins/repo_internal and cache/plugins.

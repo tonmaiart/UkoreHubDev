@@ -85,6 +85,39 @@ file"), that's a cross-plugin task — read both deliberately, because the
 task named both. The rule above is about not defaulting to broad
 exploration when the task only named one.
 
+## Known pitfalls when authoring/editing a plugin
+
+- **Derive a plugin's own folder via `Path(__file__).resolve().parent`,
+  never `api.app_root / "plugins" / "core" / "<Name>"`.** A plugin that
+  hardcodes its root this way silently breaks the next time it moves
+  between `plugins/core/`, `plugins/repo_internal/` (removed 2026-08-10),
+  or a standalone `cache/plugins/` clone — with no error anywhere (the
+  loader never raises on this, and anything reading the wrong folder just
+  gets an empty/missing result), only a downstream failure days later. This
+  bit nine Maya-tool plugins at once during one `plugins/` reorg — after any
+  future `plugins/` root reorganization, grep every plugin `.py` file (not
+  just READMEs) for `"plugins" / "core"` / `"plugins" / "studio"` literals.
+- **After renaming a `plugins/<root>/` directory, grep every plugin's own
+  `plugin.py` for the old import literal**, not just READMEs.
+  `core/extensibility/loader.py`'s plugin loading never raises — a stale
+  `from plugins.<old_root>...` import in one plugin's entry point kills that
+  whole plugin with zero visible errors, indefinitely, until someone
+  happens to check.
+- **A per-user/per-machine cache file belongs under UkoreHub's own
+  gitignored `cache/<feature_name>/`, keyed by `Repo.id`** — never written
+  into the browsed repo's own working tree. Writing scratch state into a
+  production repo silently depends on that repo's own `.gitignore`
+  happening to exclude it.
+- **Strip leading separators before joining a `CustomPath`-style value onto
+  a base directory.** `CustomPath.path` (and similar user-entered relative
+  paths) is raw, unsanitized input — pathlib's `/` operator silently
+  drive-anchors the result if it starts with `/` or `\`
+  (`WindowsPath("C:/repo") / "/movie"` → `"C:/movie"`, silently escaping the
+  intended base dir). `.lstrip("/\\")` before any such join. This exact bug
+  has recurred independently in more than one plugin — grep for
+  `custom_path["path"]`/`repo_paths.py`-style joins before adding a new
+  consumer, and don't assume a fix in one plugin covers another.
+
 ## Not the same as `interface/`'s window folders
 
 Unlike `interface/`'s window folders (`sidebar/`, `login/`, `about/`,

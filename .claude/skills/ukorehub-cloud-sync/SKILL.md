@@ -8,12 +8,16 @@ description: Reference for UkoreHub's Cloudflare R2 sync subsystem (C:\Tonmai\Uk
 Until 2026-08-09, `data/projects.json`/`programs.json`/`system_config.json`
 and every `shared=True` `PluginConfigStore` file were git-tracked, riding
 along with `UkoreHub.exe`'s self-update `git pull`. That broke the moment
-any machine had an uncommitted local edit — see
-`developer/bug-history/2026-08-09-shared-data-git-pull-conflict.md` for the
-full incident. These files moved onto a cloud object store instead: same
-JSON shape, same local files, just a different sync mechanism. **Read that
-bug-history entry before touching any of this** — it's the "why," not just
-a changelog note.
+any machine had an uncommitted local edit: the app's own local write became
+an uncommitted diff the next pull could collide with. Don't git-track a
+file the running app also writes to locally without a commit step, if the
+same repo is auto-updated via `git pull` — either keep such a file purely
+local/per-machine, or sync it through a channel built for concurrent
+writers (generation-precondition cloud push, see below), not through the
+tree the app's own code is pulled from. These files moved onto a cloud
+object store instead: same JSON shape, same local files, just a different
+sync mechanism — this is the "why" cloud sync exists at all, independent of
+which backend it uses.
 
 The sync *backend* changed once more after that: it ran on Google Cloud
 Storage with per-artist Google OAuth login for a while, then moved to
@@ -164,6 +168,13 @@ optimistic concurrency instead of a document model:
   specifically, call `self.store.load()` to pick up the just-re-pulled
   file, then refresh their display — a plain `except UkoreHubError` alone
   would show the message but leave stale in-memory state.
+- **A long-lived `PluginConfigStore(shared=True)` held for a whole app
+  session is only as fresh as its last `load()`.** `push()`'s conflict-pull
+  rewrites the file on disk but has no way to reach into an already-loaded
+  store's in-memory copy — that copy stays silently stale for the rest of
+  the session, no error. A store read repeatedly across a session should
+  call `load()` before every read, not just at construction, once anything
+  automatic (not just a rare manual click) writes to the same shared file.
 
 ## No settings UI for cloud sync at all
 
@@ -187,9 +198,6 @@ see that plugin's own README.
 - `developer/launcher/README.md` and
   `developer/launcher/launcher_build/r2_credentials.example.py` — how the
   shared key gets built into `UkoreHubLauncher.exe`.
-- `developer/bug-history/2026-08-09-shared-data-git-pull-conflict.md` — the
-  incident that started this whole migration (still the right "why" for
-  cloud sync existing at all, independent of which backend it uses).
 - The `ukorehub-core` skill — the broader `core/` architecture (this skill
   assumes it, doesn't repeat it) — same constructor-injection,
   no-mocking-in-tests conventions apply here too.

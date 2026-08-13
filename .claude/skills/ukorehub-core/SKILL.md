@@ -62,8 +62,18 @@ All JSON-file stores share one helper: `_atomic_write(path, data)` in
 another JSON writer.
 
 - `MetadataStore` → `data/projects.json` — the Project/Repo registry.
-  **Shared/cloud-synced** (Google Cloud Storage, see `core/cloud_sync.py`
-  — no longer git-tracked, see bug-history 2026-08-09).
+  **Shared/cloud-synced** (see `core/vcs/cloud_sync.py` and the
+  `ukorehub-cloud-sync` skill — no longer git-tracked; a prior git-tracked
+  design broke the moment any machine had an uncommitted local edit, since
+  the app's own writes collided with the self-updater's `git pull`).
+
+**After moving any store's on-disk file location** (e.g. `data/` → `cache/`,
+or any future reorg), grep for the store-class-construction call itself
+(`LocalConfigStore(`, `MetadataStore(`, ...) across the *whole* repo, not
+just `core/`/`interface/` — several Maya-side `maya-scripts/**/repo_paths.py`
+files construct these same stores directly off disk (no `PluginAPI` under
+`mayapy`) and silently keep a stale path with no exception, just a store
+that loads empty defaults forever. See the `ukorehub-maya-plugins` skill.
 - `SystemConfigStore` → `data/system_config.json` — studio-wide settings
   (GitHub OAuth client ID, GCS bucket name). **Shared/cloud-synced.**
 - `LocalConfigStore` → `cache/local_config.json` — per-machine state
@@ -100,6 +110,29 @@ mechanism (firing `GitHookEvent.BEFORE_*`/`AFTER_*`/`*_FAILED` around each
 operation) was removed since nothing in `plugins/` ever subscribed to it;
 `interface/main_window.py`'s three fixed app-lifecycle points
 (`AppLifecycleHooks`, see `core/events/hooks.py` below) replaced it.
+
+## `core/paths.py` — `resolve_repo_path` is creation-time-only
+
+`resolve_repo_path(workspace_root, project_name, repo_name)` derives a
+repo's on-disk folder from its *current* name — only valid at repo-creation
+time (`core/store.py`'s `add_repo`). Once a `Repo` exists, its real folder
+is `Path(workspace_root) / repo.local_path`, which never changes on rename.
+Never call `resolve_repo_path` for a repo that already exists — grep for
+`resolve_repo_path` before adding any new repo-path resolution call site;
+this has recurred more than once across `interface/` and `plugins/` call
+sites that each independently re-derived a repo's path from its name.
+
+## `core/git_service.py`'s `is_repo_root()` — never trust bare `.git` existence
+
+`(path / ".git").exists()` does not prove `path` is a real, independent git
+repository — an interrupted or corrupt clone makes git's own discovery walk
+*up* the tree to whatever real repo sits further up, and every subsequent
+git command silently operates on that ancestor repo instead of erroring.
+Before running any mutating git command (stage/commit/push/pull) against a
+path whose `.git` didn't come from this app's own `GitService.clone()` call
+this session, verify with `GitService.is_repo_root()`
+(`git rev-parse --show-toplevel` resolves back to the path itself) — not
+just a `.git`-exists check.
 
 ## `core/auth/` and `core/vcs/` — GitHub/Google integration
 

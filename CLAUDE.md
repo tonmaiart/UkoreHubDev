@@ -9,46 +9,65 @@ tests) and [`developer/launcher/`](developer/launcher/README.md)
 (`UkoreHubLauncher.exe`'s own source). See "Merged-repo structure" below
 for how this fits together and why.
 
-**Before acting on a casual/colloquial term the user uses for a feature**
-(e.g. "the program's setting", "Viewgraph", "Custom Path") **or before
-asking a clarifying question about one, read
-[developer/app/GLOSSARY.md](developer/app/GLOSSARY.md)
-first** — it maps terms that are easy to misread onto the actual feature/
-file, recorded specifically because one of these got misread once already
-(see its own entries for the incidents). If a term isn't in there and the
-mapping is genuinely ambiguous, ask the user rather than guessing — and
-add the resolved mapping to `developer/app/GLOSSARY.md` afterward so it
-doesn't need asking again.
+**Before trying to understand how a specific `app/plugins/core/<Name>/`
+plugin works at a basic level (what it does, how its pieces fit together),
+read its own doc under
+[developer/app/docs/plugins/](developer/app/docs/plugins/) first**
+(`CloudDataAdmin.md`, `DebugConsole.md`, `ExternalPluginManager.md`,
+`explorer.md`, `project_editor.md`, `software_linker.md`, `submit.md`) —
+each is written so a session can answer "how does this plugin work"
+without opening the plugin's source, and each individual
+`app/plugins/core/<Name>/` folder is now an `ask` permission rule in
+`.claude/settings.json`, so opening it costs an explicit prompt. Only open
+the plugin's own source when the doc is genuinely missing something the
+task needs, and add what you found back to the doc afterward so the next
+session doesn't need to ask again.
 
-**Before changing code in a file or area listed in
-[developer/app/bug-history/README.md](developer/app/bug-history/README.md)'s
-index (for `app/`) or
-[developer/launcher/bug-history/README.md](developer/launcher/bug-history/README.md)'s
-index (for `developer/launcher/`), read that entry first** — each one ends
-with a "Lesson" describing a reusable mistake pattern (e.g. a specific
-circular-import shape, a specific stale-path bug), not just a one-off
-incident. After fixing any real bug (a crash, a silent failure, wrong
-behavior — not a feature change), add a new entry to whichever
-`bug-history/` matches the area you fixed, following its own "Adding a new
-entry" format, so the next change in that area doesn't reintroduce it.
+**Before opening files directly under `app/core/`, `app/core_api/`,
+`app/plugin_api/`, `app/interface/`, or `app/interface_api/`, read
+[developer/app/docs/core-api.md](developer/app/docs/core-api.md) (covers
+both `app/core/` and `app/core_api/` — `core-api.md`'s "Inside `core/`"
+section is the orientation for the closed folder itself),
+[developer/app/docs/plugin-api.md](developer/app/docs/plugin-api.md), or
+[developer/app/docs/interface-api.md](developer/app/docs/interface-api.md)
+(covers both `app/interface/` and `app/interface_api/` — see also
+[developer/app/docs/interface.md](developer/app/docs/interface.md) for
+`app/interface/`'s internal structure)
+first (whichever the task is about)** — each is written so a session can
+answer "how do I use X" without opening the actual source. `app/core/` is
+closed: nothing outside `app/core/` and `app/core_api/` may import
+`core.*` directly (see
+[developer/app/check_import_boundaries.py](developer/app/check_import_boundaries.py)).
+`app/interface/` is closed the same way: nothing outside `app/interface/`
+and `app/interface_api/` may import `interface.*` directly.
+`app/interface/` and `app/launcher.py` go through `app/core_api/` for
+`core/` access; `app/launcher.py` goes through `app/interface_api/` for
+`interface/` access; and `app/plugins/` goes through `app/plugin_api/` for
+both (which itself goes through `app/core_api/`'s and
+`app/interface_api/`'s re-exported types, plus a narrowly-scoped exception
+for `core.vcs.cloud_sync` shared only with `app/launcher.py` — see
+`core-api.md`'s "What's deliberately not re-exported"). Reading any of
+these five folders' own files requires the user's explicit permission (an
+`ask` permission rule in `.claude/settings.json`, kept deliberately
+stricter than a plain README-first convention) — only ask to open one when its doc
+is genuinely missing something you need, and add what you found to the
+doc afterward so the next session doesn't need to ask again.
 
 ## Reading this codebase
 
 Before exploring a folder's `.py` files, check whether it has its own
-`README.md` (e.g. [app/core/README.md](app/core/README.md),
-[app/interface/README.md](app/interface/README.md)) and read it first — it
-gives a short, current summary of what that folder is responsible for and
-how its files relate, which makes the individual files much faster to
-place in context.
+`README.md` and read it first — it gives a short, current summary of what
+that folder is responsible for and how its files relate, which makes the
+individual files much faster to place in context.
 
-**Every folder should have a `README.md`.** This is a token-budget rule,
-not just documentation: a good folder README lets a session understand
-what's inside without opening every file in it. When you create a new
-folder (a new `app/plugins/core/<Name>/`, a new subfolder under
-`app/core/` or `app/interface/`), add a short `README.md` to it in the same
-style as the existing ones (see `app/core/README.md` for the reference
-tone/format — a short intro paragraph, then a flat bullet list of what
-each file/subfolder does and how they relate).
+There is no rule requiring a new `README.md` for every folder anymore
+(removed — the earlier "every folder should have one" policy cost more in
+upkeep tokens, reading and re-editing dozens of them on every change, than
+it saved). Don't create one speculatively when adding a new
+`app/plugins/core/<Name>/` or subfolder; only add one if the user asks for
+it, or the folder is genuinely as dense/non-obvious as the ones covered by
+[developer/app/docs/](developer/app/docs/README.md)'s reference docs (see
+`core-api.md`/`plugin-api.md` for that bar).
 
 ## Scoped editing — stay inside the folder the task names
 
@@ -61,14 +80,17 @@ in `app/interface/` also need updating). Concretely:
 - Told to fix/change a plugin (Explorer, Submit, SoftwareLinker,
   MayaLauncher, or a new one) → touch only its own
   `app/plugins/core/<Name>/` or `app/cache/plugins/<Name>/` folder. See the
-  `ukorehub-plugin` skill and `app/plugins/README.md` — never open a
-  sibling plugin's source, and cross-plugin data/UI coordination goes
-  through the documented `plugin_config_store`/`UICommandService`
-  conventions, not imports.
+  `ukorehub-plugin` skill and
+  [developer/app/docs/plugins-guide.md](developer/app/docs/plugins-guide.md)
+  — never open a sibling plugin's source, and cross-plugin data/UI
+  coordination goes through the documented
+  `plugin_config_store`/`UICommandService` conventions, not imports.
 - Told to fix/change `app/core/` → touch only `app/core/` unless the
   change requires updating an `app/interface/` call site.
 - Told to fix/change `app/interface/` → touch only `app/interface/` unless
-  the change requires an `app/core/` addition it depends on. Note
+  the change requires an `app/core/` addition it depends on, or adds/renames
+  a symbol `app/interface_api/` re-exports (update that re-export + its
+  `app/plugin_api/` mirror, if any, in the same change). Note
   Explorer/Submit are `app/plugins/`, not `app/interface/`, despite
   showing up as ordinary tabs — see the plugin bullet above instead.
 - Told to fix/change the launcher exe, its self-update logic, or its build
@@ -78,8 +100,21 @@ in `app/interface/` also need updating). Concretely:
   rather than importing them (see `developer/launcher/README.md`); a
   change to the real ones needs a manual, separate mirror there, not a
   cross-folder edit in the same task.
-- Told to fix/change dev tooling for the app (bug-history, GLOSSARY,
-  tests) → touch only `developer/app/`.
+- Told to fix/change dev tooling for the app (tests) → touch only
+  `developer/app/`.
+
+## Minimal & Essential Comments Policy (Code is Self-Documenting)
+
+- **Do NOT write trivial or descriptive comments** that merely explain
+  *what* the code is doing (e.g., `# Loop through projects`, `# Create a
+  button`).
+- **Do NOT write inline type-hint comments or docstrings** for
+  internal/simple methods where Python type hints
+  (`def func(x: str) -> None:`) make the code self-explanatory.
+- **ONLY write comments when explaining *WHY*** a non-obvious decision was
+  made (e.g., `# Workaround for PySide6 QThread memory leak on Windows`).
+- **NEVER leave commented-out code.** Delete unused code completely (Git
+  history handles recovery).
 
 ## Testing — only when explicitly requested
 
@@ -178,29 +213,54 @@ bakes the source in, so an unrebuilt exe still runs the old logic (see
 
 ## Project layout
 
-- `app/core/` — non-UI logic: metadata store, git operations, GitHub auth, theming.
-- `app/interface/` — PySide6 GUI: sidebar, pages, dialogs, background workers.
+- `app/core/` — non-UI logic: metadata store, git operations, GitHub auth.
+  **Closed**: nothing outside `app/core/` and `app/core_api/` may import
+  `core.*` directly.
+- `app/core_api/` — the facade `app/interface/`, `app/launcher.py`, and
+  `app/plugin_api/`'s own facade files go through instead of importing
+  `core.*` directly (owns `UkoreCore`, the composition object
+  `launcher.py` constructs once). See
+  [developer/app/docs/core-api.md](developer/app/docs/core-api.md) before
+  opening this folder's own files — see the rule above.
+- `app/plugin_api/` — the facade `app/plugins/` goes through instead of
+  importing `core.*`/`core_api.*`/`interface.*` directly (also owns the
+  Qt-aware UI registries plugins register into). See
+  [developer/app/docs/plugin-api.md](developer/app/docs/plugin-api.md)
+  before opening this folder's own files — see the rule above.
+- `app/interface/` — PySide6 GUI: sidebar, pages, dialogs, background
+  workers. **Closed**: nothing outside `app/interface/` and
+  `app/interface_api/` may import `interface.*` directly.
+- `app/interface_api/` — the facade `app/launcher.py` and
+  `app/plugin_api/`'s own `__init__.py` go through instead of importing
+  `interface.*` directly (flat re-export module — no composition object,
+  since `interface/` already has its own, `MainWindow`). See
+  [developer/app/docs/interface-api.md](developer/app/docs/interface-api.md)
+  before opening this folder's own files — see the rule above.
 - `app/data/` — cloud-synced JSON blob caches only (`projects.json` — an
   index, real payload in `projects/<id>.json` per project, each with its
   own Program Database — `system_config.json`, `plugins/core/*.json`, and a
-  retired `programs.json`, see `app/data/README.md`), no exceptions —
-  several Maya-side scripts under `app/cache/plugins/` clones hardcode
-  these exact `data/` paths directly (they can't import `PluginAPI`), so
-  nothing else belongs here. See [app/data/README.md](app/data/README.md)
+  retired `programs.json`), no exceptions — several Maya-side scripts
+  under `app/cache/plugins/` clones hardcode these exact `data/` paths
+  directly (they can't import `PluginAPI`), so nothing else belongs here.
+  See [developer/app/docs/data-layout.md](developer/app/docs/data-layout.md)
   — don't open these unless the task needs a concrete current value.
 - `app/assets/` — git-tracked binary images (`thumbnails/`, `program_icons/`,
   `icons/`), never cloud-synced. See
-  [app/assets/README.md](app/assets/README.md) — never open an image file in here.
+  [developer/app/docs/data-layout.md](developer/app/docs/data-layout.md)
+  — never open an image file in here.
 - `app/appdata/` — static git-tracked bootstrap defaults/examples
   (`system_config.default.json`, `projects.example.json`), never
   cloud-synced and never written by the running app. See
-  [app/appdata/README.md](app/appdata/README.md).
+  [developer/app/docs/data-layout.md](developer/app/docs/data-layout.md).
 - `app/plugins/` — UkoreHub's own sub-systems: `app/plugins/core/`
   (bundled, always-on for every repo) and `app/cache/plugins/` (each its
   own separate git clone, off-by-default, opt-in per repo). See
-  `app/core/extensibility/README.md` for the discovery mechanism and
-  `app/plugins/README.md` plus the `ukorehub-plugin` skill for the "stay
-  inside one folder" editing discipline it uses.
+  [developer/app/docs/core-api.md](developer/app/docs/core-api.md)'s
+  "Inside `core/`" section (`extensibility/` entry) for the discovery
+  mechanism and
+  [developer/app/docs/plugins-guide.md](developer/app/docs/plugins-guide.md)
+  plus the `ukorehub-plugin` skill for the "stay inside one folder" editing
+  discipline it uses.
 - `app/cache/` — every per-machine, gitignored file UkoreHub owns (actual
   on-disk location is `CACHE_DIR`, set by `launcher.py` — see "Program
   folder stays program-only" above, **not** necessarily under `app/`):
@@ -215,8 +275,9 @@ bakes the source in, so an unrebuilt exe still runs the old logic (see
   something to explore speculatively (though unlike `app/storage/`, an
   `app/cache/plugins/` entry's plugin.py/manifest.json are real code worth
   reading when a task is actually about that specific plugin — see
-  `app/plugins/README.md`). See [app/cache/README.md](app/cache/README.md)
-  for the full breakdown.
+  `developer/app/docs/plugins-guide.md`). Gitignored, so it has no
+  `README.md` of its own — see `developer/app/docs/data-layout.md`'s
+  `plugins/core/*.json` entry for the `shared=False` counterpart it holds.
 - `app/storage/` — **the actual workspace root**, pointed to by
   `app/cache/local_config.json`'s `workspace_root` (actual on-disk location
   is `STORAGE_DIR`, set by `launcher.py` — see "Program folder stays
@@ -224,7 +285,7 @@ bakes the source in, so an unrebuilt exe still runs the old logic (see
   production repos (Maya/Blender scenes, huge binaries, studio artwork),
   gitignored. Named `storage/`, not `projects/`, specifically so it can't
   be confused with `app/data/projects/` (the per-project metadata blobs —
-  see [app/data/README.md](app/data/README.md)). **Never read or list
+  see `developer/app/docs/data-layout.md`). **Never read or list
   files under here unless the user explicitly asks** — there is no code in
   it, it can be enormous, and its contents are production data, not
   something to explore speculatively.

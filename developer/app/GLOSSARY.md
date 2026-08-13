@@ -119,8 +119,8 @@ Maya reference's absolute Google-Drive path (e.g.
 "project" (here, "KafkaProj") is the *client/show's own body of work* —
 that maps onto a UkoreHub **`Repo`** (`core/models.py`), specifically its
 `local_path`'s on-disk folder name (which never gets recomputed after a
-rename — see `bug-history/2026-07-20-repo-path-resolved-from-stale-name.md`
-— so a repo renamed since the old Drive-path days, e.g. `KafkaProj` ->
+rename — see the `ukorehub-core` skill's `resolve_repo_path` note — so a
+repo renamed since the old Drive-path days, e.g. `KafkaProj` ->
 `AnimatorTeam`, still has the old name baked into that folder). It does
 **not** map onto a UkoreHub **`Project`** (`core/models.py`'s `Project`,
 the umbrella that bundles several unrelated repos together, e.g.

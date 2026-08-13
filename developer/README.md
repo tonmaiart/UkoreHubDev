@@ -6,9 +6,9 @@ release repo's `main` ever has a `developer/` folder (nor `.claude/`).
 Split into two folders:
 
 - [`app/`](app/README.md) — dev docs/tests for the actual app (`../app/`):
-  `GLOSSARY.md`, `bug-history/`, `tests/`.
+  `GLOSSARY.md`, `tests/`.
 - [`launcher/`](launcher/README.md) — `UkoreHubLauncher.exe`'s own source
-  (`launcher_build/`) and its `bug-history/`.
+  (`launcher_build/`).
 
 Plus two scripts, right here (repo-wide tooling, not specific to either
 side):
@@ -83,8 +83,7 @@ rejected push **force-pushes** instead of stopping to reconcile, on both
 the `origin` push and the release-repo push (local is always authoritative
 here — a plain `git pull`/merge between these repos can fail hard with
 "refusing to merge unrelated histories" with no one watching to reconcile
-it; see
-`developer/launcher/bug-history/2026-08-09-fast-commit-push-rejected-unrelated-histories.md`).
+it; see the `ukorehub-launcher` skill).
 The release-repo publish checks out only the tracked `UkoreHubLauncher.exe`
 file (no flatten step needed — the release repo's root only ever holds
 that one file).
