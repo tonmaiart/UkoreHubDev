@@ -20,8 +20,11 @@ missing, no silent auto-install anymore), self-update this launcher repo
 (rare — bootstrapping it into a real git clone first if it's a plain ZIP
 extract with no .git directory), then bootstrap/update the nested `app/`
 clone the same way, check that Python is on PATH (also required, same
-Download-button treatment, used to spawn launcher.py), check git-lfs
-(optional — warns and continues if missing, no auto-install), then GitHub
+Download-button treatment, used to spawn launcher.py), install/update
+every package app/requirements.txt pins via pip (required — launcher.py is
+spawned detached with no console, so a missing dependency there fails
+silently otherwise), check git-lfs (optional — warns and continues if
+missing, no auto-install), then GitHub
 login — this module is the sole place login happens and the GitHub token
 gets cached (TokenStore); there is no in-app login UI. Finally spawns
 launcher.py (from `app/`) detached, same hand-off as before.
@@ -144,6 +147,15 @@ def find_python_interpreter() -> str | None:
     return shutil.which("pythonw") or shutil.which("python")
 
 
+def find_pip_interpreter() -> str | None:
+    """Prefers a real console python.exe over pythonw.exe for the pip
+    subprocess below — the opposite order from find_python_interpreter,
+    which prefers pythonw so launcher.py itself doesn't flash a console.
+    pythonw's stdout/stderr aren't real console streams, which can trip up
+    pip's own output handling even when captured via a pipe."""
+    return shutil.which("python") or shutil.which("pythonw")
+
+
 # -- git bootstrap/update (near-duplicate of core/self_update.py's) --------
 
 
@@ -172,6 +184,43 @@ def _run_git(args: list[str], cwd: Path) -> str:
     if result.returncode != 0:
         raise UpdaterError(f"git {' '.join(args)} failed: {result.stderr.strip()}")
     return result.stdout.strip()
+
+
+def ensure_dependencies_installed(app_root: Path, interpreter: str) -> None:
+    """Installs/updates every package app/requirements.txt pins, using a
+    console-capable interpreter (see find_pip_interpreter) rather than
+    necessarily the pythonw one launcher.py itself gets spawned with.
+
+    Runs on every launch, not just after an update: launcher.py is spawned
+    detached with no console (see _launch), so a package a release just
+    added/bumped in requirements.txt that isn't yet installed on this
+    machine would otherwise fail as a silent ModuleNotFoundError — no
+    window, no visible error, just "the app doesn't open". pip's own
+    dependency resolver is a fast no-op when everything already matches, so
+    the per-launch cost is small."""
+    requirements_path = app_root / "requirements.txt"
+    if not requirements_path.exists():
+        return
+    pip_interpreter = find_pip_interpreter() or interpreter
+    result = subprocess.run(
+        [
+            pip_interpreter,
+            "-m",
+            "pip",
+            "install",
+            "-r",
+            str(requirements_path),
+            "--disable-pip-version-check",
+            "--quiet",
+        ],
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        env=_non_interactive_env(),
+        creationflags=_NO_WINDOW_FLAGS,
+    )
+    if result.returncode != 0:
+        raise UpdaterError(result.stderr.strip() or result.stdout.strip() or "pip install failed")
 
 
 def is_git_repo(repo_root: Path) -> bool:
@@ -659,6 +708,18 @@ class _UpdaterWindow:
                 "UkoreHub requires Python to be installed and available on your PATH.\n"
                 "Download and install it, then restart UkoreHub.",
                 PYTHON_DOWNLOAD_URL,
+            ))
+            return
+
+        self._queue.put(("status", "Installing required Python packages..."))
+        try:
+            ensure_dependencies_installed(self.app_root, interpreter)
+        except UpdaterError as exc:
+            self._queue.put((
+                "fail",
+                f"Failed to install required Python packages:\n{exc}\n\n"
+                "Check your internet connection and restart UkoreHub.",
+                None,
             ))
             return
 

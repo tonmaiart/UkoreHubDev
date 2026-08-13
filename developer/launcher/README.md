@@ -19,8 +19,12 @@ the exe, published via `git release-launcher` (see `../README.md`).
     `UkoreHubLauncher.exe`. Hands off to `updater.py`'s `main()`.
   - `updater.py` — the actual pre-launch logic: git/Python prerequisite
     checks, self-update of the launcher (skipped in dev mode — see below),
-    bootstrap/update of `app/` (also skipped in dev mode), GitHub
-    device-flow login (tkinter UI), then spawns `../../app/launcher.py`.
+    bootstrap/update of `app/` (also skipped in dev mode), `pip install -r
+    app/requirements.txt` on every launch (so a new/bumped dependency in a
+    release is installed automatically — `launcher.py` runs detached with
+    no console, so a missing import there otherwise fails with no visible
+    error at all), GitHub device-flow login (tkinter UI), then spawns
+    `../../app/launcher.py`.
     See its own module docstring for the full breakdown, including why
     `core/exceptions.py`/`core/models.py`/`core/paths.py`/`core/theme.py`/
     `core/store.py`/`core/github/` here are **vendored copies** of
