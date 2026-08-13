@@ -96,7 +96,8 @@ Repository tab from a right-click menu)
 - `widget_helpers.py`: `wrap_scrollable`, `confirm_action`, `show_exclusive`,
   `set_secondary_text`, `set_bold` (the two zero-QSS text-styling helpers —
   see `interface.md`'s Zero QSS Policy section)
-- `commit_history.py`: `CommitCard`, `CommitHistoryEntry`, `fetch_entries_via_github`
+- `commit_history.py`: `CommitCard`, `CommitFilesDialog`, `CommitHistoryEntry`,
+  `fetch_entries_via_github`, `format_commit_date`, `format_relative_time`
 - `image_asset.py`: `pick_image_file`, `save_image_asset`
 - `requirements_tree_widget.py`: `RequirementsTreeWidget`
 

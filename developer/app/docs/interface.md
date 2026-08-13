@@ -259,11 +259,16 @@ consumer's own folder instead.
   `plugins/core/project_editor/dialogs.py`'s `RepoDialog` (repo creation,
   via `plugin_api`) and `interface/repo_settings/requirements_and_plugins_page.py`
   (editing an existing repo's requirements, direct in-`interface/` import).
-- `commit_history.py` — `CommitCard` widget, `CommitHistoryEntry`,
-  `format_commit_date`, `fetch_entries_via_github` (GitHub-API-first,
-  local-git-fallback). Used by `plugins/core/explorer/`'s per-path commit
-  panel (plain cards) and `plugins/core/submit/`'s whole-repo commit
-  history panel (expandable cards) — both via `plugin_api`.
+- `commit_history.py` — `CommitCard` widget, `CommitFilesDialog` (the
+  "Files changed" popup, public since 2026-08-13 so a caller can open it
+  without going through a `CommitCard`), `CommitHistoryEntry`,
+  `format_commit_date`, `format_relative_time` ("3 hours ago" — Submit's
+  table only, `format_commit_date` is the absolute-date one both callers
+  use), `fetch_entries_via_github` (GitHub-API-first, local-git-fallback).
+  Used by `plugins/core/explorer/`'s per-path commit panel (plain
+  `CommitCard`s) and `plugins/core/submit/`'s whole-repo commit history
+  panel (a plain `QTableWidget`, double-click a row to open
+  `CommitFilesDialog` directly) — both via `plugin_api`.
 - `image_asset.py` — `pick_image_file` (the `QFileDialog.getOpenFileName`
   wrapper every icon/thumbnail chooser uses) and `save_image_asset` (copy
   the chosen file into an `assets/*_icons`/`assets/thumbnails`-style dir).

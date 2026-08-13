@@ -79,15 +79,29 @@ revert, commit → pull → (resolve conflicts) → push. A real always-on
 ## Commit history panel
 
 `RepoGitStatusPage` renders a whole-repo commit history directly on this
-tab, through the same shared `CommitCard` template (icon/avatar, author,
-date, message, expandable "Files" button) `plugins/core/explorer/`'s
-per-path panel uses (`interface/shared/commit_history.py`). Unlike
+tab, as a plain `QTableWidget` (`self.commit_log_table`, columns avatar
+icon/Author/Message/Time Ago/Date — relative time before absolute date,
+since relative is the one worth reading at a glance) — deliberately *not*
+the `CommitCard` template `plugins/core/explorer/`'s per-path panel uses
+(see "Card→table rewrite, 2026-08-13" below for why). The avatar column
+reuses `CommitHistoryEntry.avatar_bytes` (rendered via `QTableWidgetItem.setIcon`,
+falling back to the same 👤 glyph `CommitCard` uses when there's no avatar)
+and `format_relative_time` (`interface/shared/commit_history.py`, alongside
+`format_commit_date`) backs the Time Ago column. `self._commit_log_avatar_cache`
+lives on the page (not the worker) so avatars are only ever downloaded once
+across the page's whole lifetime, not re-fetched on every 30-minute repoll —
+passed into `CommitLogWorker`'s `avatar_cache` param, same idiom
+`PathCommitHistoryPanel`'s `_avatar_cache` uses for Explorer. Unlike
 Explorer's panel (scoped to whichever path is selected in Repo Browser),
-this one always shows the active repo's history as a whole, and passes
-`git_service`/`repo_path`/`on_browse_file` to `CommitCard` so each entry's
-"Files" button can jump straight to Explorer via the same
-`browse_file_requested` signal the Modified/Staged lists' "Inspect in
-Explorer" context menu already uses.
+this one always shows the active repo's history as a whole. Double-clicking
+a row opens
+`interface/shared/commit_history.py`'s `CommitFilesDialog` (the same popup
+CommitCard's own "Files" button uses) via `_on_commit_row_double_clicked`,
+passing `git_service`/`repo_path`/`on_browse_file` — its "Browse" button
+jumps straight to Explorer via the same `browse_file_requested` signal the
+Modified/Staged lists' "Inspect in Explorer" context menu already uses.
+`self._commit_log_entries` keeps the last-fetched list around so a
+double-click can map a table row back to its `CommitHistoryEntry`.
 
 - **When it polls**: `_poll_commit_log` runs on every `refresh_status()`
   call (repo switch, the Refresh Status button, and auto-sync on
@@ -96,17 +110,39 @@ Explorer" context menu already uses.
   `QTimer` every `COMMIT_LOG_POLL_INTERVAL_MS` (30 minutes) so it stays
   current while the tab just sits open.
 - **How it fetches**: `CommitLogWorker` (a `QThread`) runs
-  `GitService.fetch()` first — remote-tracking refs only, never the working
+  `GitService.fetch()` first (bounded — `timeout=30` passed down to
+  `GitService._run_capture`, so a stalled network fetch can't hang this
+  background poll forever) — remote-tracking refs only, never the working
   tree, so it's safe to run silently in the background — then reads recent
   commits the same GitHub-API-first/local-git-fallback way
   `interface/shared/commit_history.py`'s other callers do (`origin/<branch>`
   when falling back to local, so commits nobody has pulled into this clone
-  yet still show up).
+  yet still show up; if that ref doesn't exist either — e.g. an unpushed
+  branch — falls back again to plain local `HEAD`, same as Explorer's
+  panel, instead of showing nothing).
 - **No dedup/unread tracking**: unlike the old Notification-tab team
   activity feed this replaced, the panel just re-renders whatever the
   latest fetch returns (newest first, capped at 20) — there's no
   persisted "last seen commit" bookkeeping, since this is a plain
   browse-the-history panel, not a notification stream.
+- **Card→table rewrite, 2026-08-13**: the original `CommitCard`-based
+  version had two real bugs, found while debugging "Explorer's panel shows
+  history, Submit's doesn't": (1) `CommitCard`/`CommitHistoryEntry` were
+  used in `repo_git_status_page.py` without ever being imported — every
+  render with a non-empty `entries` list threw `NameError` inside the
+  `entries_ready` slot, silently aborting before any card was added; (2)
+  `commit_log_group` was the only widget in `content_layout` given a
+  stretch factor, and the page's own content wasn't wrapped in a
+  `wrap_scrollable(...)` the way sibling pages are — under vertical space
+  pressure Qt shrinks the highest-stretch item first, so the whole group
+  box (border and title included) could be squeezed to 0 height rather
+  than just showing fewer cards. The page content is now wrapped in
+  `wrap_scrollable(...)` (`scroll`/`content_wrap_layout`, same shape as
+  `project_editor/custom_paths_settings_page.py`) as a general fix for (2),
+  and the plain table replaces `CommitCard` entirely for (1) plus the
+  user's ask to drop the avatar-badge styling here in favor of a plain
+  data table — Explorer's per-path panel is untouched and still uses
+  `CommitCard`.
 
 ## Sidebar status dot
 

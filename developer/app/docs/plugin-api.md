@@ -177,7 +177,8 @@ Everything below is importable as `from plugin_api import X` — never
 `confirm_action`, `show_exclusive`, `set_secondary_text`, `set_bold`
 (`widget_helpers.py` — the last two are the zero-QSS text-styling helpers,
 see `interface.md`'s Zero QSS Policy section); `CommitCard`,
-`CommitHistoryEntry`, `fetch_entries_via_github` (`commit_history.py`);
+`CommitFilesDialog`, `CommitHistoryEntry`, `fetch_entries_via_github`,
+`format_commit_date`, `format_relative_time` (`commit_history.py`);
 `pick_image_file`, `save_image_asset` (`image_asset.py`);
 `RequirementsTreeWidget` (`requirements_tree_widget.py`)
 
