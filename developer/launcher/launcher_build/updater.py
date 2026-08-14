@@ -596,10 +596,6 @@ class _UpdaterWindow:
         self.repo_root = repo_root
         # Nested app-repo clone — see module docstring.
         self.app_root = repo_root / APP_DIRNAME
-        # data/ is the app's own git-tracked/R2-synced registry — stays
-        # under app_root, force-reset along with the rest of the app on
-        # every update (see ensure_up_to_date's docstring).
-        self._data_dir = self.app_root / "data"
         self._interpreter: str | None = None
         self.token_store: TokenStore | None = None
         self.local_config_store: LocalConfigStore | None = None
@@ -619,15 +615,17 @@ class _UpdaterWindow:
                 pass
         self.root.protocol("WM_DELETE_WINDOW", lambda: sys.exit(1))
 
-        # First run only (see ensure_workspace_dir) — cache/ and storage/
-        # are per-machine (login tokens, cloned-repo workspace) and live
-        # under here rather than under app_root, so they survive every app
-        # force-reset untouched; passed down to launcher.py via
-        # UKOREHUB_CACHE_DIR/UKOREHUB_STORAGE_DIR in _launch (see
-        # UkoreHub's own README, "Overriding cache/storage location").
+        # First run only (see ensure_workspace_dir) — cache/, storage/, and
+        # data/ are per-machine (login tokens, cloned-repo workspace, the R2
+        # cloud-synced JSON registry) and live under here rather than under
+        # app_root, so they survive every app force-reset untouched; passed
+        # down to launcher.py via UKOREHUB_CACHE_DIR/UKOREHUB_STORAGE_DIR/
+        # UKOREHUB_DATA_DIR in _launch (see UkoreHub's own README,
+        # "Overriding cache/storage location").
         self.workspace_dir = ensure_workspace_dir(repo_root, self.root)
         self._cache_dir = self.workspace_dir / "cache"
         self._storage_dir = self.workspace_dir / "storage"
+        self._data_dir = self.workspace_dir / "data"
 
         self.status_var = tk.StringVar(value="Starting...")
         ttk.Label(self.root, textvariable=self.status_var, padding=16, wraplength=380).pack(fill="x")
@@ -771,7 +769,7 @@ class _UpdaterWindow:
 
     def _on_prelaunch_ready(self, interpreter: str) -> None:
         self._interpreter = interpreter
-        self._data_dir.mkdir(exist_ok=True)
+        self._data_dir.mkdir(parents=True, exist_ok=True)
         self._cache_dir.mkdir(parents=True, exist_ok=True)
         self._storage_dir.mkdir(parents=True, exist_ok=True)
         # github_token.json/local_config.json live under cache/, not data/ —
@@ -883,21 +881,23 @@ class _UpdaterWindow:
 
     def _finish(self) -> None:
         self.status_var.set("Launching...")
-        _launch(self.app_root, self._interpreter, self._cache_dir, self._storage_dir)
+        _launch(self.app_root, self._interpreter, self._cache_dir, self._storage_dir, self._data_dir)
         self.root.destroy()
 
     def run(self) -> None:
         self.root.mainloop()
 
 
-def _launch(app_root: Path, interpreter: str, cache_dir: Path, storage_dir: Path) -> None:
+def _launch(app_root: Path, interpreter: str, cache_dir: Path, storage_dir: Path, data_dir: Path) -> None:
     launcher_path = app_root / "launcher.py"
-    # Points launcher.py's per-machine cache/workspace outside app_root
-    # (see UKOREHUB_CACHE_DIR/UKOREHUB_STORAGE_DIR in UkoreHub's own
-    # README) so neither gets force-reset away on the next app update.
+    # Points launcher.py's per-machine cache/workspace/data outside app_root
+    # (see UKOREHUB_CACHE_DIR/UKOREHUB_STORAGE_DIR/UKOREHUB_DATA_DIR in
+    # UkoreHub's own README) so none of them gets force-reset away on the
+    # next app update.
     env = os.environ.copy()
     env["UKOREHUB_CACHE_DIR"] = str(cache_dir)
     env["UKOREHUB_STORAGE_DIR"] = str(storage_dir)
+    env["UKOREHUB_DATA_DIR"] = str(data_dir)
     # Shared R2 cloud-sync key (see the module-level R2_* import above) —
     # only set when this build actually has one baked in, so a dev build
     # without r2_credentials.py still launches, just with cloud sync

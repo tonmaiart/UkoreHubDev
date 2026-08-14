@@ -2,26 +2,25 @@
 __pycache__/
 *.pyc
 .pytest_cache/
-# app/data/projects.json, app/data/programs.json, app/data/system_config.json,
-# and app/data/plugins/core/*.json used to be intentionally NOT ignored
-# (tracked in this repo so everyone got them via git pull / Update and
-# Restart), but that meant any machine with an uncommitted local edit broke
-# the self-update git pull outright. They're now synced via Google Cloud
-# Storage instead (app/core/vcs/cloud_sync.py) - each is a local cache of
-# the shared bucket's blob, pulled on launch and pushed on every save, so
-# they no longer belong in git at all. app/assets/thumbnails/ (and the
-# other image dirs) are unaffected - still git-tracked as before. Every
-# per-machine/gitignored file (local_config.json, github_token.json,
-# gcs_refresh_token.json, webengine_profile/, plugin_local_config/) lives
-# under app/cache/ instead, not app/data/ - see that rule below and
-# app/cache/README.md.
-app/data/projects.json
-app/data/programs.json
-app/data/system_config.json
-app/data/plugins/core/*.json
-# app/plugins/core is git-tracked and distributed like
-# app/data/programs.json - bundled with the app, no separate fetch. See
-# app/core/extensibility/loader.py.
+# app/data/*.json (projects.json, programs.json, system_config.json,
+# plugins/core/*.json) used to be intentionally NOT ignored here (tracked in
+# this repo so everyone got them via git pull / Update and Restart), but
+# that meant any machine with an uncommitted local edit broke the
+# self-update git pull outright. They moved to being synced via cloud
+# storage instead (app/core/vcs/cloud_sync.py's R2JsonSync) - each a local
+# cache of the shared bucket's blob, pulled on launch and pushed on every
+# save - and then moved again to live outside app/ entirely (see
+# UKOREHUB_DATA_DIR in app/launcher.py / developer/launcher/launcher_build/
+# updater.py, same "survives every force-reset" reasoning as cache/storage
+# below). Nothing under app/data/ is written by the running app anymore, but
+# blanket-ignored (not itemized like the old per-file patterns used to be)
+# so a leftover/orphaned file there - e.g. a per-project projects/<id>.json
+# blob, which never had its own itemized pattern here and ended up
+# accidentally git-tracked for a while - can never slip back into a commit.
+/app/data/
+# app/plugins/core is git-tracked and distributed like the old
+# app/data/programs.json used to be - bundled with the app, no separate
+# fetch. See app/core/extensibility/loader.py.
 # Forced workspace_root (see app/launcher.py) - actual cloned target repos
 # live here, per-machine and potentially huge; never tracked. Named
 # storage/ (not projects/) specifically to avoid colliding with
@@ -37,10 +36,11 @@ app/data/plugins/core/*.json
 # Per-machine workspace choice (see developer/launcher/launcher_build/
 # updater.py's ensure_workspace_dir) - the folder itself usually lives on
 # another drive entirely, but this covers the case where the picker was
-# cancelled and it fell back to right here. Holds cache/ (login tokens)
-# and storage/ (cloned repos), passed to app/launcher.py via
-# UKOREHUB_CACHE_DIR/UKOREHUB_STORAGE_DIR so both live outside app/ and
-# survive its every force-reset update in a real (non-dev) install.
+# cancelled and it fell back to right here. Holds cache/ (login tokens),
+# storage/ (cloned repos), and data/ (the R2 cloud-synced JSON registry),
+# passed to app/launcher.py via UKOREHUB_CACHE_DIR/UKOREHUB_STORAGE_DIR/
+# UKOREHUB_DATA_DIR so all three live outside app/ and survive its every
+# force-reset update in a real (non-dev) install.
 /workspace/
 # Remembers the workspace_root chosen above - per-machine, a local
 # filesystem path, never shared. Its presence has no effect on dev-mode

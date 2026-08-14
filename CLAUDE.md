@@ -148,23 +148,33 @@ any change to a shared JSON store is safe to discard or revert.
 
 ## Program folder stays program-only — user/project data never lives under `app/`
 
-`app/cache/` and `app/storage/` (see their entries below) are per-machine,
-per-user data — never something the installed app folder should own.
-`UkoreHubLauncher.exe` normally points the `UKOREHUB_CACHE_DIR` /
-`UKOREHUB_STORAGE_DIR` env vars outside `app/` before spawning
-`app/launcher.py` (in a real, non-dev install — see "Launcher dev mode"
-below for how this dev repo's own copy of the exe differs). When those
-aren't set — the `python app/launcher.py` direct dev-invocation path,
-which bypasses the exe entirely — `launcher.py` falls back to
-`~/Documents/UkoreHub/cache` and `~/Documents/UkoreHub/storage`
-(`USER_DATA_DIR` in `launcher.py`), **not** `app/cache` / `app/storage`.
-The app folder must contain only the program itself, so a real update can
-wipe/replace it wholesale (see `developer/launcher/README.md`) without
-risking or silently orphaning real user/project data next to the new copy.
-Never reintroduce an `app/`-relative default for either path — any new
-per-machine or per-user data directory added later must default outside
-`app/` the same way, not join `app/cache/`/`app/storage/` as a sibling
-under the app folder.
+`app/cache/`, `app/storage/`, and `app/data/` (see their entries below) are
+per-machine, per-user data — never something the installed app folder
+should own. `UkoreHubLauncher.exe` normally points the `UKOREHUB_CACHE_DIR`
+/ `UKOREHUB_STORAGE_DIR` / `UKOREHUB_DATA_DIR` env vars outside `app/`
+before spawning `app/launcher.py` (in a real, non-dev install — see
+"Launcher dev mode" below for how this dev repo's own copy of the exe
+differs). When those aren't set — the `python app/launcher.py` direct
+dev-invocation path, which bypasses the exe entirely — `launcher.py` falls
+back to `~/Documents/UkoreHub/cache`, `~/Documents/UkoreHub/storage`, and
+`~/Documents/UkoreHub/data` (`USER_DATA_DIR` in `launcher.py`), **not**
+`app/cache` / `app/storage` / `app/data`. The app folder must contain only
+the program itself, so a real update can wipe/replace it wholesale (see
+`developer/launcher/README.md`) without risking or silently orphaning real
+user/project data next to the new copy. Never reintroduce an
+`app/`-relative default for any of these three — any new per-machine or
+per-user data directory added later must default outside `app/` the same
+way, not join `app/cache/`/`app/storage/`/`app/data/` as a sibling under
+the app folder.
+
+`app/data/` moved outside `app/` on 2026-08-14 (previously a documented
+exception — see its "Project layout" entry below); the Maya-side scripts
+under `app/cache/plugins/*/maya-scripts/` clones that hardcode
+`<found_root>/data/...` (`PublishApi`, `UkoreReferenceEditor`,
+`MayaFileBrowser`, each its own separate repo) have **not** been updated
+to match yet — they still read `UKOREHUB_APP_ROOT / "data"`, which the
+running app no longer writes to. Updating each is a separate, scoped
+follow-up task, not implied by any other change here.
 
 ## Merged-repo structure
 
@@ -236,13 +246,17 @@ bakes the source in, so an unrebuilt exe still runs the old logic (see
   since `interface/` already has its own, `MainWindow`). See
   [developer/app/docs/interface-api.md](developer/app/docs/interface-api.md)
   before opening this folder's own files — see the rule above.
-- `app/data/` — cloud-synced JSON blob caches only (`projects.json` — an
-  index, real payload in `projects/<id>.json` per project, each with its
-  own Program Database — `system_config.json`, `plugins/core/*.json`, and a
-  retired `programs.json`), no exceptions — several Maya-side scripts
-  under `app/cache/plugins/` clones hardcode these exact `data/` paths
-  directly (they can't import `PluginAPI`), so nothing else belongs here.
-  See [developer/app/docs/data-layout.md](developer/app/docs/data-layout.md)
+- `data/` (referred to as `app/data/` for historical/doc-labeling reasons,
+  but — like `app/cache/`/`app/storage/` — actually sourced from `DATA_DIR`
+  outside `app/`, see "Program folder stays program-only" above) —
+  cloud-synced JSON blob caches only (`projects.json` — an index, real
+  payload in `projects/<id>.json` per project, each with its own Program
+  Database — `system_config.json`, `plugins/core/*.json`, and a retired
+  `programs.json`), no exceptions — several Maya-side scripts under
+  `app/cache/plugins/` clones still hardcode `<found_root>/data/...` paths
+  directly (they can't import `PluginAPI`) — not yet updated for this move,
+  see "Program folder stays program-only" above. See
+  [developer/app/docs/data-layout.md](developer/app/docs/data-layout.md)
   — don't open these unless the task needs a concrete current value.
 - `app/assets/` — git-tracked binary images (`thumbnails/`, `program_icons/`,
   `icons/`), never cloud-synced. See

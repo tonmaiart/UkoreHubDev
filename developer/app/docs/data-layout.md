@@ -14,6 +14,17 @@ orientation.
 
 ## `data/` — cloud-synced JSON blob cache, no exceptions
 
+As of 2026-08-14, `data/` itself no longer lives under `app/` — it's
+sourced from `DATA_DIR` in `app/launcher.py` (env var `UKOREHUB_DATA_DIR`,
+falling back to `~/Documents/UkoreHub/data` only for the raw
+`python launcher.py` dev-invocation path), same "survives every self-update
+force-reset" treatment `cache/`/`storage/` already had — see root
+`CLAUDE.md`'s "Program folder stays program-only" section. The Maya-side
+scripts below that hardcode `<found_root>/data/...` (via
+`UKOREHUB_APP_ROOT`) have **not** been updated to read `UKOREHUB_DATA_DIR`
+instead yet — separate, scoped follow-up per plugin, not done as part of
+this move.
+
 Every file directly under `data/` (and `data/projects/*.json`,
 `data/plugins/core/*.json`) is a **local cache of a Cloudflare R2 blob**,
 synced by `core/vcs/cloud_sync.py`'s `R2JsonSync`: pulled fresh on every
