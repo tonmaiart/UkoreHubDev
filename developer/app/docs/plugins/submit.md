@@ -13,9 +13,10 @@ revert, commit → pull → (resolve conflicts) → push. A real always-on
 - `plugin.py` — `register(api)`: constructs `RepoGitStatusPage` from
   `api.metadata`/`api.local_config`/`api.git`, registers it as the
   `SectionSpec(key="repo_git_status", order=20, ...)` section. Also wires
-  `background_threads` (reaches into `page._git_worker`/`_status_worker`/
-  `_stream_worker`/`_commit_log_worker` for `MainWindow.closeEvent`'s
-  shutdown cleanup) and
+  `background_threads` (reaches into every `QThread` worker attribute the
+  page owns — `_git_worker`/`_status_worker`/`_stream_worker`/
+  `_stage_worker`/`_unstage_worker`/`_revert_worker`/`_diagnostics_worker`/
+  `_commit_log_worker` — for `MainWindow.closeEvent`'s shutdown cleanup) and
   `wire` — connects `sync_started`/`sync_finished`/`sync_failed` to
   `UICommandService.set_status_message` (the sidebar status line) and
   `browse_file_requested` to `UICommandService.navigate_and_focus` (jumps to
@@ -24,24 +25,14 @@ revert, commit → pull → (resolve conflicts) → push. A real always-on
   `plugins/core/explorer/repo_browser_page.py`). See
   `plugin_api/registries/section_registry.py`'s `UICommandService` for why
   this is a fixed set of named callbacks rather than a generic dispatcher.
+- `submit_section.ui` — Qt Designer file for the whole page, loaded at
+  runtime by `RepoGitStatusPage` via `PySide6.QtUiTools.QUiLoader` (see
+  "Loading the .ui file" below). Edit this in Designer to change layout/
+  labels/spacing — no Python change or rebuild needed, just restart the app.
 - `repo_git_status_page.py` — `RepoGitStatusPage`: the top-level Submit
   page. Drives the full sync/commit/pull/push workflow via the workers
-  below, and shows the Modified/Staged lists. Both lists' items are
-  checkable (`Qt.ItemIsUserCheckable`, `NoSelection` mode) rather than
-  row-selected — `_checked_paths(list_widget)` reads whichever items are
-  ticked, and Stage/Revert (Modified) and Restore (Staged) act on that set,
-  so multiple files can be picked without holding Ctrl/Shift. Each panel
-  has its own "Select All" button (`self.select_all_button` for Modified,
-  `self.staged_select_all_button` for Staged), both wired to the shared
-  `_on_select_all_clicked(list_widget)` — it toggles every item in that
-  list to checked, or back to unchecked if all were already checked. The
-  Sync/Refresh Status buttons
-  live under the log panel inside a "Git Log" `QGroupBox`, matching the
-  Modified/Staged panel styling. Below that, a "Commit History" `QGroupBox`
-  shows the whole repo's recent commits (every teammate's pushes, not just
-  this machine's own) — see "Commit history panel" below. Implements the
-  optional
-  `sync_active_repo(...)` protocol method —
+  below, and shows the Modified/Staged/diagnostics/commit-history tables.
+  Implements the optional `sync_active_repo(...)` protocol method —
   `interface/main_window.py`'s `_start_auto_sync` calls this generically
   on launch/repo-switch, combining `set_repo()` + `start_sync()`. Before the
   very first clone of a repo (`start_sync` sees
@@ -54,54 +45,165 @@ revert, commit → pull → (resolve conflicts) → push. A real always-on
   an opaque error. A repo that's already cloned, or whose remote isn't
   github.com, skips straight to `_begin_sync_worker` as before.
 - `commit_dialog.py` — `CommitDialog`: commit message entry (+ amend
-  checkbox), shown before the pull→push workflow starts.
+  checkbox), shown before the pull→push workflow starts. Untouched by the
+  `.ui` rewrite below — a one-off dialog, not the main page.
 - `conflict_dialog.py` — `ConflictResolutionDialog`: per-file keep-ours/
-  keep-theirs resolution, shown when a pull hits a merge conflict.
-- `log_panel.py` — `LogPanel`: scrolling read-only log output during
-  sync/push/pull.
+  keep-theirs resolution, shown when a pull hits a merge conflict. Also
+  untouched.
 - `git_stream_worker.py` — `GitStreamWorker`: generic `QThread` that
   streams a git command's output line-by-line and emits whatever it
-  returns via `finished_ok`. Used for the Sync button's `open_or_sync`
-  (clone/pull, also driving `sync_active_repo`'s launch/repo-switch
-  auto-sync) as well as the pull and push steps of the commit workflow —
-  one generic worker where there used to be a separate `GitWorker` class
-  just for `open_or_sync`.
+  returns via `finished_ok`. Used for Sync's `open_or_sync` (clone/pull,
+  also driving `sync_active_repo`'s launch/repo-switch auto-sync), the pull
+  and push steps of the commit workflow, Stage/Unstage/Revert (so a large
+  multi-selection can't freeze the UI thread), and the diagnostics check —
+  one generic worker covers every fire-and-forget git action on this page.
 - `status_worker.py` — `RepoStatusWorker`: fetches working-tree status
-  (modified/staged/untracked) off the UI thread.
-- `status_dot.py` — `RepoStatusDot(QLabel)`: the small status icon shown
-  at the right edge of Submit's own sidebar row — see "Sidebar status dot"
-  below.
+  (`RepoStatus`, including the per-file `FileChange` lists — see
+  "Where FileChange comes from" below) off the UI thread.
 - `commit_log_worker.py` — `CommitLogWorker(QThread)`: fetches the whole
   repo's most recent commits off the UI thread (GitHub-API-first,
   local-git-fallback via `interface/shared/commit_history.py`'s
   `fetch_entries_via_github`) — see "Commit history panel" below.
 
+## Loading the `.ui` file
+
+`RepoGitStatusPage.__init__` calls a module-level `_load_ui_form()` that
+loads `submit_section.ui` via `QUiLoader` + `QFile`, resolved with
+`Path(__file__).resolve().parent / "submit_section.ui"` (never
+`api.app_root / "plugins" / ...` — see the plugin-authoring pitfall about
+hardcoded plugin roots breaking on a future `plugins/` reorg). This is a
+runtime load, not a `pyside6-uic`-compiled `.py` — editing the `.ui` in
+Designer and restarting the app is enough, no build step. The `.ui` only
+uses stock Qt widget classes (`QTableView`, `QPlainTextEdit`, `QPushButton`,
+`QGroupBox`, `QTabWidget`, plain layouts), so no promoted-widget
+registration is needed.
+
+`_setup_ui_widgets()` looks up every named widget via
+`self._ui.findChild(WidgetClass, "objectName")` and caches it as a `self.*`
+attribute, then does all behavior wiring from Python — button `.clicked`
+connections, table `setModel`/selection-mode/column-resize configuration,
+context menus. The `.ui` file itself declares widgets bare (no
+properties beyond labels/read-only flags) precisely so this behavior stays
+in version-controlled Python, not scattered across Designer XML.
+
+The loaded `Form` widget is wrapped in `wrap_scrollable(...)` (a
+`plugin_api` helper, kept from before this rewrite) so a window-height
+squeeze shrinks scroll content instead of collapsing a group box to 0
+height — same shape as `project_editor/custom_paths_settings_page.py`.
+`self.empty_label`/`self.content_widget` still toggle via `show_exclusive`
+for the no-repo-selected state, unchanged from before.
+
+**No custom widget subclasses remain in this plugin.** The pre-rewrite
+`LogPanel(QPlainTextEdit)` and `RepoStatusDot(QLabel)` classes are gone —
+`plainTextEdit_git_log` (from the `.ui`) is driven by a private
+`_append_log(text)` method instead of a subclass, and `self.status_dot` is
+a plain `QLabel` updated by a private `_set_status_dot_state(state)`
+method. Modified/Staged are `QStandardItemModel`-backed `QTableView`s
+instead of the old checkable-`QListWidgetItem` pattern. This was a
+deliberate choice (not just incidental to the `.ui` move) to avoid the
+class of UI bugs bespoke widget subclasses tend to accumulate — stick to
+this when extending the page further.
+
+## Where `FileChange` comes from
+
+`GitService.get_status(repo_path) -> RepoStatus` (re-exported via
+`plugin_api`) now returns `unstaged_changes`/`staged_changes:
+list[FileChange]` instead of flat path lists. `FileChange` (`path`,
+`change_type` — `"untracked"|"added"|"modified"|"deleted"|"renamed"`) is
+parsed from git's porcelain status codes in
+`GitService._parse_status_porcelain` (`core/vcs/git_service.py`) — added
+specifically so Modified/Staged rows can show what kind of change each file
+has, which the old flat-path `RepoStatus.untracked/modified/staged` fields
+couldn't express. `unstaged_changes` merges untracked files
+(`change_type="untracked"`) with working-tree modifications/deletions of
+already-tracked files; `staged_changes` reflects the index against HEAD.
+`GitService.get_working_tree_status` (the other, older, tuple-returning
+entry point) is unchanged in contract — it derives its legacy
+`tuple[list[str], list[str], list[str]]` from the same parse.
+
+## Modified / Staged tables
+
+Both are `QTableView`s (`tableView_modified`/`tableView_staged` in the
+`.ui`) backed by a `QStandardItemModel` with three columns: **File Name**
+(`PurePosixPath(path).name`), **File Path** (the path's parent directory,
+relative to repo root — empty string for a repo-root file), **Modified**
+(display text from `FileChange.change_type`: `untracked`/`added` →
+"Added", `modified` → "Modified", `deleted` → "Removed", `renamed` →
+"Renamed"). The real relative path and raw `change_type` are stashed on
+each row's File Name item via `Qt.UserRole`/`Qt.UserRole + 1`
+(`_PATH_ROLE`/`_CHANGE_TYPE_ROLE`) so display formatting never has to be
+reverse-parsed. Both tables use `ExtendedSelection` + `SelectRows`, so
+**Stage**, **Unstage** (labelled "Unstage" in the `.ui`, this is the old
+"Restore"/unstage-from-index button), and **Revert** all act on whatever
+rows are currently selected (`_selected_rows_data`), reading multiple rows
+at once instead of the old per-item checkbox/"Select All" pattern (removed
+entirely — multi-selection replaces it). Revert splits its selection by
+`change_type == "untracked"` vs tracked to call
+`GitService.revert_paths(modified_paths=..., untracked_paths=...)`
+correctly, same split logic as before but driven by `change_type` instead
+of cross-referencing `self._last_status.untracked`. All three actions run
+through `GitStreamWorker` (Stage always did; Unstage/Revert now do too, so
+a large multi-selection can't freeze the UI thread).
+
+**"Submit All Staged"** (`pushButton_submit_all_staged` — the old "Pull and
+Push" button) is unconditional: it always acts on every currently staged
+file, ignoring table selection, exactly as before.
+
+Right-click on a row still offers "Inspect in Explorer" (jumps to Explorer
+via `browse_file_requested`), scoped to the row under the cursor.
+
+## Diagnostics table (`tableView_git_status`)
+
+New in this rewrite. Lives in the "Status" tab (`.ui`'s `tabWidget`,
+alongside a "Log" tab holding `plainTextEdit_git_log` — the old combined
+Sync/Refresh/GitWeb button row plus log view). Three fixed rows, refreshed
+by `_run_diagnostics()` on every `refresh_status()` call (Sync, Refresh
+Status, repo switch/auto-sync — same trigger set as everything else on this
+page), run through `GitStreamWorker` like every other background action
+here (no dedicated worker class):
+
+- **Token & Auth** — `GitService.get_github_token()` present, and if the
+  remote parses as a GitHub URL, also `check_repo_access(owner, name,
+  token)` (the exact primitive `start_sync`'s pre-flight access check
+  already uses).
+- **Clone** — `GitService.is_cloned(dest_path)` (the same `.git`-directory
+  check `refresh_status` already does before doing anything else).
+- **Up-to-date** — a bounded `GitService.fetch()` then
+  `GitService.get_ahead_behind(dest_path)`; behind-by-N → warning row
+  ("N commits behind — sync to update"); otherwise a pass row ("Up to
+  date" or "Up to date locally, N commits ahead (not yet pushed)").
+
+All three checks reuse existing `GitService`/`core/vcs/repo_access.py`
+primitives — no `core/` change was needed for this table (only for the
+`FileChange` per-file typing above). Columns: **Name**, **Detail** (free
+text per above), **Status** (icon-only —
+`self.style().standardIcon(QStyle.SP_DialogApplyButton)` on pass,
+`QStyle.SP_MessageBoxWarning` on fail, via `QStandardItem.setIcon`).
+
+This table is deliberately independent of the sidebar status dot below —
+they answer different questions (working-tree cleanliness vs. auth/clone/
+staleness) and don't share state.
+
 ## Commit history panel
 
-`RepoGitStatusPage` renders a whole-repo commit history directly on this
-tab, as a plain `QTableWidget` (`self.commit_log_table`, columns avatar
-icon/Author/Message/Time Ago/Date — relative time before absolute date,
-since relative is the one worth reading at a glance) — deliberately *not*
-the `CommitCard` template `plugins/core/explorer/`'s per-path panel uses
-(see "Card→table rewrite, 2026-08-13" below for why). The avatar column
-reuses `CommitHistoryEntry.avatar_bytes` (rendered via `QTableWidgetItem.setIcon`,
-falling back to the same 👤 glyph `CommitCard` uses when there's no avatar)
-and `format_relative_time` (`interface/shared/commit_history.py`, alongside
-`format_commit_date`) backs the Time Ago column. `self._commit_log_avatar_cache`
+`tableView_commit_history`, backed by a 5-column `QStandardItemModel`
+(avatar icon, Author, Message, Time Ago, Date — relative time before
+absolute date, since relative is the one worth reading at a glance). Same
+data/behavior as before this rewrite, just targeting a `QTableView` +
+`QStandardItemModel` instead of a hand-built `QTableWidget`. The avatar
+column reuses `CommitHistoryEntry.avatar_bytes` (rendered via
+`QStandardItem.setIcon`, falling back to a 👤 glyph when there's no
+avatar) and `format_relative_time`/`format_commit_date`
+(`interface/shared/commit_history.py`). `self._commit_log_avatar_cache`
 lives on the page (not the worker) so avatars are only ever downloaded once
-across the page's whole lifetime, not re-fetched on every 30-minute repoll —
-passed into `CommitLogWorker`'s `avatar_cache` param, same idiom
-`PathCommitHistoryPanel`'s `_avatar_cache` uses for Explorer. Unlike
-Explorer's panel (scoped to whichever path is selected in Repo Browser),
-this one always shows the active repo's history as a whole. Double-clicking
-a row opens
-`interface/shared/commit_history.py`'s `CommitFilesDialog` (the same popup
-CommitCard's own "Files" button uses) via `_on_commit_row_double_clicked`,
-passing `git_service`/`repo_path`/`on_browse_file` — its "Browse" button
-jumps straight to Explorer via the same `browse_file_requested` signal the
-Modified/Staged lists' "Inspect in Explorer" context menu already uses.
-`self._commit_log_entries` keeps the last-fetched list around so a
-double-click can map a table row back to its `CommitHistoryEntry`.
+across the page's whole lifetime, not re-fetched on every 30-minute repoll.
+Double-clicking a row opens `interface/shared/commit_history.py`'s
+`CommitFilesDialog`, passing `git_service`/`repo_path`/`on_browse_file` —
+its "Browse" button jumps straight to Explorer via the same
+`browse_file_requested` signal the Modified/Staged tables' "Inspect in
+Explorer" context menu uses. `self._commit_log_entries` keeps the
+last-fetched list around so a double-click can map a table row back to its
+`CommitHistoryEntry`.
 
 - **When it polls**: `_poll_commit_log` runs on every `refresh_status()`
   call (repo switch, the Refresh Status button, and auto-sync on
@@ -110,60 +212,43 @@ double-click can map a table row back to its `CommitHistoryEntry`.
   `QTimer` every `COMMIT_LOG_POLL_INTERVAL_MS` (30 minutes) so it stays
   current while the tab just sits open.
 - **How it fetches**: `CommitLogWorker` (a `QThread`) runs
-  `GitService.fetch()` first (bounded — `timeout=30` passed down to
-  `GitService._run_capture`, so a stalled network fetch can't hang this
-  background poll forever) — remote-tracking refs only, never the working
-  tree, so it's safe to run silently in the background — then reads recent
-  commits the same GitHub-API-first/local-git-fallback way
-  `interface/shared/commit_history.py`'s other callers do (`origin/<branch>`
-  when falling back to local, so commits nobody has pulled into this clone
-  yet still show up; if that ref doesn't exist either — e.g. an unpushed
-  branch — falls back again to plain local `HEAD`, same as Explorer's
-  panel, instead of showing nothing).
-- **No dedup/unread tracking**: unlike the old Notification-tab team
-  activity feed this replaced, the panel just re-renders whatever the
-  latest fetch returns (newest first, capped at 20) — there's no
-  persisted "last seen commit" bookkeeping, since this is a plain
-  browse-the-history panel, not a notification stream.
-- **Card→table rewrite, 2026-08-13**: the original `CommitCard`-based
-  version had two real bugs, found while debugging "Explorer's panel shows
-  history, Submit's doesn't": (1) `CommitCard`/`CommitHistoryEntry` were
-  used in `repo_git_status_page.py` without ever being imported — every
-  render with a non-empty `entries` list threw `NameError` inside the
-  `entries_ready` slot, silently aborting before any card was added; (2)
-  `commit_log_group` was the only widget in `content_layout` given a
-  stretch factor, and the page's own content wasn't wrapped in a
-  `wrap_scrollable(...)` the way sibling pages are — under vertical space
-  pressure Qt shrinks the highest-stretch item first, so the whole group
-  box (border and title included) could be squeezed to 0 height rather
-  than just showing fewer cards. The page content is now wrapped in
-  `wrap_scrollable(...)` (`scroll`/`content_wrap_layout`, same shape as
-  `project_editor/custom_paths_settings_page.py`) as a general fix for (2),
-  and the plain table replaces `CommitCard` entirely for (1) plus the
-  user's ask to drop the avatar-badge styling here in favor of a plain
-  data table — Explorer's per-path panel is untouched and still uses
-  `CommitCard`.
+  `GitService.fetch()` first (bounded — `timeout=30`, so a stalled network
+  fetch can't hang this background poll forever) — remote-tracking refs
+  only, never the working tree — then reads recent commits the same
+  GitHub-API-first/local-git-fallback way `interface/shared/commit_history.py`'s
+  other callers do.
+- **No dedup/unread tracking**: the panel just re-renders whatever the
+  latest fetch returns (newest first, capped at 20).
+
+## Other Command buttons
+
+Below the Commit History group in the `.ui`:
+- **Open Local Directory** (`pushButton_local_dir`) — `open_in_file_explorer(dest_path)`
+  (`core/os_utils.py`, re-exported via `plugin_api`; wasn't used by this
+  plugin before this rewrite).
+- **Open Repo Site** (`pushButton_repo_website`) — same behavior as the old
+  "GitWeb" button: parses the remote as a GitHub URL and opens
+  `https://github.com/<owner>/<repo>` in the system browser; warns if the
+  remote isn't a github.com URL.
 
 ## Sidebar status dot
 
 `plugin_api/registries/section_registry.py`'s `SectionSpec.trailing_widget_factory`
 (a general-purpose slot any section can use for a small status widget at
-the right edge of its own sidebar row) is handed `page.status_dot` in
-`plugin.py`. `RepoGitStatusPage` owns/updates it directly — `SectionTabList`
-only lays it out.
+the right edge of its own sidebar row) is handed `page.status_dot` (a plain
+`QLabel`) in `plugin.py`. `RepoGitStatusPage` owns/updates it directly via
+`_set_status_dot_state` — `SectionTabList` only lays it out.
 
 Three states, driven entirely by the existing `refresh_status()` call (Sync,
 Refresh Status, and the auto-sync on launch/repo-switch — no extra polling
 or network calls added for this). Icons are built-in Qt standard icons
-(`QStyle.standardIcon`, migrated 2026-08-13 from a QSS `setProperty("state",
-...)` + `unpolish`/`polish` repaint — see `interface.md`'s Zero QSS Policy
-section), not colored dots anymore:
+(`QStyle.standardIcon`):
 - **loading** (hidden, no icon) — a status check is in flight, or the last
   one is more than 10 minutes stale. `refresh_status()` sets this
   immediately on every call, before the new `RepoStatusWorker` reports back,
   so the dot never shows a stale/wrong-repo icon mid-check.
 - **dirty** (`QStyle.SP_MessageBoxWarning`) — `_on_status_ready` saw a
-  non-clean `RepoStatus` (untracked/modified/staged present).
+  non-clean `RepoStatus` (unstaged or staged changes present).
 - **fresh** (`QStyle.SP_DialogApplyButton`) — `_on_status_ready` saw a clean
   `RepoStatus`. Only valid for `FRESHNESS_WINDOW_MS` (10 minutes) —
   `_freshness_timer` (restarted on every `refresh_status()` call) flips it
@@ -171,10 +256,13 @@ section), not colored dots anymore:
   claiming a possibly-outdated "clean" forever between manual
   refreshes/syncs.
 
-There is deliberately no "would conflict on push" state — detecting that
-would need a new `git fetch` this page doesn't otherwise do; left out of
-scope for now.
+There is deliberately no "would conflict on push" state on this dot — that
+question is what the diagnostics table's Up-to-date row answers instead.
 
 **Working here:** stay inside this folder unless the change needs a new
-`core_api` primitive, an `interface/shared/` addition, or touches
-`interface/main_window.py`'s generic `UICommandService` wiring.
+`core_api`/`plugin_api` primitive (see "Where `FileChange` comes from"
+above for the precedent — extend `core/models.py` +
+`core/vcs/git_service.py`, then re-export through `core_api` and
+`plugin_api`, then update `core-api.md`/`plugin-api.md`), an
+`interface/shared/` addition, or touches `interface/main_window.py`'s
+generic `UICommandService` wiring.

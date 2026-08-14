@@ -141,6 +141,10 @@ Everything below is importable as `from plugin_api import X` — never
 `from core.xxx import X` in a plugin file.
 
 **Models** (`core/models.py`): `Repo`, `Project`, `Program`, `RepoStatus`
+(`.unstaged_changes`/`.staged_changes`: `list[FileChange]` — untracked files
+merge into `unstaged_changes` with `change_type="untracked"`), `FileChange`
+(`path: str`, `change_type: str` — `"untracked"|"added"|"modified"|
+"deleted"|"renamed"`)
 
 **Exceptions** (`core/exceptions.py`): `NotFoundError`, `ConflictError`,
 `GitOperationError`, `GitHubAuthError`, `UkoreHubError`, `ValidationError`

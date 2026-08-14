@@ -59,8 +59,24 @@ def test_get_status_combines(repo):
     service = GitService()
     status = service.get_status(repo)
     assert status.commit is not None
-    assert "untracked.txt" in status.untracked
+    assert any(fc.path == "untracked.txt" and fc.change_type == "untracked" for fc in status.unstaged_changes)
     assert status.is_clean is False
+
+
+def test_get_status_change_types(repo):
+    (repo / "untracked.txt").write_text("new\n", encoding="utf-8")
+    (repo / "committed.txt").write_text("modified\n", encoding="utf-8")
+    (repo / "staged.txt").write_text("staged\n", encoding="utf-8")
+    _run_git(["add", "staged.txt"], cwd=repo)
+
+    service = GitService()
+    status = service.get_status(repo)
+
+    unstaged_by_path = {fc.path: fc.change_type for fc in status.unstaged_changes}
+    staged_by_path = {fc.path: fc.change_type for fc in status.staged_changes}
+    assert unstaged_by_path["untracked.txt"] == "untracked"
+    assert unstaged_by_path["committed.txt"] == "modified"
+    assert staged_by_path["staged.txt"] == "added"
 
 
 def test_get_status_not_a_repo(tmp_path):

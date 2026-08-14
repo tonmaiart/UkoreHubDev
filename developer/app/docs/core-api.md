@@ -128,7 +128,10 @@ Everything below is importable as `from core_api import X` — never
 `from core.xxx import X` in `interface/` or `plugin_api/`'s own facade
 files.
 
-**Models** (`core/models.py`): `Repo`, `Project`, `Program`, `RepoStatus`
+**Models** (`core/models.py`): `Repo`, `Project`, `Program`, `RepoStatus`,
+`FileChange` (`path`, `change_type` — `"untracked"|"added"|"modified"|
+"deleted"|"renamed"`; populates `RepoStatus.unstaged_changes`/
+`.staged_changes`, produced by `GitService._parse_status_porcelain`)
 
 **Exceptions** (`core/exceptions.py`): `NotFoundError`, `ConflictError`,
 `GitOperationError`, `GitHubAuthError`, `UkoreHubError`, `ValidationError`
