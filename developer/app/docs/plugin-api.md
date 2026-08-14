@@ -127,7 +127,7 @@ for the full worked examples and when to reach for each option.
 - **`SettingsTabSpec`** — `key, label, order, page_factory`, optional `on_activated: Callable[[QWidget], None]`, `category` (one of `CATEGORY_GENERAL` (default), `CATEGORY_PROJECT`, `CATEGORY_REPO`, `CATEGORY_DEVELOPER`).
 - **`SidebarFooterActionSpec`** — `key, order, widget_factory: Callable[[], QWidget]`, optional `background_threads`.
 - **`ProgramLaunchSpec`** — `match: Callable[[Program], bool]`, `launch: Callable[[Repo], bool]`. First match wins, in registration order.
-- **`UICommandService`** — passed to `SectionSpec.wire(page, host)`: `set_status_message`, `navigate_and_focus`, `set_active_repo`, `open_settings_tab`, `switch_project` — named callbacks a plugin page calls into without holding a `MainWindow` reference.
+- **`UICommandService`** — passed to `SectionSpec.wire(page, host)`: `set_status_message`, `navigate_and_focus`, `set_active_repo`, `open_settings_tab`, `switch_project`, `refresh_section` — named callbacks a plugin page calls into without holding a `MainWindow` reference. `refresh_section(key)` asks another section to re-read its own on-disk/data state (calls that page's optional `refresh_content()` method if it has one) without switching the visible tab — e.g. Submit's Sync button telling Explorer to rescan after a clone/pull, since Explorer's `QFileSystemModel` watcher can miss/lag a bulk filesystem change.
 
 All four `*Registry` classes (`SectionRegistry`, `SettingsTabRegistry`,
 `SidebarFooterActionRegistry`, `ProgramLaunchRegistry`) and

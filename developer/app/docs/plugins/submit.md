@@ -18,11 +18,14 @@ revert, commit → pull → (resolve conflicts) → push. A real always-on
   `_stage_worker`/`_unstage_worker`/`_revert_worker`/`_diagnostics_worker`/
   `_commit_log_worker` — for `MainWindow.closeEvent`'s shutdown cleanup) and
   `wire` — connects `sync_started`/`sync_finished`/`sync_failed` to
-  `UICommandService.set_status_message` (the sidebar status line) and
+  `UICommandService.set_status_message` (the sidebar status line),
   `browse_file_requested` to `UICommandService.navigate_and_focus` (jumps to
   Explorer's `"repo_browser"` section key and calls its optional
   `browse_to_path` protocol method — see
-  `plugins/core/explorer/repo_browser_page.py`). See
+  `plugins/core/explorer/repo_browser_page.py`), and `sync_finished` to
+  `UICommandService.refresh_section("repo_browser")` (tells Explorer to
+  rescan its current folder, without switching to its tab — see "Explorer
+  refresh after Sync" below). See
   `plugin_api/registries/section_registry.py`'s `UICommandService` for why
   this is a fixed set of named callbacks rather than a generic dispatcher.
 - `submit_section.ui` — Qt Designer file for the whole page, loaded at
@@ -151,6 +154,25 @@ file, ignoring table selection, exactly as before.
 
 Right-click on a row still offers "Inspect in Explorer" (jumps to Explorer
 via `browse_file_requested`), scoped to the row under the cursor.
+
+## Explorer refresh after Sync
+
+Cloning/pulling files onto disk (Sync Others Commit) doesn't switch the
+active repo, so nothing else would ever tell Explorer's
+`QFileSystemModel`-backed file table to rescan — its own filesystem watcher
+can miss or lag a bulk change like a git clone/pull, which used to mean the
+Explorer tab stayed stale until the user manually reopened it or restarted
+the app. `plugin.py`'s `_wire` connects `page.sync_finished` to
+`UICommandService.refresh_section("repo_browser")`
+(`plugin_api/registries/section_registry.py`), which looks Explorer's page
+up by its `SectionRegistry` key and calls its optional `refresh_content()`
+method (`interface/page_protocols.py`'s `RefreshablePage` protocol) if it
+implements one — without switching the visible tab, unlike
+`navigate_and_focus`. See `plugins/core/explorer/repo_browser_page.py`'s
+`refresh_content()` for what Explorer actually does with this. Only wired
+to `sync_finished` (the Sync button's clone/pull), not the commit→pull→push
+workflow's own pull step — that wasn't reported as stale; extend the same
+`refresh_section` call there too if it turns out to need it.
 
 ## Diagnostics table (`tableView_git_status`)
 
