@@ -55,7 +55,17 @@ re-exports above.
   cloud-synced), and `atomic_file.py`'s shared `atomic_write`/`utc_now_iso`
   helper. **Never imports `core.vcs.cloud_sync`** — these three stores
   instead take an optional `on_save`/`on_delete` callback (see "What's
-  deliberately not re-exported" below).
+  deliberately not re-exported" below). `MetadataStore` also takes
+  `on_asset_upload`/`on_asset_missing` — same pattern, but for the binary
+  thumbnail/program-icon images under `assets_dir` rather than the JSON
+  blob itself: `on_asset_upload(blob_name, local_path)` fires from
+  `set_repo_thumbnail`/`set_program_icon` right after the image is copied
+  in locally, `on_asset_missing(blob_name, local_path)` fires from
+  `resolve_thumbnail_path`/`resolve_program_icon_path` when the local file
+  doesn't exist yet — `launcher.py` wires both to lazy `R2JsonSync.push`/
+  `.pull` calls (unlike the JSON stores, these images are pulled lazily
+  per-file on first read, not eagerly at launch — see
+  `developer/app/docs/data-layout.md`).
 - **`auth/`** — `token_store.py`'s `SecureTokenStore` (OS-keyring credential
   storage, gitignored-JSON fallback) and `github_auth.py`'s
   `fetch_avatar_bytes`. GitHub login itself (device-code flow) lives
@@ -97,7 +107,9 @@ individually.
 ```python
 core = UkoreCore(
     data_dir=data_dir, cache_dir=cache_dir, assets_dir=assets_dir,
-    on_metadata_save=..., on_metadata_delete=..., on_system_config_save=...,
+    on_metadata_save=..., on_metadata_delete=...,
+    on_metadata_asset_upload=..., on_metadata_asset_missing=...,
+    on_system_config_save=...,
     debug_bus=debug_bus,  # optional — built internally if omitted
 )
 ```

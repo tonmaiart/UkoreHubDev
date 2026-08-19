@@ -1,18 +1,31 @@
-# data-layout.md — `app/data/`, `app/appdata/`, `app/assets/`
+# data-layout.md — `app/data/`, `app/appdata/`
 
-Moved here (2026-08-13) from those three folders' own `README.md`s, which
-were removed — see root `CLAUDE.md`'s "Reading this codebase" section for
-why. Covers what's on disk in each and whether it's shared/cloud-synced —
-see [`core-api.md`](core-api.md) for the `MetadataStore`/`SystemConfigStore`
+Moved here (2026-08-13) from these folders' own `README.md`s, which were
+removed — see root `CLAUDE.md`'s "Reading this codebase" section for why.
+Covers what's on disk in each and whether it's shared/cloud-synced — see
+[`core-api.md`](core-api.md) for the `MetadataStore`/`SystemConfigStore`
 classes that own the JSON files described here.
 
-**Don't open files under any of these three folders speculatively** — no
-image viewer needed (nothing textual in `assets/`), and `data/`'s JSON
-files are runtime state, worth opening only when a task needs a concrete
-current value (debugging a stale value, checking a real id), not for
-orientation.
+**Don't open files under either of these folders speculatively** —
+`data/`'s JSON files are runtime state, worth opening only when a task
+needs a concrete current value (debugging a stale value, checking a real
+id), not for orientation. No image viewer needed for `data/assets/`
+either, same reasoning `assets/` used to carry before it moved here (see
+below).
 
-## `data/` — cloud-synced JSON blob cache, no exceptions
+`app/assets/` (thumbnails, program icons; a third subfolder, `icons/` —
+static app-chrome icons — was already unused and deleted separately) was
+retired entirely on 2026-08-19: those images moved from git-tracked
+binary files onto Cloudflare R2, the same cutover the JSON stores went
+through on 2026-08-09 and for the same reason — a file the running app
+also writes to locally can't safely ride along on the self-update `git
+pull`. See `data/assets/` below for where they live now.
+
+## `data/` — cloud-synced blob cache, no exceptions
+
+Mostly JSON (see below), plus `assets/` (binary thumbnail/program-icon
+images, pulled lazily instead of eagerly — see its own bullet further
+down).
 
 As of 2026-08-14, `data/` itself no longer lives under `app/` — it's
 sourced from `DATA_DIR` in `app/launcher.py` (env var `UKOREHUB_DATA_DIR`,
@@ -33,6 +46,10 @@ launch, pushed back up on every save (see `launcher.py` and
 replaced the old model (tracked in this repo, distributed via `git
 pull`/Update and Restart) because that meant any machine with an
 uncommitted local edit broke the self-update `git pull` outright.
+`data/assets/` (below) is the one exception to "pulled fresh on every
+launch" — it's still a local R2 blob cache, just pulled lazily per-file
+on first read instead, since there's no small fixed list of images to
+pull eagerly the way there is for the JSON blobs.
 
 This is a hard rule, not just the common case: a handful of Maya-side
 scripts under `cache/plugins/*/maya-scripts/` clones (which can't import
@@ -86,6 +103,23 @@ git-tracked files that used to live here (`projects.example.json`,
   UkoreHub owns: `local_config.json`, `github_token.json` (a credential —
   never open/quote/surface its contents), `plugin_local_config/`, and
   `plugins/` (repo plugins, each its own separate git clone).
+- `assets/thumbnails/`, `assets/program_icons/` — per-repo thumbnail
+  images (filename = `Repo.thumbnail_filename`) and per-`Program` icons
+  (filename = `Program.icon_filename`, `core/models.py`). **Cloud-synced,
+  but lazily, per-file** — unlike every other entry in this list, these
+  aren't pulled eagerly in `launcher.py`'s fixed startup loop, because the
+  set of images is unbounded (grows with every repo/program across every
+  project) rather than a small fixed list of blobs. Instead
+  `MetadataStore.resolve_thumbnail_path`/`resolve_program_icon_path`
+  (`core/storage/metadata_store.py`) pull a given image on first read if
+  it's not already in the local cache (`on_asset_missing` callback,
+  `launcher.py`'s `_pull_asset`), and `set_repo_thumbnail`/
+  `set_program_icon` push a newly-picked image right after saving it
+  locally (`on_asset_upload` callback, `launcher.py`'s `_push_asset`). R2
+  blob keys are `thumbnails/<filename>`/`program_icons/<filename>`. Also
+  unlike the JSON stores, a conflicting concurrent upload doesn't raise
+  `ConflictError` to the caller — last-write-wins is fine for images, so
+  `_push_asset` swallows it. See `core-api.md`'s `MetadataStore` entry.
 
 Everything per-machine/gitignored (`local_config.json`, `github_token.json`,
 `plugin_local_config/*.json`, repo-plugin clones) lives under `cache/`
@@ -133,31 +167,14 @@ files".
   reference for a human (or an agent) who needs "an example of the shape"
   without pulling the real, possibly-large `data/projects/<id>.json`.
 
-## `assets/` — git-tracked binary images, never cloud-synced
+`thumbnails/`/`program_icons/` (now under `data/assets/`, see above) are
+referenced by filename from the JSON stores, same as before the 2026-08-19
+move. `MetadataStore` still takes an `assets_dir` constructor param
+(default `<data_dir>/assets`) rather than deriving it from `json_path`'s
+own folder — that indirection is what let these move independently of the
+JSON files' own layout, both times (git → `app/assets/` in the old design,
+`app/assets/` → `data/assets/` now).
 
-Never cloud-synced and never written by `core/vcs/cloud_sync.py`, unlike
-everything in `data/` above. Split out from `data/` on 2026-08-09
-specifically because these files aren't part of that sync system at all,
-and living alongside it made "is this file cloud-synced?" a per-file
-question instead of a per-folder one.
-
-- `thumbnails/` — per-repo thumbnail images, filename =
-  `Repo.thumbnail_filename` (`core/models.py`). Resolved via
-  `MetadataStore.resolve_thumbnail_path`/`thumbnails_dir`.
-- `program_icons/` — per-`Program` icons, filename =
-  `Program.icon_filename` (`core/models.py`, part of a Project's own
-  `programs` list). Resolved via
-  `MetadataStore.resolve_program_icon_path`/`program_icons_dir`.
-- `icons/` — static app-chrome icons (Setting gear, Sidebar's
-  SectionTabList's Explorer/Submit icons), not tied to any JSON store
-  record — fixed asset files referenced directly by path
-  (`api.app_root / "assets" / "icons"`) from `interface/` and each
-  `plugins/core/*/plugin.py` that registers a sidebar section.
-
-`thumbnails/` and `program_icons/` are referenced by filename from the
-JSON stores in `data/`; `icons/` is referenced directly by path since it
-has no owning store. `MetadataStore` takes an `assets_dir` constructor
-param (defaulting to `<app_root>/assets` when omitted) rather than
-deriving it from `json_path`'s own folder — that's what lets `data/`'s
-JSON files move to a cloud-synced cache without dragging these image
-folders along with them.
+The static app-chrome icons that used to live at `app/assets/icons/`
+(Settings gear, Sidebar tab icons) are gone — the app switched to Qt's
+built-in icons, so there was nothing left to migrate for that subfolder.

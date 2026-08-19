@@ -10,7 +10,7 @@ Registers the sidebar's **"Program Launcher"** tab (icon
 project_editor=15) — lets the user link each Program Database entry (each
 Project's own `Project.programs`, `core/models.py` — not shared across
 Projects, see `core_api`'s `MetadataStore.list_programs`/`get_program`)
-to a local executable path on this machine, and click a linked card once
+to a local executable path on this machine, and double-click a linked row
 to open it. Per-machine data, since "what's installed here" is never
 team-shared. As of 2026-08-10 this replaced the old `software_linker`
 **Settings tab** (`api.register_settings_tab`) — moved wholesale to a
@@ -23,31 +23,53 @@ the tab's own label. A single-file plugin (unlike `plugins/core/explorer/`/
 plugins" section for why that's a different setup).
 
 - `manifest.json` — plugin id `software_linker`, entry point `plugin.py`.
-- `plugin.py` — everything in one file:
+- `ProgramLauncherWindow.ui` — Qt Designer source for the whole tab (the
+  `listWidget_program_list` list plus `checkBox_ShowOnlyRequirement` and
+  the `pushButton_auto_resolve`/`pushButton_browse_path`/
+  `pushButton_browse_program`/`pushButton_clear_link_path` buttons).
+  `SoftwareLinkerPage.__init__` loads this at runtime via `QUiLoader`
+  instead of building the layout in code — same convention as
+  `plugins/core/explorer/browser_widget.py`'s `explorer_section.ui` — and
+  binds each widget with `self.ui.findChild(Type, "objectName")`.
+  Renaming an `objectName` in the `.ui` breaks that binding with no error
+  at import time (`findChild` just returns `None`), so keep the two in
+  sync.
+- `plugin.py` — everything else in one file:
   - `list_installed_programs()` / `_resolve_exe_path()` — best-effort scan
     of Windows' Uninstall registry keys (the same list "Programs and
     Features"/Settings > Apps reads from).
-  - `ProgramPickerDialog` — icon+search picker over installed programs.
-  - `_ToastNotification` — small self-dismissing `QFrame` popup (`Qt.ToolTip`
-    top-level window, `QGraphicsOpacityEffect` + `QPropertyAnimation` fading
-    it out after a short hold via `QTimer.singleShot`) used for
-    click-to-launch feedback instead of a blocking `QMessageBox` — both the
-    "Opening X..." success case and the launch-failed case use it, so
-    neither one needs a click to dismiss. Styled via `interface/theme.py`'s
-    `QFrame#softwareLinkToast` rule.
-  - `_ProgramLinkCard` — one card per linkable (Program, version) slot:
-    the Program's own icon (`MetadataStore.resolve_program_icon_path`, falling
-    back to a generic icon), name/path/status each on their own line, its
-    own "Browse Program...", "Browse Path...", and "Clear" buttons — three
-    plain buttons in their own columns (a `QHBoxLayout`), no dropdown/split
-    button — no page-level selection state, each card acts on its own
-    program directly. Highlights on hover
-    (`QFrame#softwareLinkCard:hover` in `interface/theme.py`). **A single
-    left-click anywhere on the card itself** (not the buttons — Qt delivers
-    the event to whichever child widget is under the cursor first, so the
-    buttons still just activate normally) opens the linked executable, or
-    opens the same "Browse Program..." picker if nothing is linked yet.
-    A linked click first checks
+  - `ProgramPickerDialog` — icon+search picker over installed programs
+    (its own small dialog, built in code — not covered by
+    `ProgramLauncherWindow.ui`).
+  - `SoftwareLinkerPage` — the tab itself, one `QListWidgetItem` per
+    linkable (Program, version) slot in `listWidget_program_list` (built
+    by `_rebuild_list`), instead of the one-card-per-program layout this
+    plugin used before 2026-08-19. Each item's icon is the Program's own
+    (`MetadataStore.resolve_program_icon_path`, falling back to a generic
+    icon); its two-line text is `"{label}\n{linked_path}"` when linked or
+    `"{label}\nNot linked"` otherwise (`_apply_item_state`) — bold text
+    (`QFont.setBold`) plus normal `QPalette.Text` when linked, regular
+    weight plus `QPalette.PlaceholderText` when not, both plain
+    `QPalette`/`QFont` calls with no `interface/` import and no
+    plugin-specific rule in `interface/theme.py` to keep in sync (the
+    retired `_ProgramLinkCard`/`_ToastNotification` classes used
+    `interface/shared/widget_helpers.py`'s `set_bold`/`set_secondary_text`
+    plus a `QFrame#softwareLinkCard`/`QFrame#softwareLinkToast` pair of
+    QSS rules in `interface/theme.py` — both gone now, along with those
+    two rules, which are worth deleting from `interface/theme.py`
+    separately since editing `interface/` needs its own permission ask).
+    No page-level selection state beyond `QListWidget`'s own
+    `currentItem()` — the "Browse Program...", "Browse Path...", and
+    "Clear Link Path" buttons act on whichever row is currently selected
+    (`_selected_row`), and are disabled via `_update_action_buttons_enabled`
+    whenever nothing is selected. **Double-clicking a row**
+    (`_on_item_double_clicked`, replacing the old single-left-click-anywhere-
+    on-the-card behavior) opens the linked executable, or opens the same
+    "Browse Program..." picker if nothing is linked yet. Launch feedback
+    (`"Opening X..."` / a launch-failure message) is a plain
+    `QToolTip.showText` call instead of the old custom-animated toast
+    popup — nothing to click through, and no styling dependency on
+    `interface/theme.py`. A linked double-click first checks
     `api.program_launch_registry.find_launcher(program)`
     (`plugin_api/registries/program_launch_registry.py`) — a plugin
     (currently only `maya_launcher`, its own `cache/plugins/` clone, for
@@ -56,28 +78,28 @@ plugins" section for why that's a different setup).
     setProject/env-merge/force-load-plugins wiring — using whichever repo
     is currently active (`SoftwareLinkerPage.set_repo`'s `repo` param); no
     match, or no active repo, falls back to `subprocess.Popen([exe_path])`
-    directly.
-  - `SoftwareLinkerPage` — the tab itself: a "Show Only Requirement for
-    current repo only" checkbox (checked by default) at the very top of
-    the page, the active project's name (read-only), plus a scrollable
-    list of `_ProgramLinkCard`s, one per Program Database entry in that
-    project. The checkbox narrows that list down to just the active repo's
-    `Repo.required_program_ids` — unchecking it goes back to every
-    Program in the Project's whole catalog. With no active repo, the
-    checkbox has nothing to filter against, so every Program is shown
-    regardless of its state (`_rebuild_cards`). Implements the standard
-    `SetRepoPage` protocol (`interface/page_protocols.py`) —
-    `set_repo(project, repo, workspace_root)` is called whenever this
-    becomes the visible section or the active repo changes
-    (`interface/main_window.py`'s `_apply_to_current_page` /
-    `_apply_set_repo`, optional-protocol per the `ukorehub-interface`
-    skill's "Page protocol" section)
-    — stores both `project` (which Program Database to list) and `repo`
-    (passed through to a matched `ProgramLaunchSpec` on click).
+    directly. The "Show Only Requirement for current repo only" checkbox
+    (checked by default) narrows the list down to just the active repo's
+    `Repo.required_program_ids` — unchecking it goes back to every Program
+    in the Project's whole catalog. With no active repo, the checkbox has
+    nothing to filter against, so every Program is shown regardless of its
+    state (`_rebuild_list`). Implements the standard `SetRepoPage` protocol
+    (`interface/page_protocols.py`) — `set_repo(project, repo,
+    workspace_root)` is called whenever this becomes the visible section or
+    the active repo changes (`interface/main_window.py`'s
+    `_apply_to_current_page` / `_apply_set_repo`, optional-protocol per the
+    `ukorehub-interface` skill's "Page protocol" section) — stores both
+    `project` (which Program Database to list) and `repo` (passed through
+    to a matched `ProgramLaunchSpec` on double-click). `_rebuild_list`
+    preserves the current selection across a rebuild by key (`previous_key`
+    → `restore_item`) since `QListWidget.clear()` otherwise drops it.
     Auto-detects an unlinked program's executable on every rebuild via the
     full `_resolve_path_for_program` scan below (never overwrites an
     existing link, `_auto_detect_missing`) — always runs automatically now,
-    not just a PATH-only check.
+    not just a PATH-only check. This tab no longer shows the active
+    project's name as a standalone label — `ProgramLauncherWindow.ui` has
+    no widget for it; add one to the `.ui` (and a matching
+    `self.ui.findChild` bind) if that's needed again.
   - `_resolve_path_for_program` — the shared three-source scan, tried in
     order until one hits:
     1. System PATH (`shutil.which`).
@@ -90,10 +112,10 @@ plugins" section for why that's a different setup).
 
     Runs automatically for every still-unlinked Program on each rebuild
     (`_auto_detect_missing`) — no longer gated behind an explicit click.
-    **"Auto-Resolve Path" button** (`_on_auto_resolve_path`) still exists as
-    a manual re-trigger over the same scan, showing a summary message box
-    ("Resolved N program(s)"); never overwrites an existing link, same rule
-    as `_auto_detect_missing`.
+    **"Auto Resolve to Unlink Path" button** (`pushButton_auto_resolve` →
+    `_on_auto_resolve_path`) still exists as a manual re-trigger over the
+    same scan, showing a summary message box ("Resolved N program(s)");
+    never overwrites an existing link, same rule as `_auto_detect_missing`.
   - `register(api)` — registers `SoftwareLinkerPage` as a top-level
     `SectionSpec` via `api.register_section(...)`. The page's
     `config_store` is `api.plugin_config_store(PLUGIN_ID, shared=False)` —

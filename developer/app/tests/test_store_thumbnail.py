@@ -29,6 +29,38 @@ def test_resolve_thumbnail_path_when_set(tmp_path):
     assert store.resolve_thumbnail_path(repo) == store.thumbnails_dir / "abc123.png"
 
 
+def test_set_repo_thumbnail_fires_on_asset_upload(tmp_path):
+    uploads = []
+    store = MetadataStore(tmp_path / "projects.json", on_asset_upload=lambda blob, path: uploads.append((blob, path)))
+    project = store.add_project("Kafka")
+    repo = store.add_repo(project.id, "repo1", "https://example.com/repo1.git", str(tmp_path))
+
+    store.set_repo_thumbnail(project.id, repo.id, "abc123.png")
+    assert uploads == [("thumbnails/abc123.png", store.thumbnails_dir / "abc123.png")]
+
+    uploads.clear()
+    store.set_repo_thumbnail(project.id, repo.id, None)
+    assert uploads == []
+
+
+def test_resolve_thumbnail_path_fires_on_asset_missing_when_file_absent(tmp_path):
+    missing = []
+    store = MetadataStore(tmp_path / "projects.json", on_asset_missing=lambda blob, path: missing.append((blob, path)))
+    project = store.add_project("Kafka")
+    repo = store.add_repo(project.id, "repo1", "https://example.com/repo1.git", str(tmp_path))
+    store.set_repo_thumbnail(project.id, repo.id, "abc123.png")
+    repo = store.get_repo(project.id, repo.id)
+
+    store.resolve_thumbnail_path(repo)
+    assert missing == [("thumbnails/abc123.png", store.thumbnails_dir / "abc123.png")]
+
+    missing.clear()
+    store.thumbnails_dir.mkdir(parents=True, exist_ok=True)
+    (store.thumbnails_dir / "abc123.png").write_bytes(b"fake image bytes")
+    store.resolve_thumbnail_path(repo)
+    assert missing == []
+
+
 def test_backward_compat_missing_thumbnail_field(tmp_path):
     json_path = tmp_path / "projects.json"
     json_path.write_text(

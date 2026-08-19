@@ -172,20 +172,33 @@ which resolves the active project/repo itself from `local_config_store` on
   `resolve_repo_path`) and marks the repo `not_cloned`
   (`MetadataStore.mark_status`) — does not touch the registry record
   itself, only the on-disk clone.
-- `requirements_and_plugins_page.py` — `RequirementsAndPluginsPage`: two
-  stacked sections inside a scroll area — **Program Requirements** (embeds
-  `interface/shared/requirements_tree_widget.py`'s `RequirementsTreeWidget`,
-  editing an *existing* repo's `required_program_ids`/`program_version_pins`)
-  and **Enable Plugin** — every discovered plugin, split by
-  `core/extensibility/loader.py`'s `plugin_source()` into **Core**
-  (`plugins/core/`, always on, no opt-out) and **External**
-  (`cache/plugins/`, opt-in via `Repo.required_plugin_ids`). (Un)checking
-  an External plugin flips its sidebar section's visibility for this repo
-  (`interface/main_window.py`'s `_apply_plugin_visibility`). A
-  project-selected entry not yet cloned shows as its own checkable row —
-  checking it clones it immediately via `GitService` and marks it required
-  by reading the fresh clone's `manifest.json`; still needs a restart to
-  actually load (plugin discovery is one-shot at app startup).
+- `requirements_and_plugins_page.py` — `RequirementsAndPluginsPage`: UI
+  authored in Qt Designer (`RepoSettingWindow.ui`, same folder) and loaded
+  at runtime via `QUiLoader`, same pattern
+  `plugins/core/explorer/browser_widget.py` uses for `explorer_section.ui`
+  and `project_editor/custom_paths_settings_page.py` uses for
+  `CustomPathWindow.ui`. Two stacked `QGroupBox` sections — **Program
+  Requirements** (`groupBox`/`treeWidget_program_requirements` — the `.ui`'s
+  placeholder `QTreeWidget` is swapped out on every refresh for a real
+  `interface/shared/requirements_tree_widget.py`'s `RequirementsTreeWidget`
+  instance, editing an *existing* repo's
+  `required_program_ids`/`program_version_pins`) and **Enable External
+  Plugins** (`groupBox_2`/`tableWidget_external_plugins`, four columns —
+  checkbox, plugin name, requires, info). Only `core/extensibility/loader.py`'s
+  `plugin_source() == "repo"` (External, `cache/plugins/`, opt-in via
+  `Repo.required_plugin_ids`) plugins get a row — Core plugins
+  (`plugins/core/`, always on, no opt-out) have nothing to toggle so they no
+  longer get a read-only list of their own (dropped in the `.ui` migration).
+  (Un)checking an External plugin flips its sidebar section's visibility for
+  this repo (`interface/main_window.py`'s `_apply_plugin_visibility`). The
+  **Info** column carries a catalog row's on-disk status text ("Not
+  installed — check to clone" / "Installed — restart UkoreHub to activate" /
+  "Broken clone — fix via Settings > Developer > External Plugins") instead
+  of it being appended to the plugin name itself. A project-selected entry
+  not yet cloned shows as its own checkable row — checking it clones it
+  immediately via `GitService` and marks it required by reading the fresh
+  clone's `manifest.json`; still needs a restart to actually load (plugin
+  discovery is one-shot at app startup).
 
 **Working here:** stay inside this folder unless the change needs a new
 `core_api` primitive, a `shared/` addition, or touches

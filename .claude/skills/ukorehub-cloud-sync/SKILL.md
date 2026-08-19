@@ -44,7 +44,7 @@ overwrites on every pull.
 | `data/programs.json` (retired — one-time migration only) | Cloud-synced | Blob `programs.json` |
 | `data/system_config.json` (`SystemConfigStore`) | Cloud-synced | Blob `system_config.json` |
 | `data/plugins/core/*.json` (`PluginConfigStore`, `shared=True`) | Cloud-synced | Blob `plugins/core/<plugin_id>.json` |
-| `assets/thumbnails/`, `assets/program_icons/`, `assets/icons/` | Git-tracked | Binary images, never cloud-synced. See `assets/README.md`. |
+| `data/assets/thumbnails/`, `data/assets/program_icons/` (`MetadataStore`) | Cloud-synced, but lazily per-file (not pulled eagerly at launch like the rows above) | Blob `thumbnails/<filename>`, `program_icons/<filename>` |
 | `cache/local_config.json`, `cache/plugin_local_config/*.json` (`shared=False`) | Local-only, gitignored | Per-machine, never synced anywhere |
 | `cache/github_token.json` | Local-only, gitignored | Real credential — never open/quote/surface contents |
 | `developer/launcher/launcher_build/r2_credentials.py` | Local-only, gitignored | The shared R2 key itself — see "Credential model" below. Not per-machine like the files above; it's the one file whoever *builds* the exe needs, not every artist. |
@@ -74,6 +74,22 @@ places that:
 Adding a new cloud-synced store means repeating this same pull-then-wire
 pattern at one of those two call sites — not adding R2 logic to the store
 class itself.
+
+**Binary assets use the same pattern, split into two callbacks instead of
+one.** `MetadataStore` also takes `on_asset_upload: Callable[[str, Path], None]`
+and `on_asset_missing: Callable[[str, Path], None]` (both `(blob_name,
+local_path)`), for `data/assets/thumbnails/`/`data/assets/program_icons/`
+(2026-08-19 — moved off git the same way the JSON stores moved off it on
+2026-08-09, see `developer/app/docs/data-layout.md`). Unlike `on_save`,
+there's no "pull everything before constructing the store" step, since the
+set of images has no small fixed list to enumerate — instead
+`on_asset_upload` fires a `push()` right after `set_repo_thumbnail`/
+`set_program_icon` saves a newly-picked image locally, and
+`on_asset_missing` fires a `pull()` lazily from
+`resolve_thumbnail_path`/`resolve_program_icon_path` whenever the local
+file isn't there yet. `launcher.py`'s `_push_asset` also swallows
+`ConflictError` (unlike `_push_shared_blob`) — last-write-wins is the
+right behavior for an image, not a real conflict to surface to the UI.
 
 ## The isolation rule — why `core/vcs/cloud_sync.py` is its own module
 

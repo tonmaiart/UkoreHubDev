@@ -94,7 +94,8 @@ buttons at the top of the file table are the only navigation aids now.)
   escape hatch for any other staleness (e.g. a file changed by an external
   tool while Explorer was open).
   Right-clicking a row opens a context menu (Add this to bookmarks/Copy
-  Name/Copy File Path/Rename/Delete) via `_on_table_context_menu`;
+  Name/Copy File Relative Path/Copy File Absolute Path/Rename/Delete) via
+  `_on_table_context_menu`;
   right-clicking blank space in the table (no row under the cursor) falls
   through to `_on_empty_area_context_menu` instead, whose Create New
   Folder/Rename Folder/Delete Folder act on the currently open folder
@@ -127,6 +128,39 @@ buttons at the top of the file table are the only navigation aids now.)
   one. `open_directory_button` (`pushButton_open_current_directory`, in the
   nav row) opens `_current_path` in the OS file explorer via
   `core/os_utils.py`'s `open_in_file_explorer`.
+  `absolute_relative_switch` (`pushButton_absolute_relative_switch`, in the
+  nav row next to the breadcrumb) toggles `_path_mode`
+  (`"absolute"`/`"relative"`, **defaults to `"relative"`** — set in
+  `RepoBrowserWidget.__init__` and mirrored in the `.ui`'s default button
+  text so Designer's preview matches the runtime default) and re-renders
+  the breadcrumb text (`_update_breadcrumb_text`) accordingly — the
+  button's own label always names the *current* mode ("Absolute" while
+  showing an absolute path, "Relative" while showing a repo-relative one),
+  not the mode a click would switch to. Relative display
+  (`_relative_display_str`) always starts with the repo's own folder name
+  (`_root.name`) rather than being relative to `_root` itself (unlike the
+  pre-existing `_relative_path_str`, used for git/commit-history lookups,
+  which omits it) — e.g. `MyRepo/assets/model.ma`, per the "relative path
+  always starts at the repo name" convention.
+  Typing into the breadcrumb and pressing Enter (`_on_breadcrumb_entered`)
+  auto-detects whether the typed text is absolute or relative
+  (`Path(text).is_absolute()`) and resolves it via `_resolve_typed_path`,
+  which rebases either form onto this machine's own `_root` by finding the
+  repo folder name inside the typed path's parts and reattaching the
+  remainder to `_root` — this is what lets a teammate's absolute path
+  (different drive/machine, e.g. `D:/OtherUser/storage/MyRepo/assets`)
+  still resolve locally instead of failing outright, since it shares the
+  same repo-name-relative suffix. A typed path that doesn't contain the
+  repo name anywhere is treated as absolute-or-nothing (used as a literal
+  absolute path if it is one, otherwise rejected and the breadcrumb
+  reverts to the current path). If the resolved path is a **file** rather
+  than a folder, `_on_breadcrumb_entered` mirrors
+  `_on_last_opened_clicked`'s behavior exactly — navigates to the file's
+  parent folder (`_navigate_to`) and selects the file's own row
+  (`_select_file_in_table`) rather than trying to "open" it; only a
+  resolved folder navigates into itself. On successful navigation,
+  `_set_path_mode` is called with the detected mode so the switch button
+  and breadcrumb stay in sync with whatever the user typed.
 - `bookmarks_store.py` — `BookmarksStore`: "Add this to bookmarks" (table
   row context menu) persists the clicked file/folder's repo-relative path
   via `MetadataStore.get_repo_plugin_data`/`set_repo_plugin_data`

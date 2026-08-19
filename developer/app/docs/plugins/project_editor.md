@@ -89,8 +89,11 @@ needed here anymore.
   (`core/models.py`, `data/projects/<project_id>.json`) — `pipeline_store.py`'s
   `migrate_legacy_data(api)` does a one-time, self-healing cutover of any
   data still in the old blob on `register(api)`.
-- `plugin.py` — `register(api)`: constructs `PipelineStore` and one
-  `ProjectEditorPage` instance, registers it via `api.register_section(...)`
+- `plugin.py` — `register(api)`: constructs `PipelineStore` (passing
+  `api.project_plugin_config_store(PLUGIN_ID)` alongside `api.metadata` as
+  of 2026-08-19, for the Category catalog — see `pipeline_store.py` below)
+  and one `ProjectEditorPage` instance, registers it via
+  `api.register_section(...)`
   with `wire=_wire` — `_wire` calls `page.bind_set_active_repo(host.set_active_repo)`,
   `page.bind_switch_project(host.switch_project)`, and
   `page.bind_open_settings_tab(host.open_settings_tab)` — all three
@@ -100,7 +103,14 @@ needed here anymore.
   a node's "Repository Setting..." right-click can open the unified
   Settings dialog on its Repo Setting (Dev) category — all without the
   page holding a `MainWindow` reference.
-- `dialogs.py` — `ProjectDialog`/`RepoDialog`. `RepoDialog` embeds
+- `dialogs.py` — `ProjectDialog`/`RepoDialog`/`AssignCategoryDialog` (added
+  2026-08-19 — a single `QComboBox` of "(Uncategorized)" + every existing
+  `Category` + "New Category..." (reveals a name field), backing a node's
+  right-click "Assign to Category..." action; never talks to
+  `PipelineStore` itself, just hands the caller back an existing category
+  id / `None` / a new name to create, same as `RepoDialog`/`ProjectDialog`
+  handing back plain values for their own caller to act on). `RepoDialog`
+  embeds
   `interface/shared/requirements_tree_widget.py`'s `RequirementsTreeWidget`
   (the checkable Program requirements tree, for repo creation) — that
   widget briefly lived in this file (moved in 2026-07-20, moved back out
@@ -253,9 +263,14 @@ needed here anymore.
   - **Right-click context menu**: "Repository Setting..." (opens
     `open_repo_settings`, which opens the unified Settings dialog via
     `bind_open_settings_tab` — this one doesn't touch the scene, so it's
-    called directly, no `QTimer` deferral needed), then
+    called directly, no `QTimer` deferral needed), "Assign to
+    Category..." (added 2026-08-19 — opens `dialogs.py`'s
+    `AssignCategoryDialog`, see the "Layout" bullet below), then
     rename/thumbnail/delete — every mutation delegated back to
-    `ProjectGraphView`'s own methods rather than duplicated per node.
+    `ProjectGraphView`'s own methods rather than duplicated per node. A
+    `CategoryBoxItem` itself (the background box, not a node) has its own
+    separate right-click menu — "Move Category Up"/"Move Category Down",
+    see the "Layout" bullet.
   - **Bottom-right overlay HUD** (`ProjectGraphView._overlay_container`, a
     plain child `QWidget` positioned by hand in `resizeEvent`/
     `_position_overlay` rather than a layout of its own, so it floats over
@@ -288,55 +303,67 @@ needed here anymore.
     the graph (`load_project`) right after the settings dialog closes, so
     a connection added/removed inside it is reflected in the edges
     immediately.
-  - **Layout** (`_layout_nodes`): a simplified Sugiyama-style layered
-    bottom-up pass instead of a plain grid. Baseline level = longest path
-    from a "root" (no predecessors — the connecting repos nothing else
-    points at) through pipeline edges (cycle-safe: a cycle in
-    independently-curated pipeline data just gets treated as a root rather
-    than recursing forever). On top of that baseline, added 2026-07-19 per
-    the user's own request to declutter the busy rows: a repo with
-    `_LOW_DEGREE_THRESHOLD` (currently 1) or fewer total connections gets
-    pushed UP to the highest row its own successors still allow
-    (`final_level_of`, a second recursive pass over `successors` computed
-    the same way `predecessors` is) — a well-connected repo (e.g. a busy
-    "...Publish" hub) keeps its original baseline row unchanged. This is
-    provably safe: `final_level_of(repo) < final_level_of(successor)`
-    always holds, by induction over the recursion (see that function's own
-    docstring for the short proof) — so a boosted repo can never end up
-    level-with-or-above one of its own successors. The resulting levels
-    are then compacted to consecutive integers (boosting can leave gaps)
-    before level 0 (the lowest row after boosting) is placed at the
-    **bottom** and higher levels rise toward the top (inverted 2026-07-19,
-    was top-down — `y = (max_level - level) * row_height`); within a
-    level, nodes are ordered by the average x-position of their baseline
-    predecessors one row down (barycenter heuristic — only approximate for
-    a boosted repo, whose true predecessor may no longer be exactly one
-    row below it) to reduce edge crossings, then each row is horizontally
-    centered against the widest level. An isolated repo with no pipeline
-    edges at all has zero connections, so it's always boosted all the way
-    to the top row.
-    Combined with `PipelineEdgeItem`'s arrowhead-at-`target` convention
-    (also inverted 2026-07-19 — `load_project` passes the connected-to
-    repo as `source` and the connecting repo as `target`), every edge
-    points strictly **downward** by default (`"input"` direction — see
-    `RepoRef.direction`) — drawn as a plain straight line between each
-    node's own border, each end aimed directly at the other node's center
-    (`_border_point`, simplified 2026-07-19 from an elbow-routed
-    fixed-anchor version — see the `project_graph_view.py` bullet above).
+  - **Layout** (`_layout_nodes`, rewritten 2026-08-19): a **vertical stack
+    of Category boxes**, replacing the old pipeline-dependency
+    Sugiyama-style layered pass entirely, per the user's own request —
+    node position is now a deliberate per-repo choice, not something an
+    algorithm infers from pipeline edges. Every `Category`
+    (`pipeline_store.py` — `id`, `name`) a repo is assigned to
+    (`RepoRef`-style per-repo `category_id`, stored the same way as
+    `pipeline_inputs`/`custom_paths` — see the `pipeline_store.py` bullet
+    below) gets its own `CategoryBoxItem`; any repo with no `category_id`,
+    or one pointing at a deleted category, falls into a synthetic
+    **"Uncategorized"** box instead — always last, since it isn't a real
+    stored `Category`. Each box's own repos fill a near-square grid inside
+    it (`_category_grid_columns`/`_category_box_size` — e.g. 5 repos → 3
+    columns, 2 rows), in `project.repos`' own declared order. Boxes
+    themselves stack top to bottom in one column, one `_CATEGORY_BOX_V_SPACING`
+    gap apart, in `PipelineStore.get_categories`' own stored list order
+    (originally 2026-08-19's first pass placed boxes in an auto-wrapping
+    left-to-right grid instead — changed to a single column the same day,
+    per the user's own request). `CategoryBoxItem` paints a translucent
+    rounded rect plus a bold title label at `_CATEGORY_BOX_Z_VALUE` (`-1`,
+    below every `RepoNodeItem`'s default `zValue` of 0, so nodes always
+    float on top of their own box) — a `RepoNodeItem` "inside" one of
+    these is still an independent scene item at an absolute scene position
+    that happens to fall within the box's rect, not an actual Qt child of
+    it, same flat-scene-siblings relationship `PipelineEdgeItem` already
+    has with the nodes it connects.
+    A node's category is set via its right-click "Assign to
+    Category..." action (`ProjectGraphView.assign_repo_category`,
+    `dialogs.py`'s `AssignCategoryDialog` — a single combo box: every
+    existing `Category`, "(Uncategorized)" to clear the assignment, or
+    "New Category..." which reveals a name field and creates one on the
+    spot via `PipelineStore.add_category`). The stack's own top-to-bottom
+    **order** is separately user-editable: a `CategoryBoxItem`'s own
+    right-click menu (empty for the synthetic Uncategorized box, which
+    isn't reorderable) offers "Move Category Up"/"Move Category Down",
+    both wired to `ProjectGraphView.move_category(category_id, direction)`
+    — swaps this category with its immediate neighbor in
+    `PipelineStore.get_categories`' list and persists the whole list via
+    `PipelineStore.set_categories` (a no-op, without touching the store,
+    if already at that end of the list). Pipeline edges are entirely
+    unaffected by category/order — `PipelineEdgeItem` still draws a plain
+    straight line between each node's own border, each end aimed directly
+    at the other node's center (`_border_point`), same as before; only the
+    two nodes' *positions* changed, not how an edge between them is drawn.
   - `_collect_edges` reads `pipeline_store.get_inputs` for every repo in
     the loaded project — each entry's own declared connections — and
-    returns them as `(connecting_repo_id, target_repo_id)` pairs, matching
-    Custom Paths' "Connect Input Path" section's own naming (as of
-    2026-07-19 there's no separate "outputs" list to also read and
-    de-duplicate against — see the "Pipeline connections" bullet up top).
-    `load_project` draws each edge **the other way round** from that pair
-    — arrowhead pointing from the connected-to repo down into the
-    connecting repo (inverted 2026-07-19, was connecting-repo-to-target)
-    — see the "Layout" bullet above. Only edges where both endpoints are
-    in the currently loaded project are drawn; a pipeline ref pointing at
-    a different project's repo (allowed by `RepoRef`'s shape) is simply
-    not drawn, matching the old tree panel's own one-project-at-a-time
-    scope.
+    returns them as `(connecting_repo_id, target_repo_id, direction)`
+    triples, matching Custom Paths' "Connect Input Path" section's own
+    naming (as of 2026-07-19 there's no separate "outputs" list to also
+    read and de-duplicate against — see the "Pipeline connections" bullet
+    up top). `load_project` picks which node is `PipelineEdgeItem`'s
+    `source`/`target` per edge based on `RepoRef.direction` (`"input"`,
+    the default, draws the arrowhead into the connecting repo; `"output"`
+    draws it the other way round) — this direction has never affected
+    node position, and doing so was removed from `_layout_nodes`'
+    docstring entirely on 2026-08-19 since layout no longer reads this
+    edge set at all (see the "Layout" bullet above). Only edges where both
+    endpoints are in the currently loaded project are drawn; a pipeline
+    ref pointing at a different project's repo (allowed by `RepoRef`'s
+    shape) is simply not drawn, matching the old tree panel's own
+    one-project-at-a-time scope.
 - `required_repo_clone_worker.py` — `RequiredRepoCloneWorker` (`QThread`):
   clones/pulls a fixed list of `(project_id, Repo)` targets sequentially,
   stopping at the first failure (repos already cloned earlier in the same
@@ -365,9 +392,25 @@ needed here anymore.
   ```json
   {
     "pipeline_inputs": [{"project_id": "...", "repo_id": "...", "custom_path_id": "...", "direction": "input"}],
-    "custom_paths": [{"id": "...", "label": "Character", "path": "Character"}]
+    "custom_paths": [{"id": "...", "label": "Character", "path": "Character"}],
+    "category_id": "..."
   }
   ```
+  `category_id` (added 2026-08-19) is this repo's own `Category` assignment
+  for `ProjectGraphView`'s node grid — `null`/missing means the graph's
+  synthetic "Uncategorized" box (see `project_graph_view.py`'s "Layout"
+  bullet above). The `Category` catalog itself (`{id, name}`) is **not**
+  per-repo — it's scoped to the whole active Project instead, stored at
+  `Project.plugin_data["project_editor"]["categories"]` via
+  `api.project_plugin_config_store(PLUGIN_ID)` (`PipelineStore.__init__`'s
+  `project_config_store` param, `get_categories`/`add_category`/
+  `set_categories` — the last also used by `ProjectGraphView.move_category`
+  to persist a reordered list), riding on
+  that project's own already-cloud-synced blob rather than a separate file
+  — same mechanism `ExternalPluginManager` already uses for its own
+  project-scoped catalog, see `plugins-guide.md`. `Category.id` is a
+  stable `uuid4` (not derived from `name`) so renaming one doesn't
+  invalidate every repo's own `category_id` pointing at it.
   There used to also be a `"pipeline_outputs"` key here (a separate,
   independently-curated list, written by a now-removed "Set as Pipeline
   Output..." context-menu action) — **removed 2026-07-19**; every
