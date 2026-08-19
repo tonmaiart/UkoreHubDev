@@ -4,19 +4,23 @@ Moved here (2026-08-13) from `app/plugins/core/project_editor/README.md`.
 See `plugins-guide.md` for the general plugin-authoring conventions this
 plugin follows.
 
-Node-graph editor for the Project/Repo registry — an ordinary
+Repo list editor for the Project/Repo registry — an ordinary
 `SectionRegistry` section, a Sidebar row and `view_stack` page like every
-other section. Before the 2026-07-20 refactor it was `persistent=True`:
-never a sidebar row, docked permanently beside `view_stack` in a
-`QSplitter` instead, always visible no matter which ordinary section was
-currently showing — folded into the single `view_stack` along with
-everything else as part of tightening the app down to one navigation
-model (its node highlight/HUD now only refreshes when this tab is
-actually visible, matching how every other page already behaved, instead
-of continuously). Renamed from `pipeline_architect` on 2026-07-15, when
-this stopped being a buried Settings > Developer tab (`ProjectDataEditorPage`,
-a CRUD tree); briefly a full-width switchable section the same day, then
-changed again the same day to the always-visible docked panel it is now.
+other section. As of 2026-08-19, `project_editor_page.py` is a plain
+`QListWidget` of repos (thumbnail icons, grayscale until cloned) plus a
+detail panel — see "UI rewrite (2026-08-19)" below — replacing the
+`QGraphicsView` node-graph editor (`project_graph_view.py`, removed) that
+this section used from 2026-07-15 through then, per the user's own
+request to go back to "a dumb list with thumbnails" instead of a pipeline
+diagram. Before the 2026-07-20 refactor it was `persistent=True`: never a
+sidebar row, docked permanently beside `view_stack` in a `QSplitter`
+instead, always visible no matter which ordinary section was currently
+showing — folded into the single `view_stack` along with everything else
+as part of tightening the app down to one navigation model. Renamed from
+`pipeline_architect` on 2026-07-15, when this stopped being a buried
+Settings > Developer tab (`ProjectDataEditorPage`, a CRUD tree); briefly a
+full-width switchable section the same day, then changed again the same
+day to the always-visible docked panel it briefly was.
 Three things bundled into one plugin (originally two, before the
 2026-07-19 CustomPath addition):
 
@@ -120,45 +124,46 @@ needed here anymore.
   module (`from plugins.core.project_editor.dialogs import ...`, the same
   real-package convention `plugins-guide.md`'s "Multi-file plugins"
   section documents), not a relative import. Used by
-  `project_graph_view.py` (`RepoDialog`, node context menu Add/Edit Repo,
-  plus `add_repo` — see below) and `project_settings_page.py`
-  (`ProjectDialog`, "Add New Project..."/Rename Project — moved here from
-  `project_editor_page.py` 2026-08-03, see that file's own bullet).
+  `project_editor_page.py` (`RepoDialog`, repo list's right-click context
+  menu Add/Edit Repo, plus `add_repo` — see below) and
+  `project_settings_page.py` (`ProjectDialog`, "Add New Project..."/Rename
+  Project — moved here from `project_editor_page.py` 2026-08-03, see that
+  file's own bullet).
 - `project_editor_page.py` — `ProjectEditorPage`: the section's top-level
-  widget. No top bar at all as of 2026-08-03 (second pass — the project
-  `QComboBox`/Rename/Delete Project buttons moved out earlier the same day,
-  then Add Repo followed once the user asked for it too) — just
-  `ProjectGraphView`, full width/height, with zero chrome of its own.
-  Every action that used to be a top-bar button now lives in Setting >
-  **Project** (`project_settings_page.py` below) instead. As of the
-  single-project-per-session change, the Viewgraph is fixed at
-  construction to whichever project `local_config_store.active_project_id`
-  already names (guaranteed real by then — see `launcher.py`'s mandatory
-  Project Selector gate) rather than defaulting to the first project in
-  the registry.
-  `current_project_id()`/`add_repo()` are this page's own single source of
-  truth/entry points — `plugin.py` binds these to `ProjectSettingsPage`'s
-  `get_current_project_id`/`add_repo` callbacks (`add_repo()` itself just
-  delegates to `ProjectGraphView.add_repo`), so a freshly-constructed
-  settings page always reads/acts through to this persistent page
-  (matching every `CATEGORY_REPO` tab's own self-resolving-active-state
-  convention) rather than holding that state itself — clicking Add Repo in
-  Settings takes effect immediately, even while that dialog is still open,
-  since it's a plain synchronous call, not deferred until the dialog
-  closes (Add Repo's own `RepoDialog` opens as a nested modal on top of
-  the already-open Settings dialog, which Qt handles fine).
+  widget. As of 2026-08-19 this loads `ProjectEditorTabWindows.ui` at
+  runtime via `QUiLoader` (same pattern `custom_paths_settings_page.py`
+  uses for `CustomPathWindow.ui`) instead of building a `QGraphicsView`
+  node graph in code — see "UI rewrite (2026-08-19)" below for the full
+  shape. `current_project_id()`/`add_repo()` remain this page's own single
+  source of truth/entry points — `plugin.py` binds these to
+  `ProjectSettingsPage`'s `get_current_project_id`/`add_repo` callbacks, so
+  a freshly-constructed settings page always reads/acts through to this
+  persistent page (matching every `CATEGORY_REPO` tab's own
+  self-resolving-active-state convention) rather than holding that state
+  itself — clicking Add Repo in Settings takes effect immediately, even
+  while that dialog is still open, since it's a plain synchronous call,
+  not deferred until the dialog closes (Add Repo's own `RepoDialog` opens
+  as a nested modal on top of the already-open Settings dialog, which Qt
+  handles fine).
   `set_current_project()` still exists as the one place that actually
-  loads a project into the graph (also used defensively by `set_repo()`,
-  see below), but nothing calls it with a project id other than the one
-  fixed at construction anymore — `bind_switch_project()`/`switch_project()`
-  is the only way to view a different project at all, and it does that via
-  a full app restart (`UICommandService.switch_project`, wrapping
-  `MainWindow._request_switch_project`), not an in-place load. Implements
-  the standard `set_repo()` page protocol purely to keep the graph's
-  active-node highlight in sync when the active repo changes elsewhere —
-  this page only *reacts* to active-repo changes, it never receives a
-  command to make one (that only happens via a node click, through
-  `bind_set_active_repo`).
+  (re)loads a project's repos into the list (also used defensively by
+  `set_repo()`, see below), but nothing calls it with a project id other
+  than the one fixed at construction anymore. It also defaults the table's
+  selection to `local_config_store.active_repo_id` (added 2026-08-19, per
+  the user's own request — the table used to open with nothing selected)
+  rather than clearing it; `_reload_repo_table()`'s existing per-row
+  `repo.id == self._selected_repo_id` check does the actual
+  `setCurrentCell()` once that row comes around, same mechanism a
+  post-delete/rename reload already relied on to keep whatever was
+  selected, selected. `bind_switch_project()`/
+  `switch_project()` is the only way to view a different project at all,
+  and it does that via a full app restart (`UICommandService.switch_project`,
+  wrapping `MainWindow._request_switch_project`), not an in-place load.
+  Implements the standard `set_repo()` page protocol purely to keep the
+  list's bold active-repo row and the detail panel in sync when the active
+  repo changes elsewhere — this page only *reacts* to active-repo changes
+  except when the user selects an already-cloned row (see "Selecting a
+  row" below).
 - `project_settings_page.py` — `ProjectSettingsPage`: a `CATEGORY_PROJECT`
   Settings tab ("Project", added 2026-08-03), rendered by
   `interface/settings/settings_view.py` under its own "PROJECT" header row
@@ -178,202 +183,227 @@ needed here anymore.
   every read/action goes through the `get_current_project_id`/`add_repo`/
   `on_switch_project` callbacks `plugin.py` binds to
   `ProjectEditorPage.current_project_id`/`add_repo`/`switch_project`.
-- `project_graph_view.py` — `ProjectGraphView` (`QGraphicsView`),
-  `RepoNodeItem` (`QGraphicsItem`, one per repo), and `PipelineEdgeItem`
-  (`QGraphicsPathItem` with a hand-drawn arrowhead, one per directed
-  pipeline dependency). Native `QGraphicsView`, not a Mermaid.js/
-  QWebEngineView markup renderer — the interaction requirements here
-  (click, hover, per-node thumbnail, context menus) don't fit a
-  static-diagram renderer without a `QWebChannel` bridge, and this avoids
-  the extra Chromium/QtWebEngine dependency for a feature that doesn't need
-  a browser. Edges are plain straight lines, each end at whichever point
-  on that node's own border a straight line toward the other node's
-  center would exit through (`_border_point`) — simplified 2026-07-19 from
-  an earlier version that picked a fixed top/bottom/left/right anchor per
-  node and routed a rounded elbow between them (`_build_elbow_path`, since
-  removed), which produced messy overlapping bends once a node had several
-  connections at different angles. Edges paint **above**
-  nodes (`_EDGE_Z_VALUE`), not below — a node used to hide any edge segment
-  passing near/behind it — with a selected node's connected edges
-  highlighted yellow one z-level higher again (`_EDGE_HIGHLIGHT_Z_VALUE`,
-  `ProjectGraphView._update_edge_highlights`). The view's own background is
-  painted in an overridden `drawBackground` (changed 2026-08-03 from a flat
-  `setBackgroundBrush` color) — a radial gradient from `_GRAPH_BACKGROUND_CENTER_HEX`
-  (`#3a3b3e`, gray) to `_GRAPH_BACKGROUND_EDGE_HEX` (`#0a0a0b`, near-black),
-  centered on the *viewport* (via `mapToScene(viewport().rect().center())`,
-  not scene coordinates) so panning never drags the glow off-center, plus a
-  faint white grid (`_GRID_SPACING`/`_GRID_LINE_ALPHA`) drawn in scene
-  coordinates on top so the grid itself does scroll/pan with the node
-  content, like graph paper. Darker than the app-wide theme background it
-  would otherwise inherit, so the graph reads as its own recessed canvas.
-  - **Node visuals**: paints the repo's thumbnail fill-cropped plus
-    a name label; border/overlay react to two independent flags — `is_active`
-    (thick border, `_EDGE_HIGHLIGHT_COLOR_HEX` — the same yellow as a
-    highlighted pipeline edge, changed 2026-08-03 from the theme's plain
-    accent color so an active node visually matches the highlighted arrows
-    pointing at/from it) and `_is_hovered` (medium accent-hover border +
-    a subtle white wash over the thumbnail, set from `hoverEnterEvent`/
-    `hoverLeaveEvent` — `setAcceptHoverEvents(True)` plus the existing
-    `PointingHandCursor` together carry the "this is clickable" affordance).
-    A clone-status badge (`_clone_status_icon`, added 2026-07-20, migrated
-    to built-in Qt icons 2026-08-13 — see `interface.md`'s Zero QSS Policy
-    section) paints top-right on every node — `QStyle.SP_DialogYesButton`
-    if `RepoNodeItem.is_cloned` (computed once at construction via
-    `ProjectGraphView._is_repo_cloned`), else `QStyle.SP_DialogNoButton`;
-    both cached as pre-scaled `QPixmap`s at module level (built from
-    `QApplication.style()`, since `QGraphicsItem.paint()` has no widget of
-    its own) rather than reloaded per paint. Only recomputed on the next
-    `load_project()`/node rebuild — cloning a repo doesn't retroactively
-    flip an already-painted node's badge without a reload.
-  - **Switching repos**: a single left-click (`mousePressEvent`, guarded to
-    `Qt.LeftButton` so right-click's own `contextMenuEvent` isn't also
-    treated as a switch request) calls `ProjectGraphView.request_active_repo`,
-    deferred one event-loop tick via `QTimer.singleShot(0, ...)` — the
-    switch can end up reloading this very scene (`load_project`'s
-    `scene.clear()`), which would destroy this `RepoNodeItem`'s C++ object
-    while its own event handler is still on the call stack, crashing with
-    "Internal C++ object already deleted" the moment that handler resumes;
-    deferring lets it finish first (same reasoning applies to every
-    scene-mutating context-menu action below). `request_active_repo` checks
-    `_is_repo_cloned` (a `.git` folder under `workspace_root / repo.local_path`
-    — fixed 2026-07-20 to read the stored `local_path` instead of
-    recomputing the folder from the repo's current name via
-    `core/vcs/paths.py`'s `resolve_repo_path`, which resolved to the wrong
-    folder for any repo renamed after creation) first and shows a one-time
-    "hasn't been cloned yet, clone and switch now?" confirmation before the
-    very first clone — an already-cloned repo switches immediately with no
-    prompt.
-    `request_active_repo` also resolves this repo's own **direct**
-    `pipeline_store.get_required_repos` — repos it connects an Input Path
-    to — and folds any not-yet-cloned ones into that same confirmation
-    dialog ("... will also be cloned: RepoB, RepoC"). Deliberately
-    direct-only: it never looks at what those required repos themselves
-    require, so a single node click can't cascade into cloning the whole
-    graph. On confirm, the required repos clone first, sequentially, on a
-    background `RequiredRepoCloneWorker` (`required_repo_clone_worker.py`
-    — a local duplicate of `submit/git_stream_worker.py`'s
-    QThread-wraps-a-callable shape, not an import of it, per this plugin's
-    own boundary rules further down) behind a `QProgressDialog`, then
-    `load_project()` runs again immediately so their corner badges flip
-    right away instead of waiting for some later reload (same precedent as
-    `open_repo_settings`, below) — only then does the primary repo's own
-    switch/clone proceed through the unchanged Submit pathway. A repo with
-    no pipeline connections (or whose connections are all already cloned)
-    still sees the exact same one-line prompt as before this existed.
-  - **Right-click context menu**: "Repository Setting..." (opens
-    `open_repo_settings`, which opens the unified Settings dialog via
-    `bind_open_settings_tab` — this one doesn't touch the scene, so it's
-    called directly, no `QTimer` deferral needed), "Assign to
-    Category..." (added 2026-08-19 — opens `dialogs.py`'s
-    `AssignCategoryDialog`, see the "Layout" bullet below), then
-    rename/thumbnail/delete — every mutation delegated back to
-    `ProjectGraphView`'s own methods rather than duplicated per node. A
-    `CategoryBoxItem` itself (the background box, not a node) has its own
-    separate right-click menu — "Move Category Up"/"Move Category Down",
-    see the "Layout" bullet.
-  - **Bottom-right overlay HUD** (`ProjectGraphView._overlay_container`, a
-    plain child `QWidget` positioned by hand in `resizeEvent`/
-    `_position_overlay` rather than a layout of its own, so it floats over
-    the viewport without scrolling/zooming with the graph content — added
-    2026-07-20): a `QVBoxLayout` stacking two labels, changed 2026-08-03 to
-    split out the project name from the rest, and again 2026-08-03 to drop
-    `_overlay`'s own boxed `rgba(0,0,0,150)` background entirely (per the
-    user's own request — the whole HUD now reads as plain text floating
-    directly over the graph, not a panel) —
-    `_project_name_label` (oversized, bold, transparent background, just
-    the project's name with no "Project:" prefix) above `_overlay` (now
-    also `background: transparent`, no padding/border-radius since there's
-    no box left to pad): active repo name, `Repo.last_synced`
-    (reformatted via `_format_last_synced` — parses the stored UTC
-    isoformat string and renders it in the machine's own local time as
-    `"%d %b %Y, %H:%M"`, rather than showing the raw ISO string),
-    `Repo.status`, and this repo's own pipeline connections
-    (`pipeline_store.get_inputs`) split into "Input Custom Path"/"Output
-    Custom Path" lines by each `RepoRef.direction` — the same wording
-    `custom_paths_settings_page.py`'s "Connect Input Path" list already
-    uses. Refreshed on every `set_active_repo(project, repo)` call (now
-    takes the full `Project`/`Repo` objects instead of bare ids, since the
-    overlay needs their fields) — hidden when there's no active repo.
-    There's no "Connect Pipeline Input Path..." item here anymore (moved
-    2026-07-19 into Repository Setting's "Custom Paths" tab, "Connect
-    Input Path" section — see `custom_paths_settings_page.py` below) and
-    no separate "Set as Pipeline Output..." item either (removed
-    2026-07-19, see the "Pipeline connections" bullet up top) — one action
-    handles every connection a repo makes. `open_repo_settings` reloads
-    the graph (`load_project`) right after the settings dialog closes, so
-    a connection added/removed inside it is reflected in the edges
-    immediately.
-  - **Layout** (`_layout_nodes`, rewritten 2026-08-19): a **vertical stack
-    of Category boxes**, replacing the old pipeline-dependency
-    Sugiyama-style layered pass entirely, per the user's own request —
-    node position is now a deliberate per-repo choice, not something an
-    algorithm infers from pipeline edges. Every `Category`
-    (`pipeline_store.py` — `id`, `name`) a repo is assigned to
-    (`RepoRef`-style per-repo `category_id`, stored the same way as
-    `pipeline_inputs`/`custom_paths` — see the `pipeline_store.py` bullet
-    below) gets its own `CategoryBoxItem`; any repo with no `category_id`,
-    or one pointing at a deleted category, falls into a synthetic
-    **"Uncategorized"** box instead — always last, since it isn't a real
-    stored `Category`. Each box's own repos fill a near-square grid inside
-    it (`_category_grid_columns`/`_category_box_size` — e.g. 5 repos → 3
-    columns, 2 rows), in `project.repos`' own declared order. Boxes
-    themselves stack top to bottom in one column, one `_CATEGORY_BOX_V_SPACING`
-    gap apart, in `PipelineStore.get_categories`' own stored list order
-    (originally 2026-08-19's first pass placed boxes in an auto-wrapping
-    left-to-right grid instead — changed to a single column the same day,
-    per the user's own request). `CategoryBoxItem` paints a translucent
-    rounded rect plus a bold title label at `_CATEGORY_BOX_Z_VALUE` (`-1`,
-    below every `RepoNodeItem`'s default `zValue` of 0, so nodes always
-    float on top of their own box) — a `RepoNodeItem` "inside" one of
-    these is still an independent scene item at an absolute scene position
-    that happens to fall within the box's rect, not an actual Qt child of
-    it, same flat-scene-siblings relationship `PipelineEdgeItem` already
-    has with the nodes it connects.
-    A node's category is set via its right-click "Assign to
-    Category..." action (`ProjectGraphView.assign_repo_category`,
-    `dialogs.py`'s `AssignCategoryDialog` — a single combo box: every
-    existing `Category`, "(Uncategorized)" to clear the assignment, or
-    "New Category..." which reveals a name field and creates one on the
-    spot via `PipelineStore.add_category`). The stack's own top-to-bottom
-    **order** is separately user-editable: a `CategoryBoxItem`'s own
-    right-click menu (empty for the synthetic Uncategorized box, which
-    isn't reorderable) offers "Move Category Up"/"Move Category Down",
-    both wired to `ProjectGraphView.move_category(category_id, direction)`
-    — swaps this category with its immediate neighbor in
-    `PipelineStore.get_categories`' list and persists the whole list via
-    `PipelineStore.set_categories` (a no-op, without touching the store,
-    if already at that end of the list). Pipeline edges are entirely
-    unaffected by category/order — `PipelineEdgeItem` still draws a plain
-    straight line between each node's own border, each end aimed directly
-    at the other node's center (`_border_point`), same as before; only the
-    two nodes' *positions* changed, not how an edge between them is drawn.
-  - `_collect_edges` reads `pipeline_store.get_inputs` for every repo in
-    the loaded project — each entry's own declared connections — and
-    returns them as `(connecting_repo_id, target_repo_id, direction)`
-    triples, matching Custom Paths' "Connect Input Path" section's own
-    naming (as of 2026-07-19 there's no separate "outputs" list to also
-    read and de-duplicate against — see the "Pipeline connections" bullet
-    up top). `load_project` picks which node is `PipelineEdgeItem`'s
-    `source`/`target` per edge based on `RepoRef.direction` (`"input"`,
-    the default, draws the arrowhead into the connecting repo; `"output"`
-    draws it the other way round) — this direction has never affected
-    node position, and doing so was removed from `_layout_nodes`'
-    docstring entirely on 2026-08-19 since layout no longer reads this
-    edge set at all (see the "Layout" bullet above). Only edges where both
-    endpoints are in the currently loaded project are drawn; a pipeline
-    ref pointing at a different project's repo (allowed by `RepoRef`'s
-    shape) is simply not drawn, matching the old tree panel's own
-    one-project-at-a-time scope.
+- `project_graph_view.py` — **removed 2026-08-19**, see "UI rewrite
+  (2026-08-19)" below. Used to hold `ProjectGraphView` (`QGraphicsView`),
+  `RepoNodeItem`, `PipelineEdgeItem`, and `CategoryBoxItem` — the node
+  graph this plugin used from 2026-07-15 through then.
 - `required_repo_clone_worker.py` — `RequiredRepoCloneWorker` (`QThread`):
   clones/pulls a fixed list of `(project_id, Repo)` targets sequentially,
   stopping at the first failure (repos already cloned earlier in the same
-  batch are left on disk, never rolled back). Used only by
-  `ProjectGraphView.request_active_repo` (see above) to clone a repo's
-  direct pipeline requirements before switching to it. A deliberate local
-  duplicate of `plugins/core/submit/git_stream_worker.py`'s
+  batch are left on disk, never rolled back). Used by
+  `project_editor_page.py`'s Clone button (a single-element target list —
+  see "UI rewrite" below; before 2026-08-19 also used by the now-removed
+  `ProjectGraphView.request_active_repo` to clone a repo's direct pipeline
+  requirements before switching to it, a cascading-clone behavior the list
+  rewrite dropped in favor of the explicit per-repo Clone button plus the
+  visible Repositories Requirement list). A deliberate local duplicate of
+  `plugins/core/submit/git_stream_worker.py`'s
   QThread-wraps-a-callable/`finished_ok`/`failed` shape rather than an
   import of it — this plugin doesn't reach into a sibling plugin's source
   (see "Working here" at the bottom of this file).
+- `repo_status_scan_worker.py` — `RepoStatusScanWorker` (`QThread`): the
+  table's Status column background check — see the "Status column" bullet
+  below. Continues past a single repo's failure (unlike
+  `RequiredRepoCloneWorker` above, which stops at the first one), since
+  one repo's git status has no bearing on any other row. Same local-copy
+  boundary rule as `required_repo_clone_worker.py`.
+
+## UI rewrite (2026-08-19): list + detail panel, replacing the node graph
+
+`project_editor_page.py` loads `ProjectEditorTabWindows.ui` (Qt Designer,
+same `QUiLoader` pattern `custom_paths_settings_page.py` uses for
+`CustomPathWindow.ui`) instead of building a `QGraphicsView` scene in code
+— per the user's own request to go back to "a dumb list with thumbnails"
+instead of a pipeline diagram. `groupBox_repositories_requirements` in the
+`.ui` shipped with no child widget; a `QListWidget`
+(`listWidget_repositories_requirements`, matching the sibling
+`listWidget_software_requirements` groupbox's own layout shape) was added
+to it directly in the `.ui` XML rather than built in Python, so Designer
+still round-trips the whole layout. The user then hand-edited the `.ui` a
+second time the same day (still 2026-08-19) — swapping the repo
+`QListWidget` for a `QTableWidget`, dropping the Assign Categories button,
+and adding an Info groupbox — see "Second pass" below for that revision.
+
+- **`tableWidget_Repo`** (`QTableWidget`, 3 columns —
+  `_COL_NAME`/`_COL_STATUS`/`_COL_CONNECTION`,
+  `SelectRows`/`SingleSelection`/`NoEditTriggers`) — one row per repo in
+  the loaded project (`project.repos`' own order — no category grouping;
+  see "Second pass" for why Category assignment is gone). The active
+  repo's Name cell renders bold — the only "active" affordance left
+  besides the Connection column; there's no more HUD overlay (see "What
+  was dropped" below). Each row's repo id rides on the Name cell's
+  `Qt.UserRole` data now (`_on_repo_selection_changed`,
+  `_on_repo_context_menu` both read it from `_COL_NAME`).
+  A dedicated Thumbnail column (with a large `160x90` icon, a matching
+  fixed row height, and a `_FixedIconDelegate` class so the small
+  Status/Connection standard-icon pixmaps wouldn't get upscaled to fill
+  that same big box) briefly existed but was **removed same-day
+  (2026-08-19)** — the user reported the Status/Connection icons weren't
+  showing at all even after widening those columns, and asked to drop the
+  Thumbnail column and put sizing back to normal to see if that alone
+  fixed it. With no oversized column forcing a table-wide `iconSize()`,
+  the `_FixedIconDelegate` workaround (and its Status/Connection
+  `QHeaderView.Fixed`-plus-explicit-width follow-up, tried first and
+  reported still not working) is gone too — `repo_table.setIconSize(_STATUS_ICON_SIZE)`
+  (`QSize(18, 18)`) plus plain `QTableWidgetItem.setIcon()` and
+  `QHeaderView.ResizeToContents` on both columns is the whole story now,
+  same as any other icon column in this codebase. The repo's own
+  thumbnail image (`MetadataStore.resolve_thumbnail_path(repo)`,
+  grayscale via `_grayscale` while not cloned) still exists — it just
+  renders in the detail panel's `label_images` and the
+  `listWidget_repositories_requirements` icons (`_repo_icon`, sized via
+  `_REPO_ICON_SIZE`, renamed from `_REPO_TABLE_ICON_SIZE` since it's no
+  longer table-specific) rather than as a table column.
+- **Status column** (`_set_status_cell`, `_STATUS_ICONS`) — a live icon,
+  same three states `submit/repo_git_status_page.py`'s sidebar status dot
+  uses (`QStyle.SP_MessageBoxWarning` dirty / `SP_DialogApplyButton`
+  clean), plus `SP_DialogNoButton` for not-cloned and
+  `SP_MessageBoxCritical` if the check itself failed. Not-cloned is known
+  synchronously (same `GitService.is_cloned` check as the thumbnail); a
+  cloned repo shows `SP_BrowserReload` ("Syncing...") immediately, then a
+  background `RepoStatusScanWorker` (`repo_status_scan_worker.py` — a
+  local duplicate of `submit/git_stream_worker.py`'s shape, same boundary
+  rule `required_repo_clone_worker.py` already follows) runs
+  `GitService.get_status` per cloned repo sequentially and flips each row
+  to Modified/Up to date (or the critical icon on a per-repo failure) as
+  results stream in — non-blocking, no `QProgressDialog`, unlike Clone's
+  worker use below. `_status_scan_token` (bumped on every
+  `_reload_repo_table()`) lets `_on_status_ready`/`_on_status_failed` drop
+  a result from a scan the table has since moved past, without needing to
+  cancel the worker thread itself. `_status_workers` is a plain list kept
+  only so a running `QThread` isn't garbage-collected out from under
+  itself before it finishes — each worker removes itself
+  (`_on_scan_finished`) and calls `deleteLater()` when its `scan_finished`
+  signal fires.
+- **Connection column** (`_refresh_connection_column`) — only lights up
+  for a row the currently **active** repo (not the *selected* row) has a
+  Custom Paths connection to: reads `PipelineStore.get_inputs(project_id,
+  active_repo_id)` and, for each `RepoRef` whose target is a row in this
+  table, sets `QStyle.SP_MediaSkipBackward` for an `"input"` connection or
+  `SP_MediaSkipForward` for `"output"` — a quick-glance replacement for
+  the old graph's directed edges, per the user's own request. Recomputed
+  on every `_reload_repo_table()` and, cheaply (no table rebuild), on
+  every pure active-repo switch via `set_repo()`.
+- **Selecting a row** (`_on_repo_selection_changed`, via `currentRow()`)
+  only refreshes the detail panel — it deliberately never clones anything
+  and never changes the active repo unless the selected repo is *already*
+  cloned (in which case it calls the bound `set_active_repo` callback,
+  deferred one event-loop tick via `QTimer.singleShot(0, ...)` since that
+  call can round-trip back into this page's own `set_repo()`, updating
+  this very table while the `itemSelectionChanged` signal that triggered
+  it is still on the call stack). Cloning is only ever triggered by the
+  **Clone** button, never by selection — the one deliberate behavior
+  change from the old graph's single-click-clones-and-switches flow, per
+  the user's own request that selecting a repo shouldn't clone it or
+  switch to it "until we've already cloned that repo".
+- **Detail panel** (right side of the `.ui`, `_refresh_detail_panel`):
+  `label_images` shows the selected repo's thumbnail scaled to
+  `_PREVIEW_MAX_SIZE`, grayscale under the same not-cloned rule
+  (`_grayscale`/`_is_repo_cloned`) as everywhere else. `listWidget_software_requirements`
+  stays icon-only (`QListWidgetItem(icon, "")`, `IconMode`/`Static`/no
+  selection, program name only in the tooltip) per
+  `repo.required_program_ids`, resolved via
+  `MetadataStore.get_program`/`resolve_program_icon_path` — the user's own
+  "just the program icon" request.
+  There used to also be a `listWidget_repositories_requirements`
+  (`ListMode`, `PipelineStore.get_required_repos` — the selected repo's own
+  direct pipeline-input dependencies, reusing a `_repo_icon` helper) right
+  below it — **removed same-day (2026-08-19)**, per the user's own call
+  that it was redundant with the table's own Connection column (a
+  quick-glance icon is enough, no need for a second, duplicate list of the
+  same dependency info). The `.ui` groupbox/list widget was cut first (by
+  hand); this plugin's Python code was cleaned up to match —
+  `repositories_requirements_list`, `_reload_repositories_requirements()`,
+  and the now-unused `_repo_icon()`/`_REPO_ICON_SIZE` helper are all gone.
+  `PipelineStore.get_required_repos` itself is untouched (same
+  "leave the data-layer method in place, just cut the caller" precedent as
+  the Category catalog below).
+- **Info panel** (`groupBox_2`/`textBrowser_info`/`pushButton_edit_info`,
+  added in the "Second pass") — a free-form per-repo note,
+  `PipelineStore.get_repo_info`/`set_repo_info`, stored on
+  `Repo.plugin_data["project_editor"]["info"]` (plain string, empty if
+  never set) — same field this plugin already uses for
+  `pipeline_inputs`/`custom_paths`/`category_id`, so it rides along on
+  that project's own already-cloud-synced blob (`data/projects/<id>.json`)
+  with zero extra sync plumbing, satisfying the user's "sync to the cloud"
+  ask for free. `textBrowser_info` is read-only display
+  (`_refresh_detail_panel`'s `setPlainText`); `pushButton_edit_info` opens
+  `dialogs.py`'s `EditInfoDialog` (a single big `QPlainTextEdit` +
+  OK/Cancel, same "hand the caller back a plain value" convention every
+  other dialog in that file follows) pre-filled with the current text,
+  saving through `PipelineStore.set_repo_info` on accept.
+- **Set Thumbnail button** (`pushButton_set_thubmnail` — a typo in the
+  `.ui`'s own object name, "thubmnail", matched verbatim in
+  `findChild(QPushButton, "pushButton_set_thubmnail")` since renaming it
+  in Python wouldn't reach the real widget; the *display* text still reads
+  "Set Thumbnail"; fix the object name in Designer first if this ever gets
+  cleaned up, then update the `findChild` call in the same change) — added
+  next to Edit Info, a follow-up ask on top of the "Second pass" below.
+  `_on_set_thumbnail_clicked` just delegates to the same
+  `_change_repo_thumbnail(project_id, repo_id)` the right-click context
+  menu's "Change Thumbnail..." already calls — a second, easier-to-find
+  entry point for the same action, not a new implementation.
+- **Clone / Unclone buttons** — act on whichever repo is currently
+  *selected* in the table (`_selected_repo_id`, independent of the active
+  repo). Clone (disabled once already cloned) confirms, then runs
+  `RequiredRepoCloneWorker` with a single `[(project_id, repo)]` target
+  behind a `QProgressDialog` (`_run_clone_worker` — the same
+  worker/dialog/`QEventLoop` shape `ProjectGraphView._clone_required_repos`
+  used to use for the cascading multi-repo case), then also switches the
+  active repo to it. Unclone (disabled while not cloned) confirms, then
+  `shutil.rmtree`s `workspace_root / repo.local_path` and calls
+  `MetadataStore.mark_status(project_id, repo_id, "not_cloned")` — the
+  same status string `interface/repo_settings/local_repository_page.py`'s
+  "Remove Local Repositories" button already uses for the same operation,
+  just now reachable per-repo from this table too instead of only for the
+  currently-active repo.
+- **Right-click context menu** on a table row — "Repository Setting...",
+  "Rename Repo...", "Change Thumbnail...", "Delete Repo" (no "Assign to
+  Category..." entry anymore, see "Second pass" below). "Repository
+  Setting..." still opens the unified Settings dialog via
+  `bind_open_settings_tab`/`UICommandService.open_settings_tab` for
+  whichever repo is currently *active*, not necessarily the row that was
+  right-clicked — every `CATEGORY_REPO` tab self-resolves the active repo
+  from `local_config_store` regardless.
+
+**What was dropped, not just moved:** the bottom-right HUD overlay
+(project name, active repo, `Repo.last_synced`, Input/Output Custom Path
+lines) has no replacement in the new `.ui` — it wasn't part of what the
+user asked to keep. Pipeline connections are still fully visible via
+`custom_paths_settings_page.py`'s "Connect Input Path" section (unchanged),
+the table's own Connection column, and `listWidget_repositories_requirements`
+above; `Repo.last_synced` has no UI surface in this plugin at all anymore
+(`Repo.status` does, sort of — the table's Status column is a *live*
+git-status check now, not a read of the stored field, which the HUD used
+to show verbatim). The pipeline-dependency auto-clone cascade (cloning a
+repo's required repos automatically when switching to it) is also gone —
+see the `required_repo_clone_worker.py` bullet above for why.
+
+## Second pass (still 2026-08-19): table, Info panel, no more Categories
+
+Same day as the list rewrite above, the user hand-edited
+`ProjectEditorTabWindows.ui` again and asked for three more changes,
+folded into the same files rather than kept as a separate revision:
+
+1. **`listWidget_Repo` → `tableWidget_Repo`** — a `QTableWidget` with the
+   Status/Connection columns described above, "using the same logic as
+   the Submit tab's icon" for Status. Documented inline in the bullets
+   above rather than as a separate section, since the table *is* now the
+   plugin's repo list, not an alternate view of it.
+2. **Assign Categories cut entirely** — `pushButton_5` and its Assign
+   Categories handler are gone from both the `.ui` and
+   `project_editor_page.py` (no button, no context-menu entry), per the
+   user's own "I don't think it's necessary, just cut it" call.
+   `PipelineStore.get_repo_category_id`/`set_repo_category_id`/
+   `get_categories`/`add_category`/`set_categories` and `dialogs.py`'s
+   `AssignCategoryDialog` are all still present but **currently
+   unreachable from any UI** — left in place rather than deleted since a
+   real repo may already have a `category_id` saved from the brief window
+   this was live, and deleting the data-layer methods would be a bigger
+   call than "cut the button" asked for. Worth a real cleanup pass later
+   if the feature stays unwanted.
+3. **Info panel added** — `textBrowser_info`/`pushButton_edit_info`,
+   documented in the "Info panel" bullet above.
 - `repo_settings_panel.py` (**removed** as part of the 2026-07-20 refactor
   — `RepoSettingsPanel`/`RepoSettingsDialog` used to render every
   `CATEGORY_REPO` `SettingsTabSpec` in its own popup, opened via a node's
@@ -381,9 +411,10 @@ needed here anymore.
   both there and the app-level Setting dialog at once. Those tabs now
   render inside `interface/settings/settings_view.py`'s Repo Setting (Dev)
   top tab instead — see `interface.md`'s `settings/` "Rendering history"
-  note — and `ProjectGraphView.open_repo_settings()` opens that same
-  dialog via `UICommandService.open_settings_tab` rather than building a
-  second one).
+  note — and `project_editor_page.py`'s `_open_repo_settings()` (formerly
+  `ProjectGraphView.open_repo_settings()`, before the 2026-08-19 UI
+  rewrite) opens that same dialog via `UICommandService.open_settings_tab`
+  rather than building a second one).
 - `pipeline_store.py` — `PipelineStore`/`RepoRef`/`CustomPath`. Lives in each
   repo's own `Repo.plugin_data["project_editor"]` (`core/models.py`,
   `data/projects/<project_id>.json` — moved off the old standalone
@@ -396,16 +427,18 @@ needed here anymore.
     "category_id": "..."
   }
   ```
-  `category_id` (added 2026-08-19) is this repo's own `Category` assignment
-  for `ProjectGraphView`'s node grid — `null`/missing means the graph's
-  synthetic "Uncategorized" box (see `project_graph_view.py`'s "Layout"
-  bullet above). The `Category` catalog itself (`{id, name}`) is **not**
-  per-repo — it's scoped to the whole active Project instead, stored at
-  `Project.plugin_data["project_editor"]["categories"]` via
+  `category_id` (added 2026-08-19) is this repo's own `Category`
+  assignment, set via the list's "Assign Categories" button/context-menu
+  action (`project_editor_page.py`'s `_on_assign_category_clicked`) —
+  `null`/missing just means unassigned; nothing currently groups or
+  reorders the list by it (see "UI rewrite (2026-08-19)" above — this used
+  to drive `ProjectGraphView`'s node-grid layout before the graph was
+  removed the same day). The `Category` catalog itself (`{id, name}`) is
+  **not** per-repo — it's scoped to the whole active Project instead,
+  stored at `Project.plugin_data["project_editor"]["categories"]` via
   `api.project_plugin_config_store(PLUGIN_ID)` (`PipelineStore.__init__`'s
   `project_config_store` param, `get_categories`/`add_category`/
-  `set_categories` — the last also used by `ProjectGraphView.move_category`
-  to persist a reordered list), riding on
+  `set_categories`), riding on
   that project's own already-cloud-synced blob rather than a separate file
   — same mechanism `ExternalPluginManager` already uses for its own
   project-scoped catalog, see `plugins-guide.md`. `Category.id` is a
@@ -426,14 +459,16 @@ needed here anymore.
   picking one. `CustomPath.id` is a stable `uuid4` (not derived from
   `label`) so renaming one doesn't invalidate every `RepoRef` already
   pointing at it. `RepoRef.direction` (added 2026-07-19) defaults to
-  `"input"` for any ref saved before the field existed, matching this
-  app's arrow behavior prior to that date — see `RepoRef`'s own docstring
-  and `project_graph_view.py`'s `ProjectGraphView.load_project`.
+  `"input"` for any ref saved before the field existed — see `RepoRef`'s
+  own docstring (the arrowhead direction it drove is moot now that the
+  graph that drew arrows is gone, but the field and its default still
+  round-trip on old data unchanged).
   `get_required_repos(project_id, repo_id)` resolves a repo's own direct
-  `pipeline_inputs` refs into the actual target `Repo` objects
-  (deduped, direct-only — no recursion into each target's own inputs), used
-  by `ProjectGraphView.request_active_repo` to auto-clone a repo's pipeline
-  dependencies (see that bullet above).
+  `pipeline_inputs` refs into the actual target `Repo` objects (deduped,
+  direct-only — no recursion into each target's own inputs), used by
+  `project_editor_page.py`'s `listWidget_repositories_requirements` (see
+  "UI rewrite (2026-08-19)" above) to show/grayscale a selected repo's own
+  direct pipeline dependencies.
 - `custom_paths_settings_page.py` — `CustomPathsSettingsPage`: a
   `CATEGORY_REPO` Settings tab ("Custom Paths"), split into two
   `QGroupBox` sections. "Create Input Path" — add/rename/edit-path/remove

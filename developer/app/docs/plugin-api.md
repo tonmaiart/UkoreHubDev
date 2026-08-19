@@ -72,7 +72,7 @@ end.
 |---|---|---|
 | `api.metadata` | `MetadataStore` | The Project/Repo registry. Also owns Program CRUD (`list_programs(project_id)`, `get_program(project_id, id)`, ...) — `.get_program(...)` raises `plugin_api.NotFoundError`, not `None`/`KeyError`. The sanctioned way to write to the registry. |
 | `api.local_config` | `LocalConfigStore` | Per-machine settings (workspace root, theme, active project/repo, GitHub username). |
-| `api.git` | `GitService` | Git subprocess wrapper (clone/pull/push/commit/status/log/...). The sanctioned way to run a git operation — typically from a background `QThread`. |
+| `api.git` | `GitService` | Git subprocess wrapper (clone/pull/push/commit/status/log/...). The sanctioned way to run a git operation — typically from a background `QThread`. Includes `force_sync(repo_path)` — fetch + `reset --hard origin/<branch>` + `clean -fd`, discarding all local changes/unpushed commits and clearing any in-progress merge; never confirms with the user itself, added for `ExternalPluginManager`'s "Force Update Selected". |
 | `api.repo_context` | `RepoContextDTO \| None` | Read-only snapshot of the active project/repo (id/name, resolved repo path, `workspace_root`, `required_plugin_ids`). `None` if no repo is active yet. **Does not replace** `api.metadata`/`api.git` for writes or git operations — a frozen DTO architecturally can't cover those. |
 | `api.plugin_catalog` | `list[DiscoveredPlugin]` | Every plugin `discover_plugins()` loaded this launch (Core and repo/`cache/plugins` alike). For resolving another plugin's id to its manifest (name, `requires`, ...). |
 | `api.system_config_store` | `SystemConfigStore` | Shared, cloud-synced studio config (e.g. `r2_bucket_name`, `github_client_id`). |

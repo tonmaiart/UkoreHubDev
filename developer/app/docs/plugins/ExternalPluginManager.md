@@ -73,6 +73,18 @@ actually used in); that old file is left on disk, unread by anything now.
   `_local_status` (below) keep showing e.g. "3 commits behind" after the
   Settings dialog is closed and reopened, instead of reverting to a bare
   "Up to date" until the next explicit check.
+- `ExternalPluginManagerWindow.ui` — the tab's UI, authored in Qt Designer
+  and loaded at runtime via `QUiLoader` (2026-08-19; before this it was
+  built widget-by-widget in `__init__`), same pattern as
+  `plugins/core/explorer/browser_widget.py`'s `explorer_section.ui`. Widget
+  object names `external_plugins_page.py`'s `__init__` looks up via
+  `self.ui.findChild(...)`: `tableWidget_external_plugin_repo`;
+  `pushButton_add_repo`/`_edit_repo`/`_remove_repo`/`_clone_repo`/
+  `_unclone_repo`/`_open_dir`/`_bulk_push`/`_update_selected`/
+  `_force_update_selected`/`_check_for_status`. The table's column count/
+  headers and every button's tooltip/enabled-state/signal wiring still come
+  from Python, same as before — the `.ui` only supplies layout and widget
+  identity, not behavior.
 - `external_plugins_page.py` — `ExternalPluginsPage`: the tab itself, a
   `QTableWidget` with 5 columns (Name, Requires, Status, Detail, Last
   Checked — not a `QListWidget` as in earlier versions of this plugin;
@@ -108,14 +120,37 @@ actually used in); that old file is left on disk, unread by anything now.
   shows `Up to date` with an empty Detail and a "Never" Last Checked
   column, rather than a distinct 6th status.
 
-  Add/Edit/Delete/Clone/Open Git Directory/Bulk Push remain single-entry
-  actions (the table now supports multi-selection —
-  `QAbstractItemView.ExtendedSelection` — but these five guard on exactly
+  Add/Edit/Delete/Clone/Unclone/Open Git Directory/Bulk Push remain
+  single-entry actions (the table now supports multi-selection —
+  `QAbstractItemView.ExtendedSelection` — but these six guard on exactly
   one selected row via `_selected_row()`, showing the existing "select an
-  entry first" message otherwise). "Update Selected" and "Check for
-  Status" both operate over every selected row; "Check for Status" with
-  **nothing selected falls back to checking every row** (its original
-  single default behavior, preserved). Clone clears any stale
+  entry first" message otherwise). "Update Selected", "Force Update
+  Selected", and "Check for Status" all operate over every selected row;
+  "Check for Status" with **nothing selected falls back to checking every
+  row** (its original single default behavior, preserved). "Unclone"
+  (added 2026-08-19) deletes the selected entry's local clone from disk
+  (plain `shutil.rmtree`, confirmed first, the same OSError-message pattern
+  as `interface/repo_settings/local_repository_page.py`'s "Remove Local
+  Repositories") — the catalog entry itself stays, so it shows `Not Clone`
+  afterward and can be Cloned again; only enabled implicitly by
+  `_selected_row()`'s guard, no extra state check (unlike Bulk Push).
+  "Force Update Selected" (added 2026-08-19) is the "don't care what's
+  pending, just make it match remote" escape hatch `_on_pull`/Check for
+  Status deliberately don't provide: per selected row, not cloned → Clone;
+  cloned but `is_repo_root()` False (broken/interrupted clone) → delete the
+  folder and Clone fresh (mirrors the "Why `is_repo_root`, not just
+  `is_cloned`" section below — there's no valid working tree to reset in a
+  folder git can't resolve as its own root); otherwise →
+  `GitService.force_sync` (`core/vcs/git_service.py`, added alongside this
+  button) — `fetch` + `git reset --hard origin/<branch>` + `git clean -fd`,
+  which discards every local change and unpushed commit and also clears an
+  in-progress merge (`reset --hard` drops `.git/MERGE_HEAD`) without ever
+  calling `merge --abort` separately. `force_sync` never confirms anything
+  itself; `_on_force_update` shows one `confirm_action` prompt up front
+  covering the whole selection before running any of it, since this is the
+  only action in this plugin that can destroy uncommitted work. Both clear
+  `sync_status_store`/`last_check_store` for every entry they touch, same
+  as Clone/Pull's own stale-cache cleanup. Clone clears any stale
   `sync_status_store` error for that entry on success (a successful manual
   Pull already did this — Clone now does too, closing the same staleness
   gap). "Check for Status" runs `GitService.safe_untrack_and_clean_ignored`
