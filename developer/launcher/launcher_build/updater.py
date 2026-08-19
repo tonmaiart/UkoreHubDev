@@ -70,7 +70,6 @@ import contextlib
 import json
 import os
 import queue
-import re
 import shutil
 import subprocess
 import sys
@@ -81,7 +80,6 @@ import webbrowser
 from datetime import datetime, timezone
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
-from typing import Callable
 
 from core.exceptions import GitHubAuthError
 from core.github import auth as github_auth
@@ -126,13 +124,6 @@ DEFAULT_GITHUB_CLIENT_ID = "Ov23liCPza6KiJ7MWZbc"
 
 _NO_WINDOW_FLAGS = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
 _ICON_PATH = Path(__file__).resolve().parent / "icon.ico"
-
-# Reports a single human-readable progress line (e.g. "Downloading PySide6...")
-# back to whatever's showing status to the user — _UpdaterWindow's status
-# label, via _do_prelaunch_work's `lambda msg: self._queue.put(("status", msg))`.
-# Optional everywhere it's threaded through so these helpers stay callable
-# standalone (tests, a future CLI use) without a UI in the loop.
-StatusCallback = Callable[[str], None]
 
 
 class UpdaterError(Exception):
@@ -195,46 +186,7 @@ def _run_git(args: list[str], cwd: Path) -> str:
     return result.stdout.strip()
 
 
-_PIP_COLLECTING_RE = re.compile(r"^Collecting\s+([^\s(]+)")
-_PIP_DOWNLOADING_RE = re.compile(r"^\s*Downloading\s+(\S+)")
-_PIP_SATISFIED_RE = re.compile(r"^Requirement already satisfied:\s+([^\s]+)")
-_PIP_INSTALLING_RE = re.compile(r"^Installing collected packages:\s*(.+)$")
-_PIP_SUCCESS_RE = re.compile(r"^Successfully installed\s+(.+)$")
-
-
-def _parse_pip_status_line(line: str) -> str | None:
-    """Turns one line of `pip install`'s normal (non-quiet) stdout into a
-    short human-readable status, or None for lines not worth surfacing
-    (pip's own version-of-pip nag, blank lines, etc.) — see
-    ensure_dependencies_installed, which streams this over a status_callback
-    as each line arrives rather than only reporting the overall pass/fail
-    the old `--quiet` capture_output version did."""
-    line = line.strip()
-    if not line:
-        return None
-    match = _PIP_COLLECTING_RE.match(line)
-    if match:
-        return f"Fetching package info: {match.group(1)}"
-    match = _PIP_DOWNLOADING_RE.match(line)
-    if match:
-        return f"Downloading {match.group(1)}..."
-    match = _PIP_SATISFIED_RE.match(line)
-    if match:
-        return f"Already installed: {match.group(1)}"
-    match = _PIP_INSTALLING_RE.match(line)
-    if match:
-        return f"Installing: {match.group(1)}"
-    match = _PIP_SUCCESS_RE.match(line)
-    if match:
-        return f"Installed: {match.group(1)}"
-    if line.startswith("ERROR:"):
-        return line
-    return None
-
-
-def ensure_dependencies_installed(
-    app_root: Path, interpreter: str, status_callback: StatusCallback | None = None
-) -> None:
+def ensure_dependencies_installed(app_root: Path, interpreter: str) -> None:
     """Installs/updates every package app/requirements.txt pins, using a
     console-capable interpreter (see find_pip_interpreter) rather than
     necessarily the pythonw one launcher.py itself gets spawned with.
@@ -245,19 +197,12 @@ def ensure_dependencies_installed(
     machine would otherwise fail as a silent ModuleNotFoundError — no
     window, no visible error, just "the app doesn't open". pip's own
     dependency resolver is a fast no-op when everything already matches, so
-    the per-launch cost is small.
-
-    Streams pip's own stdout (no more `--quiet`; `--progress-bar off`
-    instead, so download-progress `\\r` lines don't require special
-    handling) line by line and forwards each one _parse_pip_status_line
-    recognizes to status_callback, so the caller can show e.g. "Downloading
-    PySide6..." instead of one opaque "Installing required Python
-    packages..." for the whole, possibly slow, pass."""
+    the per-launch cost is small."""
     requirements_path = app_root / "requirements.txt"
     if not requirements_path.exists():
         return
     pip_interpreter = find_pip_interpreter() or interpreter
-    process = subprocess.Popen(
+    result = subprocess.run(
         [
             pip_interpreter,
             "-m",
@@ -266,48 +211,30 @@ def ensure_dependencies_installed(
             "-r",
             str(requirements_path),
             "--disable-pip-version-check",
-            "--progress-bar",
-            "off",
+            "--quiet",
         ],
         stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
+        capture_output=True,
         text=True,
         env=_non_interactive_env(),
         creationflags=_NO_WINDOW_FLAGS,
     )
-    output_lines: list[str] = []
-    assert process.stdout is not None
-    for raw_line in process.stdout:
-        output_lines.append(raw_line)
-        status = _parse_pip_status_line(raw_line)
-        if status and status_callback:
-            status_callback(status)
-    process.wait()
-    if process.returncode != 0:
-        raise UpdaterError("".join(output_lines).strip() or "pip install failed")
+    if result.returncode != 0:
+        raise UpdaterError(result.stderr.strip() or result.stdout.strip() or "pip install failed")
 
 
 def is_git_repo(repo_root: Path) -> bool:
     return (repo_root / ".git").exists()
 
 
-def bootstrap_git_repo(
-    repo_root: Path, remote_url: str, branch: str, status_callback: StatusCallback | None = None
-) -> None:
+def bootstrap_git_repo(repo_root: Path, remote_url: str, branch: str) -> None:
     """Turns a plain folder (e.g. a GitHub "Download ZIP" extract, which has
     no .git directory at all) into a real git working tree tracking
     remote_url/branch, in place — so every later run (and the in-app "Update
     and Restart" button) can use ordinary git fetch/pull from then on."""
-    if status_callback:
-        status_callback("Setting up local repository...")
     _run_git(["init"], cwd=repo_root)
     _run_git(["remote", "add", "origin", remote_url], cwd=repo_root)
-    if status_callback:
-        status_callback(f"Downloading {branch} from {remote_url}...")
     _run_git(["fetch", "origin", branch], cwd=repo_root)
-    if status_callback:
-        status_callback("Checking out files...")
     try:
         _run_git(["checkout", "-B", branch, "--track", f"origin/{branch}"], cwd=repo_root)
     except UpdaterError:
@@ -439,7 +366,6 @@ def ensure_up_to_date(
     repo_root: Path,
     remote_url: str = UKOREHUB_REMOTE_URL,
     branch: str = UKOREHUB_BRANCH,
-    status_callback: StatusCallback | None = None,
 ) -> None:
     """remote_url/branch only matter for the fresh-bootstrap case (a plain
     ZIP extract with no existing branch/upstream to speak of). Once it's a
@@ -473,22 +399,14 @@ def ensure_up_to_date(
     reuse for both without any special-casing."""
     with _relocate_self_exe(repo_root):
         if not is_git_repo(repo_root):
-            bootstrap_git_repo(repo_root, remote_url, branch, status_callback)
+            bootstrap_git_repo(repo_root, remote_url, branch)
             return
-        if status_callback:
-            status_callback("Fetching latest version info...")
         _run_git(["fetch"], cwd=repo_root)
         local_head = _run_git(["rev-parse", "HEAD"], cwd=repo_root)
         upstream_head = _run_git(["rev-parse", "@{u}"], cwd=repo_root)
         if local_head != upstream_head:
-            if status_callback:
-                status_callback("Removing stale local files...")
             _clean_untracked(repo_root)
-            if status_callback:
-                status_callback(f"Applying update ({local_head[:7]} -> {upstream_head[:7]})...")
             _run_git(["reset", "--hard", upstream_head], cwd=repo_root)
-        elif status_callback:
-            status_callback("Already up to date.")
 
 
 def _is_dev_checkout(repo_root: Path) -> bool:
@@ -728,16 +646,6 @@ class _UpdaterWindow:
         self._worker.start()
         self.root.after(100, self._poll_queue)
 
-    def _status(self, message: str) -> None:
-        """status_callback passed to the update/pip helpers below — lets
-        them report fine-grained progress (which package pip is fetching,
-        which commit git is resetting to) instead of one static line
-        covering the whole, possibly slow, step. Safe to call from the
-        background worker thread: it only ever queues, the same as every
-        other _queue.put(("status", ...)) in this method — _poll_queue is
-        what actually touches the Tk widget, back on the main thread."""
-        self._queue.put(("status", message))
-
     def _do_prelaunch_work(self) -> None:
         # git is checked first because the update step right after it
         # depends on it (git fetch/pull) — everything else, including the
@@ -768,9 +676,7 @@ class _UpdaterWindow:
         else:
             self._queue.put(("status", "Checking for launcher updates..."))
             try:
-                ensure_up_to_date(
-                    self.repo_root, LAUNCHER_REMOTE_URL, LAUNCHER_BRANCH, status_callback=self._status
-                )
+                ensure_up_to_date(self.repo_root, LAUNCHER_REMOTE_URL, LAUNCHER_BRANCH)
             except UpdaterError as exc:
                 self._queue.put((
                     "fail",
@@ -780,12 +686,10 @@ class _UpdaterWindow:
                 ))
                 return
 
-            self._queue.put(("status", "Checking for app updates..."))
+            self._queue.put(("status", "Checking for updates..."))
             try:
                 self.app_root.mkdir(parents=True, exist_ok=True)
-                ensure_up_to_date(
-                    self.app_root, UKOREHUB_REMOTE_URL, UKOREHUB_BRANCH, status_callback=self._status
-                )
+                ensure_up_to_date(self.app_root, UKOREHUB_REMOTE_URL, UKOREHUB_BRANCH)
             except UpdaterError as exc:
                 self._queue.put((
                     "fail",
@@ -805,9 +709,9 @@ class _UpdaterWindow:
             ))
             return
 
-        self._queue.put(("status", "Checking required Python packages..."))
+        self._queue.put(("status", "Installing required Python packages..."))
         try:
-            ensure_dependencies_installed(self.app_root, interpreter, status_callback=self._status)
+            ensure_dependencies_installed(self.app_root, interpreter)
         except UpdaterError as exc:
             self._queue.put((
                 "fail",
