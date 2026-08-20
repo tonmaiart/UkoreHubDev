@@ -168,7 +168,15 @@ construct these yourself): `GitService`, `MetadataStore`,
 
 **Misc helpers**: `check_repo_access` (`core/vcs/repo_access.py`),
 `extract_git_repo_name` (`core/vcs/paths.py`), `open_in_file_explorer`,
-`open_with_default_app` (`core/os_utils.py`)
+`open_with_default_app` (`core/os_utils.py`), `relaunch_ukorehub_exe`
+(`core/relaunch.py` — `(repo_root: Path) -> bool`; spawns
+`UkoreHubLauncher.exe` detached and returns `True`, or returns `False` if
+no built exe exists one directory above `repo_root` — pass `api.app_root`.
+Added for `ExternalPluginManager`'s Force Update popup, which falls back
+to `subprocess.Popen([sys.executable, *sys.argv])` + `QApplication.quit()`
+when it returns `False`, same dev-checkout fallback
+`interface/main_window.py`'s own `_restart_app` uses — see that plugin's
+doc for the full flow)
 
 ## Re-exported `interface/` types
 

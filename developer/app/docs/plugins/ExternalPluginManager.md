@@ -209,14 +209,48 @@ actually used in); that old file is left on disk, unread by anything now.
 
 ## Auto-sync engine
 
-A repo's required `cache/plugins/` entries clone/update themselves
-automatically at app start and on every repo switch, instead of waiting
-for someone to open this tab and click Clone/Pull by hand.
+A repo's required `cache/plugins/` entries clone themselves and check for
+updates automatically at app start and on every repo switch, instead of
+waiting for someone to open this tab and click Clone/Pull by hand.
 `plugin.py`'s `register(api)` subscribes `_SyncController.on_lifecycle_event`
 to both `api.on_app_start`/`api.on_repo_changed` (`plugin_api/plugin_api.py`,
 fired from `interface/main_window.py`'s `_start_app`/`_set_active_repo`) —
 this is the entire lifecycle wiring; nothing outside this plugin folder
-needed to change.
+needed to change (beyond re-exporting `relaunch_ukorehub_exe` through
+`plugin_api`, see below).
+
+**Never auto-pulls — prompts Force Update/Ignore instead** (added
+2026-08-20): an entry not yet cloned still clones itself silently (nothing
+local to lose). But an already-cloned entry that's behind its remote
+(`sync_engine.sync_entry` fetches + `get_ahead_behind`s it,
+`STATUS_UPDATE_NEEDED`) is never pulled automatically anymore, regardless
+of whether its working tree is clean or modified — `discover_plugins()`/
+`apply_plugins()` only run once at startup, so a silent pull wouldn't take
+effect until a restart anyway, and pulling into a dirty working tree risks
+a conflict nobody asked for. Instead, once a whole sync run (and any run
+it chained into via `_pending_context`, see the class docstring) settles,
+`_SyncController._on_finished` shows one `QMessageBox` popup listing every
+entry found behind, with two buttons:
+- **"Force update and restart UkoreHub"** — `_force_update_and_restart`
+  runs the same escape hatch as this tab's own "Force Update Selected" on
+  every listed entry (not cloned/broken `.git` -> delete + Clone,
+  otherwise -> `GitService.force_sync`, discarding local
+  changes/unpushed commits), clears both stores for each, then
+  unconditionally restarts (`_restart_app` — `relaunch_ukorehub_exe(api.app_root)`,
+  falling back to `subprocess.Popen([sys.executable, *sys.argv])` for a
+  dev-checkout run, then `QApplication.quit()` — the same fallback
+  `interface/main_window.py`'s own `_restart_app` uses) even if some
+  entries failed, since a partial success still needs the restart to load.
+- **"Ignore"** — does nothing; the entry stays flagged `Update Needed` in
+  `last_check_store` (so the Status column already reflects it without a
+  manual Check for Status) and gets re-detected, not re-prompted again
+  until the next app start/repo switch's own run finds it still behind.
+
+`relaunch_ukorehub_exe` (`core/relaunch.py`) wasn't re-exported through
+`plugin_api` before this — plugins couldn't restart the app at all. Added
+to `app/plugin_api/__init__.py`'s re-export list (sourced from `core_api`,
+which already had it) specifically for this popup — see
+`developer/app/docs/plugin-api.md`'s Misc helpers entry.
 
 - **Resolving "required but never cloned here"**: `Repo.required_plugin_ids`
   stores a plugin's *manifest id*, only learned by reading `manifest.json`
