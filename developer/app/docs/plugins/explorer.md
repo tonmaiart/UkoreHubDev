@@ -43,7 +43,14 @@ buttons at the top of the file table are the only navigation aids now.)
   the optional `browse_to_path(path)` protocol method (see
   `plugin_api/registries/section_registry.py`'s `UICommandService`) —
   `plugins/core/submit/` calls into this generically via `MainWindow`'s
-  `navigate_and_focus`, not by importing this module directly. Also
+  `navigate_and_focus`, not by importing this module directly.
+  `browse_to_path` delegates straight to `browser_widget.py`'s
+  `browse_to_file(path)`, which — like `_on_last_opened_clicked`/
+  `_on_bookmark_clicked`/the breadcrumb's typed-file case below —
+  navigates to the file's parent folder and selects the file's own row
+  (`_select_file_in_table`) rather than just opening the folder. If the
+  path no longer exists on disk (e.g. the commit's file was since deleted
+  or moved), it shows a `QMessageBox.warning` instead of navigating. Also
   implements the optional `refresh_content()` protocol method
   (`interface/page_protocols.py`'s `RefreshablePage`, called via
   `UICommandService.refresh_section("repo_browser")`) — Submit's "Sync
