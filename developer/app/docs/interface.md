@@ -58,20 +58,22 @@ file that threads all of it together.
   needs a default theme name to persist, so it keeps its own duplicated
   `DEFAULT_THEME_NAME` literal rather than importing this module (`core/`
   never depends on `interface/`).
-- `theme_apply.py` — calls `qdarktheme.setup_theme("dark")`
-  (`pyqtdarktheme-fork` on PyPI) once on the `QApplication`; used only by
-  `launcher.py`, before the `ProjectSelectorDialog` gate. `theme_name` is
-  still accepted as a parameter for call-site/persisted-config
-  compatibility but no longer selects anything (`THEMES` only ever had the
-  one dark entry).
+- `theme_apply.py` — applies a Fusion style + a hand-built dark `QPalette`
+  once on the `QApplication` (no third-party theming library anymore — see
+  "Zero QSS Policy" below); used only by `launcher.py`, before the
+  `ProjectSelectorDialog` gate. `theme_name` is still accepted as a
+  parameter for call-site/persisted-config compatibility but no longer
+  selects anything (`THEMES` only ever had the one dark entry).
 
 ### Zero QSS Policy (2026-08-13 migration)
 
 `interface/`, `interface_api/`, and `plugins/` no longer call
 `setStyleSheet()` or load any `.qss` file, anywhere — the app's entire
-visual theme comes from `qdarktheme.setup_theme("dark")` (see
-`theme_apply.py` above) plus each widget's own `QPalette`/`QFont`/`QIcon`
-calls. Do not reintroduce a custom stylesheet string:
+visual theme comes from `QApplication.setStyle("Fusion")` + a dark
+`QPalette` (see `theme_apply.py` above — `pyqtdarktheme-fork`/`qdarktheme`
+was dropped 2026-08-20, no longer a dependency at all) plus each widget's
+own `QPalette`/`QFont`/`QIcon` calls. Do not reintroduce a custom
+stylesheet string:
 - Text color/weight (the old `[secondary="true"]`/`[cardTitle="true"]`/
   `font-weight: bold` QSS rules) → `interface/shared/widget_helpers.py`'s
   `set_secondary_text(label)`/`set_bold(label)` helpers (re-exported
@@ -96,8 +98,9 @@ calls. Do not reintroduce a custom stylesheet string:
   old `build_stylesheet()` used to control for `#requirementCard`,
   `#commitCard`, `#videoCard`, etc. are *not* replicated — `QPalette`/
   `QFont` can't express border-radius or padding, and the user-facing
-  design decision (2026-08-13) was to accept qdarktheme's own flat default
-  look for these rather than hand-roll custom `paintEvent()`s per widget.
+  design decision (2026-08-13) was to accept the Fusion style's own flat
+  default look for these rather than hand-roll custom `paintEvent()`s per
+  widget.
 - User-uploaded content images (program icons, repo thumbnails) are
   unaffected by this policy — those stay plain `QPixmap(path)` loads, since
   they're distinguishing content, not status indicators, and no

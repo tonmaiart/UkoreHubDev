@@ -70,18 +70,18 @@ buttons at the top of the file table are the only navigation aids now.)
   right of the table. `history_back_button` returns to whatever path was
   current before the last navigation (`_back_stack`); `up_button` always
   jumps to the current path's parent regardless of history — different
-  semantics, so don't conflate them. Both use built-in Qt icons via
-  `_apply_nav_icon` (`QStyle.SP_ArrowBack` / `QStyle.SP_FileDialogToParent`
-  — migrated 2026-08-13 from 3 bundled-PNG path constants that pointed at
-  files which never actually existed in the repo, so this had always
-  silently fallen back to text-only buttons before; see `interface.md`'s
-  Zero QSS Policy section). `add_folder_button` sits right after
-  `up_button` in the nav row (`QStyle.SP_FileDialogNewFolder`, same
-  `_apply_nav_icon` helper) and just calls
-  `_create_new_folder(self._current_path)` — a toolbar shortcut for the
-  same "Create New Folder" action described below.
-  A Reload button (`reload_button`, `QStyle.SP_BrowserReload`, same
-  `_apply_nav_icon` helper) sits right after `add_folder_button` in
+  semantics, so don't conflate them. Nav buttons are plain text-labeled
+  `QPushButton`s (label text authored directly in `explorer_section.ui`,
+  e.g. `pushButton_up`'s "▲") — no icon is set from code (removed
+  2026-08-20; had briefly gone through a `QStyle.standardIcon`-based
+  `_apply_nav_icon` helper migrated 2026-08-13 from 3 bundled-PNG path
+  constants that pointed at files which never actually existed in the
+  repo, so this had always silently fallen back to text-only buttons
+  before anyway; see `interface.md`'s Zero QSS Policy section).
+  `add_folder_button` sits right after `up_button` in the nav row and just
+  calls `_create_new_folder(self._current_path)` — a toolbar shortcut for
+  the same "Create New Folder" action described below.
+  A Reload button (`reload_button`) sits right after `add_folder_button` in
   `nav_row` — calls `reload()`, which force-rescans the current folder from
   disk without changing which folder is open or touching navigation
   history. `QFileSystemModel` has no public "rescan" call and normally

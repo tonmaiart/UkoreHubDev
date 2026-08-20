@@ -75,9 +75,10 @@ does not re-export these.
 
 **Theme** (`interface/theme.py`, `interface/theme_apply.py`):
 `DEFAULT_THEME_NAME`, `get_theme`, `apply_theme` — `apply_theme` is
-`launcher.py`-only (calls `qdarktheme.setup_theme("dark")` — see
-`interface.md`'s Zero QSS Policy section, no custom stylesheet generation
-anymore); `DEFAULT_THEME_NAME`/`get_theme` are also re-exported via
+`launcher.py`-only (applies a Fusion style + a hand-built dark `QPalette` —
+see `interface.md`'s Zero QSS Policy section; no custom stylesheet
+generation, and no third-party theming library, anymore);
+`DEFAULT_THEME_NAME`/`get_theme` are also re-exported via
 `plugin_api` (`project_editor/project_graph_view.py`'s HUD overlay/graph
 node/edge colors — `ThemeColors` only carries the fields those direct
 `QPainter`/`QColor` call sites still need, not a full app-chrome palette).
