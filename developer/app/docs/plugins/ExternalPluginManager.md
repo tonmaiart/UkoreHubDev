@@ -207,6 +207,27 @@ actually used in); that old file is left on disk, unread by anything now.
   (switching projects means a full app restart — see `core_api`'s
   `LocalConfigStore.set_active_project`).
 
+## Registration status (load/register, not sync)
+
+Distinct from the auto-sync engine below (which reports *git* status —
+clone/pull/conflict), `launcher.py`'s plugin discovery/apply loop
+(`core/extensibility/loader.py`'s `discover_plugins`/`apply_plugins`,
+called once at startup, before any plugin's `register(api)` runs — see
+`plugins-guide.md`) now reports each plugin's **load/register** result via
+the stdlib `logging` module (2026-08-21) instead of a bare `print`. A
+`"repo"` (`cache/plugins/`, i.e. an "external plugin" in this app's own
+vocabulary) plugin's result — success or failure, including *why* it
+failed (no `manifest.json`, malformed manifest, `api_version` mismatch,
+missing `entry_point`, an import-time exception, or `register(api)`
+itself raising — see `core/extensibility/loader.py`'s `_load_one`/
+`apply_plugins`) — logs through `logging.getLogger("ExternalPluginManager")`,
+the same logger name this plugin's own `plugin.py` already uses for sync
+status, so both show up together under one DebugConsole source. A bundled
+`"core"` plugin's result logs through a separate `logging.getLogger("PluginLoader")`
+instead, since core plugins are far less likely to break and don't belong
+mixed into this plugin's own source. See
+`developer/app/docs/plugins/DebugConsole.md` for how to view these live.
+
 ## Auto-sync engine
 
 A repo's required `cache/plugins/` entries clone themselves and check for

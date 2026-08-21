@@ -78,7 +78,7 @@ end.
 | `api.system_config_store` | `SystemConfigStore` | Shared, cloud-synced studio config (e.g. `r2_bucket_name`, `github_client_id`). |
 | `api.cache_dir` | `Path` | UkoreHub's per-machine `cache/` directory (gitignored) — for a plugin building its own per-machine state. |
 | `api.cloud_sync` | `R2JsonSync \| None` | The already-built cloud-sync engine, or `None` if not configured/reachable this run. Read-only access — don't import `R2JsonSync` yourself (see "What's deliberately not re-exported" below). |
-| `api.debug_bus` | `DebugLogBus` | Shared debug-log bus, consumed live by `plugins/core/DebugConsole/`. Call `.log(source, message)`; `.register_source(source)` is optional (`.log()` auto-registers too). |
+| `api.debug_log_handler` | `QtLogHandler \| None` | DebugConsole-only plumbing — the shared `interface_api.QtLogHandler` its page reads/subscribes to, or `None` if unwired (e.g. a bare test construction). **Don't use this for general logging** — any plugin just calls `logging.getLogger("YourPlugin").info(...)`/`.warning(...)` etc. directly, no `api` involved at all, and it shows up live in DebugConsole automatically. See `developer/app/docs/plugins/DebugConsole.md`. |
 | `api.file_opener_registry` | `FileOpenerRegistry` | Read access to the registry `register_file_opener()` writes into — for a page that needs to call `.find_opener()` itself (e.g. Explorer). |
 | `api.program_launch_registry` | `ProgramLaunchRegistry` | Read access to the registry `register_program_launcher()` writes into — `software_linker`'s Program Launcher tab uses this to look up a plugin-contributed launch behavior for a given Program. |
 | `api.settings_tab_registry` | `SettingsTabRegistry` | Read access to the registry `register_settings_tab()` writes into — for a page that needs to enumerate every `CATEGORY_REPO` tab generically (e.g. `project_editor`'s right panel). |
@@ -163,8 +163,12 @@ construct these yourself): `GitService`, `MetadataStore`,
 **File opener** (`core/extensibility/file_opener.py`): `FileOpenerRegistry`,
 `FileOpenerSpec`
 
-**Events** (`core/events/`): `AppLifecycleContext`, `AppLifecycleHandler`,
-`DebugLogBus`, `DebugLogEntry`
+**Events** (`core/events/`): `AppLifecycleContext`, `AppLifecycleHandler`
+
+**Logging** (`interface/qt_log_handler.py`, re-exported via
+`interface_api`): `QtLogHandler` — DebugConsole-only, see
+`api.debug_log_handler` above; general plugin code should use
+`logging.getLogger(__name__)` instead.
 
 **Misc helpers**: `check_repo_access` (`core/vcs/repo_access.py`),
 `extract_git_repo_name` (`core/vcs/paths.py`), `open_in_file_explorer`,

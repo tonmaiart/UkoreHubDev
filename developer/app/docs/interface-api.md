@@ -92,6 +92,14 @@ comment on why. Also re-exported via `plugin_api` — the
 `SettingsTabRegistry` key `project_editor` uses to open the Local
 Repository tab from a right-click menu)
 
+**Logging** (`interface/qt_log_handler.py`): `QtLogHandler`,
+`configure_app_logging` — `launcher.py`-only for `configure_app_logging`
+(called once, right after these imports resolve in `main()`, to attach a
+freshly-constructed `QtLogHandler` to the root `logging` logger — see
+`developer/app/docs/plugins/DebugConsole.md`); `QtLogHandler` itself is
+also re-exported via `plugin_api` (DebugConsole's page type-hints
+`api.debug_log_handler` with it).
+
 **Shared widgets** (`interface/shared/`), all also re-exported via
 `plugin_api`:
 - `widget_helpers.py`: `wrap_scrollable`, `confirm_action`, `show_exclusive`,
