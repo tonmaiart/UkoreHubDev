@@ -136,11 +136,15 @@ registry/constructor change — **never point them at the repo's real
 (`app/`)**. Copy them into a scratch/tmp directory first and construct
 everything against that copy instead. `app/cache/local_config.json` can
 have a real `active_repo_id` saved, which makes `MainWindow.__init__` kick
-off a real background git sync (`MainWindow._start_auto_sync`, delegating
-to `app/plugins/core/submit/repo_git_status_page.py`'s
-`RepoGitStatusPage.sync_active_repo`) on a background `QThread` that starts
-running the moment `.start()` is called, independent of whether
-`app.exec()` ever runs. A real `UkoreHubLauncher.exe` /
+off real background `QThread` work against it — `RepoGitStatusPage.set_repo`
+(`app/plugins/core/submit/repo_git_status_page.py`) triggers
+`refresh_status()`, whose diagnostics/commit-log checks run a bounded
+`GitService.fetch()` (remote-tracking refs only, no working-tree change) —
+the moment `.start()` is called, independent of whether `app.exec()` ever
+runs. (There is no automatic `git pull`/clone on launch or repo switch anymore —
+see [developer/app/docs/plugins/submit.md](developer/app/docs/plugins/submit.md)
+for the manual "Sync Others Commit" flow that replaced it.) A real
+`UkoreHubLauncher.exe` /
 `app/launcher.py` instance may also be running concurrently on the studio
 machine you're working on — check for one (e.g. `tasklist`) before assuming
 any change to a shared JSON store is safe to discard or revert.

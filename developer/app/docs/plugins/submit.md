@@ -35,9 +35,15 @@ revert, commit → pull → (resolve conflicts) → push. A real always-on
 - `repo_git_status_page.py` — `RepoGitStatusPage`: the top-level Submit
   page. Drives the full sync/commit/pull/push workflow via the workers
   below, and shows the Modified/Staged/diagnostics/commit-history tables.
-  Implements the optional `sync_active_repo(...)` protocol method —
-  `interface/main_window.py`'s `_start_auto_sync` calls this generically
-  on launch/repo-switch, combining `set_repo()` + `start_sync()`. Before the
+  `start_sync()` (the clone/pull behind "Sync New Commit") only ever
+  runs from the Sync button click — there is no automatic clone/pull on
+  launch or repo switch anymore (removed 2026-08-22, along with
+  `interface/main_window.py`'s old `_start_auto_sync`/`AutoSyncPage`
+  protocol, so opening the app or switching repos in Project Editor can
+  never itself trigger a merge conflict — the user now controls sync
+  timing entirely via this button). `set_repo()` (the `SetRepoPage`
+  protocol method, still called on launch/repo-switch) only reads current
+  on-disk status via `refresh_status()`, it never syncs. Before the
   very first clone of a repo (`start_sync` sees
   `git_service.is_cloned(dest_path)` is False) and only when the remote is
   a github.com URL, `start_sync` runs `core/vcs/repo_access.py`'s
@@ -50,23 +56,28 @@ revert, commit → pull → (resolve conflicts) → push. A real always-on
 - `commit_dialog.py` — `CommitDialog`: commit message entry (+ amend
   checkbox), shown before the pull→push workflow starts. Untouched by the
   `.ui` rewrite below — a one-off dialog, not the main page.
-- `conflict_dialog.py` — `ConflictResolutionDialog`: per-file keep-ours/
-  keep-theirs resolution, shown when a pull hits a merge conflict. Also
-  untouched.
+- `MergeConflictResolveWindow.ui` — Qt Designer file for
+  `ConflictResolutionDialog`'s table + button layout, loaded at runtime by
+  `conflict_dialog.py` the same `QUiLoader` way `submit_section.ui` is
+  loaded by the main page — see "Merge conflict resolution" below.
+- `conflict_dialog.py` — `ConflictResolutionDialog`: per-file (not
+  per-line) keep-ours/keep-theirs resolution, shown when a pull hits a
+  merge conflict — see "Merge conflict resolution" below.
 - `git_stream_worker.py` — `GitStreamWorker`: generic `QThread` that
   streams a git command's output line-by-line and emits whatever it
   returns via `finished_ok`. Used for Sync's `open_or_sync` (clone/pull,
-  also driving `sync_active_repo`'s launch/repo-switch auto-sync), the pull
+  triggered only by the Sync button — see above), the pull
   and push steps of the commit workflow, Stage/Unstage/Revert (so a large
   multi-selection can't freeze the UI thread), and the diagnostics check —
   one generic worker covers every fire-and-forget git action on this page.
 - `status_worker.py` — `RepoStatusWorker`: fetches working-tree status
   (`RepoStatus`, including the per-file `FileChange` lists — see
   "Where FileChange comes from" below) off the UI thread.
-- `commit_log_worker.py` — `CommitLogWorker(QThread)`: fetches the whole
-  repo's most recent commits off the UI thread (GitHub-API-first,
-  local-git-fallback via `interface/shared/commit_history.py`'s
-  `fetch_entries_via_github`) — see "Commit history panel" below.
+- `commit_log_worker.py` — `CommitLogWorker(QThread)`: fetches this
+  machine's local commit log and the not-yet-pulled-in commits on
+  `origin/<branch>` off the UI thread, then best-effort backfills avatars
+  from a single GitHub API call — see "Commit history panels (Local /
+  New)" below.
 
 ## Loading the `.ui` file
 
@@ -78,8 +89,7 @@ hardcoded plugin roots breaking on a future `plugins/` reorg). This is a
 runtime load, not a `pyside6-uic`-compiled `.py` — editing the `.ui` in
 Designer and restarting the app is enough, no build step. The `.ui` only
 uses stock Qt widget classes (`QTableView`, `QPlainTextEdit`, `QPushButton`,
-`QGroupBox`, `QTabWidget`, plain layouts), so no promoted-widget
-registration is needed.
+`QGroupBox`, plain layouts), so no promoted-widget registration is needed.
 
 `_setup_ui_widgets()` looks up every named widget via
 `self._ui.findChild(WidgetClass, "objectName")` and caches it as a `self.*`
@@ -157,7 +167,7 @@ via `browse_file_requested`), scoped to the row under the cursor.
 
 ## Explorer refresh after Sync
 
-Cloning/pulling files onto disk (Sync Others Commit) doesn't switch the
+Cloning/pulling files onto disk (Sync New Commit) doesn't switch the
 active repo, so nothing else would ever tell Explorer's
 `QFileSystemModel`-backed file table to rescan — its own filesystem watcher
 can miss or lag a bulk change like a git clone/pull, which used to mean the
@@ -176,11 +186,15 @@ workflow's own pull step — that wasn't reported as stale; extend the same
 
 ## Diagnostics table (`tableView_git_status`)
 
-New in this rewrite. Lives in the "Status" tab (`.ui`'s `tabWidget`,
-alongside a "Log" tab holding `plainTextEdit_git_log` — the old combined
-Sync/Refresh/GitWeb button row plus log view). Three fixed rows, refreshed
+New in this rewrite. Lives in the "Git Log" group box (`groupBox_5`),
+alongside `plainTextEdit_git_log` and the Open Local Directory/Open Repo
+Site buttons — originally its own "Status" tab next to a "Log" tab (the
+`.ui` had a `tabWidget` at the time), since folded into one flat group box
+when the 2026-08-22 commit-history split reorganized the page into the
+current Modified/Staged row plus New Commit to Sync/Local Commit/Git Log
+row, with no tabs left anywhere on the page. Three fixed rows, refreshed
 by `_run_diagnostics()` on every `refresh_status()` call (Sync, Refresh
-Status, repo switch/auto-sync — same trigger set as everything else on this
+Status, repo switch — same trigger set as everything else on this
 page), run through `GitStreamWorker` like every other background action
 here (no dedicated worker class):
 
@@ -206,45 +220,73 @@ This table is deliberately independent of the sidebar status dot below —
 they answer different questions (working-tree cleanliness vs. auth/clone/
 staleness) and don't share state.
 
-## Commit history panel
+## Commit history panels (Local / New)
 
-`tableView_commit_history`, backed by a 5-column `QStandardItemModel`
-(avatar icon, Author, Message, Time Ago, Date — relative time before
-absolute date, since relative is the one worth reading at a glance). Same
-data/behavior as before this rewrite, just targeting a `QTableView` +
-`QStandardItemModel` instead of a hand-built `QTableWidget`. The avatar
-column reuses `CommitHistoryEntry.avatar_bytes` (rendered via
-`QStandardItem.setIcon`, falling back to a 👤 glyph when there's no
-avatar) and `format_relative_time`/`format_commit_date`
-(`interface/shared/commit_history.py`). `self._commit_log_avatar_cache`
-lives on the page (not the worker) so avatars are only ever downloaded once
-across the page's whole lifetime, not re-fetched on every 30-minute repoll.
-Double-clicking a row opens `interface/shared/commit_history.py`'s
-`CommitFilesDialog`, passing `git_service`/`repo_path`/`on_browse_file` —
-its "Browse" button jumps straight to Explorer via the same
-`browse_file_requested` signal the Modified/Staged tables' "Inspect in
-Explorer" context menu uses. `self._commit_log_entries` keeps the
-last-fetched list around so a double-click can map a table row back to its
+Split (2026-08-22) into two side-by-side tables, each its own `QGroupBox`
+in the `.ui` — `tableView_local_commit_history` ("Local Commit": this
+machine's own local git log, i.e. `HEAD`) and `tableView_new_commit_history`
+("New Commit to Sync", next to `pushButton_sync`, now labelled "Sync New
+Commit": commits already sitting on `origin/<branch>` that this clone
+hasn't pulled in yet — teammates' work "Sync New Commit" would bring in).
+Previously a single `tableView_commit_history` fed by a GitHub-API-first
+whole-repo activity feed; that feed had no way to express a
+`HEAD..origin/<branch>` revision range, so both lists are now built from
+local git instead (see "How it fetches" below). Avatars are still
+backfilled afterward from one GitHub API call, matched by commit hash — see
+`CommitLogWorker._backfill_avatars` — so a commit GitHub's feed doesn't
+cover (not a github.com remote, offline, rate-limited, unpushed-local-only,
+or old enough to have fallen off the fetched page) falls back to the 👤
+glyph rather than showing nothing.
+
+Both tables are backed by their own 4-column `QStandardItemModel` (avatar
+icon, Author, Message, Time), built by the shared
+`_setup_commit_log_table(table, entries_key)` helper (`entries_key` is
+`"local"` or `"new"`). The Time column merges what used to be separate Time
+Ago/Date columns via the page's own `_format_commit_time(raw)` — relative
+(`format_relative_time`, e.g. "3 days ago") for commits inside
+`_RELATIVE_TIME_CUTOFF_DAYS` (7), otherwise absolute (`format_commit_date`,
+e.g. "15 Jan 2024"); both formatters still come from
+`interface/shared/commit_history.py`.
+Double-clicking a row in either table opens
+`interface/shared/commit_history.py`'s `CommitFilesDialog`, passing
+`git_service`/`repo_path`/`on_browse_file` — its "Browse" button jumps
+straight to Explorer via the same `browse_file_requested` signal the
+Modified/Staged tables' "Inspect in Explorer" context menu uses.
+`self._commit_log_entries` is a `{"local": [...], "new": [...]}` dict (not
+a flat list, since a double-click on either table needs to look its row up
+in the matching half) so it can map a table row back to its
 `CommitHistoryEntry`.
 
 - **When it polls**: `_poll_commit_log` runs on every `refresh_status()`
-  call (repo switch, the Refresh Status button, and auto-sync on
-  launch/repo-switch — `_on_push_finished` already calls `refresh_status()`
+  call (repo switch, the Refresh Status button, and Sync —
+  `_on_push_finished` already calls `refresh_status()`
   too, so a just-pushed commit shows up immediately), plus a background
   `QTimer` every `COMMIT_LOG_POLL_INTERVAL_MS` (30 minutes) so it stays
   current while the tab just sits open.
 - **How it fetches**: `CommitLogWorker` (a `QThread`) runs
   `GitService.fetch()` first (bounded — `timeout=30`, so a stalled network
   fetch can't hang this background poll forever) — remote-tracking refs
-  only, never the working tree — then reads recent commits the same
-  GitHub-API-first/local-git-fallback way `interface/shared/commit_history.py`'s
-  other callers do.
-- **No dedup/unread tracking**: the panel just re-renders whatever the
+  only, never the working tree — then makes two local `GitService.get_commit_log`
+  calls: one plain (`ref=None` → `HEAD`) for the local list, one with
+  `ref=f"HEAD..origin/{branch}"` for the new/unsynced list (empty if there's
+  no upstream yet, or nothing new — `get_commit_log` itself swallows
+  `GitOperationError` and returns `[]`), then one `fetch_entries_via_github`
+  call (same GitHub commits API `interface/shared/commit_history.py`'s
+  other callers use) to backfill avatars by hash — best-effort, `None`/empty
+  result just leaves every entry on the 👤 fallback.
+  `self._commit_log_avatar_cache` lives on the page (not the worker — passed
+  in as `avatar_cache` so it survives across polls) so an avatar is only
+  ever downloaded once across the page's whole lifetime, not re-fetched
+  every 30-minute repoll. `entries_ready` emits
+  `(local_entries, new_entries)` — both lists together, always in that
+  order.
+- **No dedup/unread tracking**: each panel just re-renders whatever the
   latest fetch returns (newest first, capped at 20).
 
 ## Other Command buttons
 
-Below the Commit History group in the `.ui`:
+Inside the "Git Log" group box (`groupBox_5`, alongside the diagnostics
+table and `plainTextEdit_git_log`) in the `.ui`:
 - **Open Local Directory** (`pushButton_local_dir`) — `open_in_file_explorer(dest_path)`
   (`core/os_utils.py`, re-exported via `plugin_api`; wasn't used by this
   plugin before this rewrite).
@@ -252,6 +294,74 @@ Below the Commit History group in the `.ui`:
   "GitWeb" button: parses the remote as a GitHub URL and opens
   `https://github.com/<owner>/<repo>` in the system browser; warns if the
   remote isn't a github.com URL.
+
+## Merge conflict resolution
+
+`ConflictResolutionDialog` (`conflict_dialog.py`) loads
+`MergeConflictResolveWindow.ui` at runtime (same `QUiLoader` idiom as
+`submit_section.ui` — see "Loading the .ui file" above) and populates its
+one widget, `tableWidget_conflict_info` (a plain `QTableWidget`, column
+count/headers set in Python since the `.ui` declares it bare), one row per
+conflicted file (`GitService.get_conflicted_files`). Seven columns: File,
+My Avatar, My Username, My Status, Other Avatar, Other Username, Other
+Status.
+
+Two different pulls can leave a real merge conflict (`MERGE_HEAD` present)
+behind — the Submit workflow's own pull step, and Sync's `open_or_sync`
+(2026-08-22: previously Sync's failure path just showed the raw git error
+in a plain "Sync Failed" box with no conflict handling at all, even for a
+real conflict). Both now go through the same
+`_resolve_merge_conflict(dest_path)` (`repo_git_status_page.py`) — shows
+the dialog, applies `resolve_conflict_file`/`complete_merge` on accept,
+returns whether the merge got completed. `_on_pull_step_failed` chains into
+`_start_push_step()` afterward (matching the commit→pull→push workflow);
+`_on_sync_failed` instead calls `_on_sync_finished("merged")` (there's no
+push step to chain into for a plain sync). Checked via
+`GitService.has_unresolved_merge` (`MERGE_HEAD` existence) before showing
+the dialog either way — a pull can also fail for unrelated reasons (auth,
+network, or git refusing to merge at all e.g. "untracked working tree
+files would be overwritten by merge") that leave no `MERGE_HEAD` and so
+still fall through to the plain error box, since there's nothing
+`get_conflicted_files` would find to resolve.
+
+- **"Mine"** is always the signed-in user — `my_username` is
+  `local_config_store.github_username`, passed in by the caller; the avatar
+  is one `fetch_avatar_bytes(username)` call (`core_api`, re-exported via
+  `plugin_api` — hits the public `github.com/<user>.png` URL directly, no
+  API token/rate limit). Same for every row.
+- **"Other"** is per-file — whoever last touched that specific file on the
+  incoming side, since a single pull's conflicts can span commits from
+  different teammates. `_fetch_other_author` tries
+  `fetch_entries_via_github(..., relative_path=file_path, limit=1, page=1,
+  ...)` first (GitHub-API-first, path-scoped — the top result is exactly
+  the most recent commit on the remote's default branch touching this
+  file, i.e. `MERGE_HEAD`'s version of it) for both username and avatar;
+  falls back to `GitService.get_commit_log(repo_path, limit=1,
+  ref="MERGE_HEAD", paths=[file_path])` (local-git-only, author name but no
+  avatar — added `paths` support to `get_commit_log` for exactly this
+  lookup, see its docstring) when the repo isn't GitHub-hosted, is offline,
+  or the API call fails.
+- Both fetches run once, together, off the UI thread via one
+  `GitStreamWorker` (`_start_author_fetch`/`_fetch_author_info`) — rows are
+  populated immediately with File/My Username (already known locally, no
+  I/O) and a "Loading..." placeholder for Other Username, then patched in
+  place once the worker reports back. Choose Mine/Choose Other stay
+  disabled until then.
+- **Multi-selection**: `ExtendedSelection` + `SelectRows`, so Choose
+  Mine/Choose Other act on every currently selected row, not just one —
+  `_apply_choice` sets the check icon (`QStyle.SP_DialogApplyButton`) on
+  the chosen side's Status cell and the cross icon
+  (`QStyle.SP_DialogCancelButton`) on the other side's, for each selected
+  row, and records `file_path -> "ours"|"theirs"` in `self._resolutions`.
+  "Resolve Conflict and Sync" (`pushButton_resolve_and_sync`) stays
+  disabled until every conflicted file has a resolution — same
+  all-resolved gating the previous radio-button dialog had.
+- `resolutions() -> dict[str, str]` keeps the same `"ours"`/`"theirs"`
+  contract `_resolve_merge_conflict` already expects
+  (`GitService.resolve_conflict_file`'s `keep` argument) — only the
+  dialog's constructor call changed (now needs
+  `git_service`/`repo_path`/`github_token`/`my_username` alongside
+  `conflicted_files`).
 
 ## Sidebar status dot
 
@@ -262,7 +372,7 @@ the right edge of its own sidebar row) is handed `page.status_dot` (a plain
 `_set_status_dot_state` — `SectionTabList` only lays it out.
 
 Three states, driven entirely by the existing `refresh_status()` call (Sync,
-Refresh Status, and the auto-sync on launch/repo-switch — no extra polling
+Refresh Status, and repo switch — no extra polling
 or network calls added for this). Icons are built-in Qt standard icons
 (`QStyle.standardIcon`):
 - **loading** (hidden, no icon) — a status check is in flight, or the last

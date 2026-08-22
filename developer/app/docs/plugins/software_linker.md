@@ -25,8 +25,9 @@ plugins" section for why that's a different setup).
 - `manifest.json` — plugin id `software_linker`, entry point `plugin.py`.
 - `ProgramLauncherWindow.ui` — Qt Designer source for the whole tab (the
   `listWidget_program_list` list plus `checkBox_ShowOnlyRequirement` and
-  the `pushButton_auto_resolve`/`pushButton_browse_path`/
-  `pushButton_browse_program`/`pushButton_clear_link_path` buttons).
+  the `pushButton_auto_resolve`/`pushButton_clear_link_path` buttons — the
+  latter now labeled "Edit Link..." in Designer, object name kept as-is
+  since `plugin.py` still binds it by that name).
   `SoftwareLinkerPage.__init__` loads this at runtime via `QUiLoader`
   instead of building the layout in code — same convention as
   `plugins/core/explorer/browser_widget.py`'s `explorer_section.ui` — and
@@ -34,13 +35,26 @@ plugins" section for why that's a different setup).
   Renaming an `objectName` in the `.ui` breaks that binding with no error
   at import time (`findChild` just returns `None`), so keep the two in
   sync.
+- `BrowseProgramWindow.ui` — Qt Designer source for `ProgramPickerDialog`
+  (`lineEdit_search_program`, `listWidget_register_program`, and the
+  `pushButton_browse`/`pushButton_clear_link_path`/`pushButton_ok`/
+  `pushButton_cancel` buttons). Also loaded via `QUiLoader` +
+  `findChild`, same convention as the main tab's own `.ui`. As of
+  2026-08-22 this replaced the old code-built `ProgramPickerDialog` (which
+  used to only cover "pick from installed programs") — the tab's former
+  separate "Browse Path..."/"Browse Program..."/"Clear Link Path" buttons
+  were folded into this one dialog instead, opened from the tab's single
+  "Edit Link..." button.
 - `plugin.py` — everything else in one file:
   - `list_installed_programs()` / `_resolve_exe_path()` — best-effort scan
     of Windows' Uninstall registry keys (the same list "Programs and
     Features"/Settings > Apps reads from).
-  - `ProgramPickerDialog` — icon+search picker over installed programs
-    (its own small dialog, built in code — not covered by
-    `ProgramLauncherWindow.ui`).
+  - `ProgramPickerDialog` — the "Edit Link..." dialog (see
+    `BrowseProgramWindow.ui` above): search+pick from installed programs
+    (double-click or "Ok"), "Browse..." for an arbitrary executable path,
+    or "Clear Link Path" to unlink — `selected_path()` /
+    `clear_requested()` tell the caller (`SoftwareLinkerPage._on_edit_link`)
+    which of the three happened.
   - `SoftwareLinkerPage` — the tab itself, one `QListWidgetItem` per
     linkable (Program, version) slot in `listWidget_program_list` (built
     by `_rebuild_list`), instead of the one-card-per-program layout this
@@ -59,13 +73,14 @@ plugins" section for why that's a different setup).
     two rules, which are worth deleting from `interface/theme.py`
     separately since editing `interface/` needs its own permission ask).
     No page-level selection state beyond `QListWidget`'s own
-    `currentItem()` — the "Browse Program...", "Browse Path...", and
-    "Clear Link Path" buttons act on whichever row is currently selected
-    (`_selected_row`), and are disabled via `_update_action_buttons_enabled`
-    whenever nothing is selected. **Double-clicking a row**
-    (`_on_item_double_clicked`, replacing the old single-left-click-anywhere-
-    on-the-card behavior) opens the linked executable, or opens the same
-    "Browse Program..." picker if nothing is linked yet. Launch feedback
+    `currentItem()` — the single "Edit Link..." button
+    (`_on_edit_link`, opening `ProgramPickerDialog`) acts on whichever row
+    is currently selected (`_selected_row`), and is disabled via
+    `_update_action_buttons_enabled` whenever nothing is selected.
+    **Double-clicking a row** (`_on_item_double_clicked`, replacing the old
+    single-left-click-anywhere-on-the-card behavior) opens the linked
+    executable, or opens the same `ProgramPickerDialog` if nothing is
+    linked yet. Launch feedback
     (`"Opening X..."` / a launch-failure message) is a plain
     `QToolTip.showText` call instead of the old custom-animated toast
     popup — nothing to click through, and no styling dependency on

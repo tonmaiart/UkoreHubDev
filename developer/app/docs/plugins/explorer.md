@@ -186,9 +186,17 @@ buttons at the top of the file table are the only navigation aids now.)
   code (`bookmarks_model`) rather than `QListWidget` items — same
   repo-relative-path-in-`Qt.UserRole` convention as `last_opened_list`
   otherwise. Right-clicking an existing bookmark offers "Remove Bookmark".
-  Bookmarks whose target no longer exists on disk are dropped (and the
-  store re-saved) the next time `get_bookmarks()` runs, same self-pruning
-  behavior as `LastOpenedStore.get_last_opened()`.
+  Bookmarks whose target doesn't exist on disk are filtered out of the
+  *displayed* list by `get_bookmarks()`, but — unlike
+  `LastOpenedStore.get_last_opened()`'s self-pruning — this is **not**
+  persisted back to the store. `BookmarksStore` is the team-shared,
+  cloud-synced blob (see above), so "missing on disk" on one machine often
+  just means that machine hasn't pulled/cloned the file yet, not that the
+  bookmark is actually gone; auto-saving the filtered list on every
+  `get_bookmarks()` call (as it used to) would delete the bookmark for
+  every other artist the next time anyone opened Explorer while behind on
+  a pull. Real removal only happens through the explicit "Remove Bookmark"
+  context-menu action (`remove()`).
 - `last_opened_store.py` — `LastOpenedStore`: persists the Last Opened
   Files list to **this app's own**
   `<UkoreHub_root>/cache/explorer/last_opened_<repo_id>_<username>.json`

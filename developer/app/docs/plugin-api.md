@@ -171,7 +171,11 @@ construct these yourself): `GitService`, `MetadataStore`,
 `logging.getLogger(__name__)` instead.
 
 **Misc helpers**: `check_repo_access` (`core/vcs/repo_access.py`),
-`extract_git_repo_name` (`core/vcs/paths.py`), `open_in_file_explorer`,
+`extract_git_repo_name` (`core/vcs/paths.py`), `fetch_avatar_bytes`
+(`core/auth/github_auth.py` — `(username) -> bytes | None`, the public
+`github.com/<user>.png` URL directly, no API token/rate limit; added for
+Submit's merge-conflict dialog's "my avatar" — see
+`plugins/submit.md`'s "Merge conflict resolution"), `open_in_file_explorer`,
 `open_with_default_app` (`core/os_utils.py`), `relaunch_ukorehub_exe`
 (`core/relaunch.py` — `(repo_root: Path) -> bool`; spawns
 `UkoreHubLauncher.exe` detached and returns `True`, or returns `False` if

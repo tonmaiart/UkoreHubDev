@@ -36,15 +36,21 @@ file that threads all of it together.
   `Sidebar` (left-hand navigation column — display-only repo
   thumbnail/name label, `SectionTabList`, a
   `SidebarFooterActionRegistry`-driven footer), and drives active-repo
-  restore + auto-sync on launch. GitHub login happens entirely before this
+  restore on launch. There is no automatic clone/pull on launch or repo
+  switch — each page just reads its current on-disk state
+  (`RefreshablePage`/`SetRepoPage` below); the user drives any actual
+  `git pull` explicitly via Submit's "Sync Others Commit" button (see
+  `plugins/submit.md`) — removed deliberately (2026-08-22) so opening the
+  app or switching repos in Project Editor can never itself trigger a merge
+  conflict. GitHub login happens entirely before this
   process is even spawned (see "GitHub login" below), so `MainWindow`
   builds the real UI immediately on construction — no gate to show/teardown.
   Every section (Explorer/Submit/About/Project Editor) is its own
   standalone page in `view_stack`, switched to via `Sidebar.navigation_changed`.
-- `page_protocols.py` — `SetRepoPage`/`PathFocusablePage`/`AutoSyncPage`:
+- `page_protocols.py` — `SetRepoPage`/`PathFocusablePage`/`RefreshablePage`:
   small `@runtime_checkable Protocol`s a page can optionally satisfy
-  (structurally — no inheritance needed) so `main_window.py`'s three
-  per-page optional-capability call sites use `isinstance()` instead of
+  (structurally — no inheritance needed) so `main_window.py`'s per-page
+  optional-capability call sites use `isinstance()` instead of
   `getattr(page, "...", None)` duck-typing. Each stays independently
   optional on purpose — a single combined Protocol, or a mandatory one,
   would break existing pages.
