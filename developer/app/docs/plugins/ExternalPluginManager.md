@@ -73,139 +73,158 @@ actually used in); that old file is left on disk, unread by anything now.
   `_local_status` (below) keep showing e.g. "3 commits behind" after the
   Settings dialog is closed and reopened, instead of reverting to a bare
   "Up to date" until the next explicit check.
-- `ExternalPluginManagerWindow.ui` — the tab's UI, authored in Qt Designer
-  and loaded at runtime via `QUiLoader` (2026-08-19; before this it was
-  built widget-by-widget in `__init__`), same pattern as
-  `plugins/core/explorer/browser_widget.py`'s `explorer_section.ui`. Widget
-  object names `external_plugins_page.py`'s `__init__` looks up via
-  `self.ui.findChild(...)`: `tableWidget_external_plugin_repo`;
-  `pushButton_add_repo`/`_edit_repo`/`_remove_repo`/`_clone_repo`/
-  `_unclone_repo`/`_open_dir`/`_bulk_push`/`_update_selected`/
-  `_force_update_selected`/`_check_for_status`. The table's column count/
-  headers and every button's tooltip/enabled-state/signal wiring still come
-  from Python, same as before — the `.ui` only supplies layout and widget
-  identity, not behavior.
-- `external_plugins_page.py` — `ExternalPluginsPage`: the tab itself, a
-  `QTableWidget` with 5 columns (Name, Requires, Status, Detail, Last
-  Checked — not a `QListWidget` as in earlier versions of this plugin;
-  `Requires` used to be appended into the Name cell's text via
-  `_requires_label` instead of its own column). Lists only the
-  active Project's own catalog entries — no disk scan for an already-cloned
-  `cache/plugins/*` folder the catalog doesn't mention; an entry has to be
-  added here explicitly before it exists anywhere else in the app
-  (Requirements & Plugins, the auto-sync engine). A folder with a `.git`
-  directory that exists but isn't actually a valid repo root
-  (`GitService.is_repo_root` returns False — e.g. an interrupted/broken
-  clone) shows as its own distinct status instead of being treated as
-  usable — see "Why `is_repo_root`, not just `is_cloned`" below.
+## Two pages, two windows (split 2026-08-24)
 
-  **Status column** is one of exactly 5 canonical buckets, each with its
-  own `QStyle` standard icon: `Error` (`SP_MessageBoxWarning`), `Not Clone`
-  (`SP_TitleBarMaxButton`), `Modified` (`SP_MessageBoxInformation`),
-  `Update Needed` (`SP_ArrowDown`), `Up to date` (`SP_DialogApplyButton`).
-  Everything more specific — ahead/behind counts, conflict-resolution
-  instructions, broken-git instructions, auto-sync failure text, "no
-  upstream configured" — goes in the **Detail** column instead of being its
-  own bucket. `_local_status` (fast, local-only, used by every
-  `refresh_list()`) checks live git state first — `is_cloned` →
-  `is_repo_root` → `has_unresolved_merge` → working-tree dirty — and only
-  ever falls back to `sync_status_store`'s persisted result *within the
-  branch it applies to* (never as a blanket first check: this ordering is
-  deliberate, since a manual Clone/Pull success clears the persisted error,
-  and checking live state first means a stale persisted error can never
-  override real, current, local git state). When none of the local checks
-  find anything wrong, it reads `last_check_store` for the last manual
-  Check for Status result (`Update Needed`/`Up to date` + detail +
-  `checked_at`) instead of guessing — an entry that's never been checked
-  shows `Up to date` with an empty Detail and a "Never" Last Checked
-  column, rather than a distinct 6th status.
+This plugin used to be one Settings tab with every action (Add/Edit/Remove
+*and* Clone/Unclone/Pull/Force Update/Check for Status/Open Directory/Bulk
+Push) crammed into one `.ui`/page. It's now split into a backend admin
+page (rarely opened, Settings tab) and a day-to-day operational page (its
+own top-level sidebar tab, used constantly) — same catalog, same stores,
+two different windows and Python classes:
 
-  Add/Edit/Delete/Clone/Unclone/Open Git Directory/Bulk Push remain
-  single-entry actions (the table now supports multi-selection —
-  `QAbstractItemView.ExtendedSelection` — but these six guard on exactly
-  one selected row via `_selected_row()`, showing the existing "select an
-  entry first" message otherwise). "Update Selected", "Force Update
-  Selected", and "Check for Status" all operate over every selected row;
-  "Check for Status" with **nothing selected falls back to checking every
-  row** (its original single default behavior, preserved). "Unclone"
-  (added 2026-08-19) deletes the selected entry's local clone from disk
-  (plain `shutil.rmtree`, confirmed first, the same OSError-message pattern
-  as `interface/repo_settings/local_repository_page.py`'s "Remove Local
-  Repositories") — the catalog entry itself stays, so it shows `Not Clone`
-  afterward and can be Cloned again; only enabled implicitly by
-  `_selected_row()`'s guard, no extra state check (unlike Bulk Push).
-  "Force Update Selected" (added 2026-08-19) is the "don't care what's
-  pending, just make it match remote" escape hatch `_on_pull`/Check for
-  Status deliberately don't provide: per selected row, not cloned → Clone;
-  cloned but `is_repo_root()` False (broken/interrupted clone) → delete the
-  folder and Clone fresh (mirrors the "Why `is_repo_root`, not just
-  `is_cloned`" section below — there's no valid working tree to reset in a
-  folder git can't resolve as its own root); otherwise →
-  `GitService.force_sync` (`core/vcs/git_service.py`, added alongside this
-  button) — `fetch` + `git reset --hard origin/<branch>` + `git clean -fd`,
-  which discards every local change and unpushed commit and also clears an
-  in-progress merge (`reset --hard` drops `.git/MERGE_HEAD`) without ever
-  calling `merge --abort` separately. `force_sync` never confirms anything
-  itself; `_on_force_update` shows one `confirm_action` prompt up front
-  covering the whole selection before running any of it, since this is the
-  only action in this plugin that can destroy uncommitted work. Both clear
-  `sync_status_store`/`last_check_store` for every entry they touch, same
-  as Clone/Pull's own stale-cache cleanup. Clone clears any stale
-  `sync_status_store` error for that entry on success (a successful manual
-  Pull already did this — Clone now does too, closing the same staleness
-  gap). "Check for Status" runs `GitService.safe_untrack_and_clean_ignored`
-  on each row first — an automatic guard against files matching
-  `.gitignore` ending up tracked, **local untrack + commit only, never
-  pushes** (this replaced a separate "Gitignore Update All" button, which
-  used to also push; the push behavior was deliberately dropped, not
-  preserved, when the logic moved here) — then `GitService.fetch` +
-  `get_ahead_behind` + `get_working_tree_status` against every row being
-  checked, buckets the result (local changes or unpushed commits →
-  `Modified`; behind or no upstream → `Update Needed`; else `Up to date`),
-  and writes it to `last_check_store` on success. "Open Git Directory"
-  opens the selected row's local clone in the OS file explorer via
-  `core/os_utils.py`'s `open_in_file_explorer` (no-op with an info message
-  if it isn't cloned yet — also how a dev reaches an `Error`-bucketed
-  conflict row to resolve it, this page builds no in-app
-  conflict-resolution UI of its own); "Bulk Push" (formerly "Stage
-  Untracked & Push") is only enabled when the selected row's Status is
-  `Modified` (`_update_stage_push_enabled`, wired to the table's
-  `itemSelectionChanged`) — reusing the same bucket the Status column
-  already computes rather than a separate check, since `Modified` covers
-  both working-tree changes *and* commits already made locally but not yet
-  pushed (see `_format_status`'s "N commit(s) ahead — not pushed" branch).
-  On click it stages every untracked/modified file (`GitService.stage_paths`)
-  and commits with a message typed into a plain `QInputDialog` prompt only
-  when there's actually something in the working tree to stage; when the
-  entry is `Modified` purely from unpushed local commits (empty working
-  tree), it skips staging/commit entirely and just pushes
-  (`GitService.commit`/`push`) — a bulk "get this repo plugin's new files
-  into the remote" action, not a real commit-review workflow (that's
-  Submit's job, for a repo, not a repo plugin). Before this button-enable
-  wiring existed, clicking Bulk Push on an unpushed-commits-only entry (one
-  the Status column already showed as `Modified`) fell through to
-  `get_working_tree_status` finding nothing and showed a "No changes to
-  push" dead end instead of pushing — fixed by gating the button on
-  `row.status` and handling the empty-working-tree/ahead-only case in the
-  push action itself. On success it also calls
-  `last_check_store.clear(entry.id)` before `_run_with_wait_cursor`'s
-  trailing `refresh_list()` recomputes the row — otherwise a stale cached
+- **`ExternalPluginManagerWindow.ui` / `external_plugins_page.py`
+  (`ExternalPluginsPage`)** — Settings > Project tab (`register_settings_tab`,
+  `CATEGORY_PROJECT`, key `external_plugins`, unchanged). Pure catalog CRUD:
+  Add / Edit / Remove a `CatalogEntry` (name, Git URL, folder name). Table
+  has 4 columns (Name, **Requires**, Git URL, Folder Name) — no Status/
+  Detail/Last Checked (that's the Updater page's job), but this page does
+  take `plugin_catalog` (the already-discovered `DiscoveredPlugin` list)
+  specifically to resolve and show each entry's own `_requires_label`
+  (same logic as the Updater page used to have — an entry that isn't
+  cloned yet shows no requires text, since there's no manifest.json to
+  read until it is). No `git_service`/`plugins_root`/`sync_status_store`/
+  `last_check_store` dependency though — this page still never touches
+  live git state. Widget object names: `tableWidget_external_plugin_repo`,
+  `pushButton_add_repo`/`_edit_repo`/`_remove_repo`. Single-row selection
+  (`QAbstractItemView.SingleSelection`) since Edit/Remove are the only
+  row-scoped actions left.
+- **`ExternalPluginUpdaterWindow.ui` / `external_plugin_updater_page.py`
+  (`ExternalPluginUpdaterPage`)** — a top-level section (`register_section`,
+  key `external_plugins_updater`, sidebar label **"Plugins"**,
+  `standard_icon=QStyle.SP_VistaShield`, order 800 — after every regular
+  tab (Explorer=10, Submit=20, Software Linker/CloudDataAdmin=40), just
+  above Debug Console (order=900)), **not** a Settings tab, since this is the
+  side artists actually use day to day. 4-column table (Name, Status,
+  Detail, Last Checked — **no Requires column here**, deliberately, since
+  that's static catalog metadata the Manager page already shows and this
+  page is about live git status instead) with the same `_local_status`/
+  status-bucket/icon logic the old single page had. Still takes
+  `plugin_catalog` too, but only to tell "cloned but not discovered by
+  this session yet" apart from a real up-to-date row (`_local_status`'s
+  `_PENDING_RESTART_DETAIL` branch) — not to render a Requires column.
+  Widget object names: `tableWidget_external_plugin_repo`,
+  `pushButton_check_for_status`, `pushButton_update_all`.
+
+Both pages share the same `ExternalPluginCatalog`/`ExternalPluginSyncStatusStore`/
+`LastCheckedStore` instances (built once in `plugin.py`'s `_SyncController`,
+see below) — an edit made in the Manager tab is visible in the Updater tab
+immediately, no caching or refresh coordination needed between them.
+
+**Status column** (Updater page only) is one of exactly 5 canonical
+buckets, each with its own `QStyle` standard icon: `Error`
+(`SP_MessageBoxWarning`), `Not Clone` (`SP_TitleBarMaxButton`), `Modified`
+(`SP_MessageBoxInformation`), `Update Needed` (`SP_ArrowDown`), `Up to
+date` (`SP_DialogApplyButton`). Everything more specific — ahead/behind
+counts, conflict-resolution instructions, broken-git instructions,
+auto-sync failure text, "no upstream configured" — goes in the **Detail**
+column instead of being its own bucket. `_local_status` (fast, local-only,
+used by every `refresh_list()`) checks live git state first — `is_cloned`
+→ `is_repo_root` → `has_unresolved_merge` → working-tree dirty — and only
+ever falls back to `sync_status_store`'s persisted result *within the
+branch it applies to* (never as a blanket first check — a stale persisted
+error can never override real, current, local git state). When none of
+the local checks find anything wrong, it reads `last_check_store` for the
+last Check for Status result instead of guessing — an entry that's never
+been checked shows `Up to date` with an empty Detail and a "Never" Last
+Checked column, rather than a distinct 6th status.
+
+### Updater page toolbar: Check for Status (parallel) / Update All
+
+- **"Check for Status"** (`_on_check_for_status`) now checks every row
+  **in parallel** instead of one at a time — no selection, always every
+  row. Each cloned+valid row's fetch/ahead-behind/working-tree check runs
+  as its own `_StatusCheckTask` (`QRunnable`) on a dedicated
+  `QThreadPool` (`_MAX_PARALLEL_CHECKS = 8`), since every catalog entry
+  lives in its own `cache/plugins/<folder>` clone — no two tasks in the
+  same run ever touch the same folder, so there's nothing to race. Each
+  task only ever emits through `_StatusCheckSignals` (a `QObject` owned by
+  the page on the main thread) — Qt auto-queues that emit onto the main
+  thread, so `_on_status_check_result` (which writes rows, the table, and
+  `last_check_store`) never runs off the UI thread and needs no locking,
+  same "workers only emit, controller writes" shape `sync_worker.py`
+  already used for the (sequential) auto-sync engine. Not-cloned/broken-git/
+  merge-conflict rows are resolved locally first (no thread dispatched for
+  them) and shown immediately; only rows that need a real network call get
+  a `_StatusCheckTask`. `safe_untrack_and_clean_ignored` still runs first
+  per row (local untrack + commit only, never pushes) same as before the
+  split. The button (and "Update All") disables itself for the whole run
+  (`self._busy`) so a second Check/Update can't start mid-run and race a
+  task still touching the same folder.
+- **"Update All"** (`_on_update_all`) replaced "Update Selected"/"Force
+  Update Selected" — one button, always force-updates **every** catalog
+  entry, no selection needed, one `confirm_action` prompt up front (it's
+  destructive — discards local changes/unpushed commits). Per entry: not
+  cloned → Clone; cloned but `is_repo_root()` False (broken/interrupted
+  clone) → delete the folder and Clone fresh; otherwise →
+  `GitService.force_sync` (`core/vcs/git_service.py`) — `fetch` + `git
+  reset --hard origin/<branch>` + `git clean -fd`, discarding every local
+  change/unpushed commit and clearing any in-progress merge. Runs
+  sequentially on the UI thread (like the old "Force Update Selected"
+  did) — see "Why no background thread" below for why this one action
+  deliberately isn't parallelized like Check for Status is. Clears
+  `sync_status_store`/`last_check_store` for every entry it touches.
+
+### Updater page: right-click context menu (Clone / Unclone / Open Directory / Bulk Push)
+
+These four used to be their own toolbar buttons, each gated on exactly one
+selected row (`_selected_row()`). They're now a `QMenu` built fresh on
+`tableWidget_external_plugin_repo`'s `customContextMenuRequested`
+(`_on_context_menu`) — right-clicking a row selects it and shows a menu
+with each action enabled/disabled for that specific row's state exactly
+the same way the old buttons were (`Clone` only if not cloned; `Unclone`/
+`Open Directory` only if cloned; `Bulk Push` only if Status is `Modified`).
+The menu is suppressed entirely while `self._busy` (a Check for
+Status/Update All run in progress).
+
+- **Clone** (`_on_clone`) — `GitService.clone`, then clears
+  `sync_status_store` for that entry on success (closes the same
+  stale-error gap a successful Pull/auto-clone already closed).
+- **Unclone** — deletes the selected entry's local clone from disk (plain
+  `shutil.rmtree`, confirmed first, the same OSError-message pattern as
+  `interface/repo_settings/local_repository_page.py`'s "Remove Local
+  Repositories"). The catalog entry itself stays, so it shows `Not Clone`
+  afterward and can be Cloned again.
+- **Open Directory** — opens the row's local clone in the OS file
+  explorer via `core/os_utils.py`'s `open_in_file_explorer`; also how a
+  dev reaches an `Error`-bucketed conflict row to resolve it, since this
+  page builds no in-app conflict-resolution UI of its own.
+- **Bulk Push** (`_on_stage_untracked_and_push`) — only reachable when the
+  row's Status is `Modified`, which covers both working-tree changes *and*
+  commits already made locally but not yet pushed (see `_format_status`'s
+  "N commit(s) ahead — not pushed" branch). Stages every untracked/modified
+  file (`GitService.stage_paths`) and commits with a message typed into a
+  plain `QInputDialog` prompt only when there's actually something in the
+  working tree to stage; when the entry is `Modified` purely from unpushed
+  local commits (empty working tree), it skips staging/commit entirely and
+  just pushes. On success it calls `last_check_store.clear(entry.id)`
+  before `refresh_list()` recomputes the row — otherwise a stale cached
   "N commit(s) ahead" result from an earlier Check for Status would keep
   showing `Modified` even though the push that just ran already resolved
-  it (`_local_status` falls back to `last_check_store` once the working
-  tree reads clean, see the Status column paragraph above).
-- `plugin.py` — `register(api)`: registers the settings tab
-  (`CATEGORY_PROJECT`, key `external_plugins`), building a fresh
-  `ExternalPluginsPage` per `page_factory` call — same "no long-lived page,
-  a new one every time Settings is opened" convention every Settings tab
-  uses (see `interface.md`'s `settings_view.py` entry). Also builds
-  `_SyncController` once per app session — see "Auto-sync engine" below —
-  which is the one long-lived thing in this plugin; its
-  `ExternalPluginCatalog` is built once too
+  it.
+- `plugin.py` — `register(api)`: registers both the Settings tab
+  (`ExternalPluginsPage`, CRUD-only) and the top-level section
+  (`ExternalPluginUpdaterPage`), each building a fresh page per
+  `page_factory` call — same "no long-lived page" convention every
+  Settings tab/section uses (see `interface.md`'s `settings_view.py`
+  entry). Also builds `_SyncController` once per app session — see
+  "Auto-sync engine" below — which is the one long-lived thing in this
+  plugin; its `ExternalPluginCatalog` is built once too
   (`api.project_plugin_config_store(PLUGIN_ID)`), safe to hold for the
   whole session because the active project never changes mid-session
   (switching projects means a full app restart — see `core_api`'s
-  `LocalConfigStore.set_active_project`).
+  `LocalConfigStore.set_active_project`). Both pages read/write through
+  this one shared `sync_controller.catalog`/`.status_store`/
+  `.last_check_store` — no separate instance per page.
 
 ## Registration status (load/register, not sync)
 
@@ -389,10 +408,9 @@ cascade into.
 even for an empty/corrupt `.git` directory left by an interrupted clone,
 in which case git's own repo-discovery silently walks up to whatever real
 repository is further up the tree (in this app's case, UkoreHub's own
-repo root) instead of failing. Update Selected/Check for Status/Bulk Push
-all gate on `GitService.is_repo_root()` instead (via
-`_require_valid_clone()`, or an inline equivalent check for the two
-multi-selection actions), which actually confirms `git rev-parse
+repo root) instead of failing. Update All/Check for Status/Bulk Push (all
+on `external_plugin_updater_page.py`) all gate on `GitService.is_repo_root()`
+instead of just `is_cloned()`, which actually confirms `git rev-parse
 --show-toplevel` resolves back to the folder itself — see the
 `ukorehub-core` skill; a broken `cache/plugins/AdvancedSkeleton/.git` once
 almost caused "Bulk Push" (formerly "Stage Untracked & Push") to commit and
@@ -402,25 +420,38 @@ fails this check
 shows `Broken .git directory (not a valid clone) — delete the folder and
 Clone again` rather than being silently treated as a normal clone.
 
-## Why no background thread (for this page's own manual actions)
+## Why no background thread (for the Manager page, and most of the Updater page)
 
-Opening the tab only does a fast local filesystem pass (cloned vs. not
-cloned) — no network call. "Check for Status" and Clone/Update Selected do
-call git over the network, but run synchronously on the UI thread (with
-`QApplication.setOverrideCursor(Qt.WaitCursor)` and a `processEvents()`
-after each repo during the bulk check, so the dialog stays visibly
-responsive) rather than a `QThread`. Unlike `SectionSpec`,
-`SettingsTabSpec` has no `background_threads` shutdown-cleanup hook, and
-`SettingsDialog` is rebuilt fresh on every open — adding real threading
-would mean extending that shared framework for a handful of small repo
-clones that don't need it. If the catalog grows large enough that this
-becomes a real wait, that's the trigger to revisit, not before.
+Opening either page only does a fast local filesystem pass (cloned vs. not
+cloned) — no network call. On the Updater page, Clone/Unclone/Open
+Directory/Bulk Push (the context-menu actions) and Update All still call
+git over the network but run synchronously on the UI thread (with
+`QApplication.setOverrideCursor(Qt.WaitCursor)`), same as before the
+split — each is still a single deliberate click (a context-menu action on
+one row, or one confirmed "Update All"), not something worth threading on
+its own. `SettingsTabSpec` (the Manager page's kind) has no
+`background_threads` shutdown-cleanup hook, and `SettingsDialog` is
+rebuilt fresh on every open, so the Manager page never needed real
+threading in the first place — it doesn't call git at all anymore.
 
-This reasoning is specific to *this page's* deliberate, one-click actions
-(this tab is rarely open, and each action — even Update Selected/Check for
-Status over a multi-row selection — is still a single explicit click). The
-auto-sync engine (see "Auto-sync engine" above) is a different
-situation — it fires unattended on every app start and repo switch and may
-need to touch several plugins over the network, so it deliberately does use
-a real `QThread` (`sync_worker.py`) rather than repeating this page's
-synchronous pattern.
+**"Check for Status" is the one exception** (see "Updater page toolbar"
+above) — it now dispatches a `QRunnable` per row onto a `QThreadPool`
+instead of looping synchronously with `processEvents()` the way the old
+single page did. The difference from the other actions above isn't "this
+one matters more" — it's that Check for Status is the one action that
+routinely touches *every* row in the catalog in a single click (Update All
+does too, but stays sequential since force-updating is destructive and
+correctness matters more than speed there), so it's the one place a large
+catalog's worth of sequential network round-trips would actually be felt.
+If Update All or the context-menu actions ever need the same treatment,
+`_StatusCheckTask`/`_StatusCheckSignals` is the pattern to reuse — the
+requirement is the same one that already makes the parallel Check for
+Status safe: every task must operate on a distinct
+`cache/plugins/<folder>` clone, never two tasks on the same one.
+
+The auto-sync engine (see "Auto-sync engine" above) is a different
+situation from either page's own manual actions — it fires unattended on
+every app start and repo switch and may need to touch several plugins
+sequentially over the network without blocking app startup, so it
+deliberately uses a real `QThread` (`sync_worker.py`) rather than either
+page's own synchronous-click or per-row-`QThreadPool` pattern.
