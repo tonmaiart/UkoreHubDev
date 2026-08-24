@@ -137,26 +137,51 @@ entry point) is unchanged in contract — it derives its legacy
 ## Modified / Staged tables
 
 Both are `QTableView`s (`tableView_modified`/`tableView_staged` in the
-`.ui`) backed by a `QStandardItemModel` with three columns: **File Name**
+`.ui`) backed by a `QStandardItemModel` with four columns: **File Name**
 (`PurePosixPath(path).name`), **File Path** (the path's parent directory,
 relative to repo root — empty string for a repo-root file), **Modified**
 (display text from `FileChange.change_type`: `untracked`/`added` →
 "Added", `modified` → "Modified", `deleted` → "Removed", `renamed` →
-"Renamed"). The real relative path and raw `change_type` are stashed on
+"Renamed"), **Time** (the file's on-disk last-modified time —
+`_format_file_mtime`, `(dest_path / change.path).stat().st_mtime`; shown
+relative, e.g. "5 minutes ago", within `_FILE_TIME_CUTOFF_DAYS` (1 day),
+otherwise an absolute date like the commit-history panels' Time column,
+via the same `_format_relative_or_absolute` helper both now share; a row
+whose file is already gone from disk — e.g. a staged delete — shows "—"
+instead). `_populate_file_table` sorts rows latest-modified-first by
+default (files with no mtime sort last, not first) rather than the old
+alphabetical-by-path order — there's no interactive column-sort wired
+(`setSortingEnabled` isn't set), so this default order is the only order
+these tables have. The real relative path and raw `change_type` are stashed on
 each row's File Name item via `Qt.UserRole`/`Qt.UserRole + 1`
 (`_PATH_ROLE`/`_CHANGE_TYPE_ROLE`) so display formatting never has to be
 reverse-parsed. Both tables use `ExtendedSelection` + `SelectRows`, so
-**Stage**, **Unstage** (labelled "Unstage" in the `.ui`, this is the old
-"Restore"/unstage-from-index button), and **Revert** all act on whatever
-rows are currently selected (`_selected_rows_data`), reading multiple rows
-at once instead of the old per-item checkbox/"Select All" pattern (removed
-entirely — multi-selection replaces it). Revert splits its selection by
+**Stage/Unstage** and **Revert** all act on whatever rows are currently
+selected (`_selected_rows_data`), reading multiple rows at once instead of
+the old per-item checkbox/"Select All" pattern (removed entirely —
+multi-selection replaces it). Revert splits its selection by
 `change_type == "untracked"` vs tracked to call
 `GitService.revert_paths(modified_paths=..., untracked_paths=...)`
 correctly, same split logic as before but driven by `change_type` instead
 of cross-referencing `self._last_status.untracked`. All three actions run
 through `GitStreamWorker` (Stage always did; Unstage/Revert now do too, so
 a large multi-selection can't freeze the UI thread).
+
+**Stage/Unstage is one toggle button** (`pushButton_stage`, labelled
+"▼ Stage / ▲ Unstage" in the `.ui` — the old separate `pushButton_unstage`
+was removed), not two. `_on_stage_clicked` checks which table currently has
+a selection — Modified means stage, Staged means unstage — and dispatches
+to `_start_stage`/`_start_unstage` accordingly (still two separate
+`GitStreamWorker`s/`_stage_worker`/`_unstage_worker` under the hood, so
+`plugin.py`'s `background_threads` list is unchanged). This only works
+because the two tables' selections are kept mutually exclusive:
+`_on_table_selected` (wired to both tables' `selectionChanged` in
+`_setup_ui_widgets`) clears the other table's selection the moment one
+table gets a non-empty selection, guarded by `_suppress_selection_sync` so
+that `clearSelection()` call doesn't bounce back and re-trigger itself. An
+empty selection is left alone (not treated as "nothing to disambiguate"),
+so clicking empty space in a table doesn't clear the other table's
+in-progress selection.
 
 **"Submit All Staged"** (`pushButton_submit_all_staged` — the old "Pull and
 Push" button) is unconditional: it always acts on every currently staged
