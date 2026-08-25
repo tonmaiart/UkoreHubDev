@@ -19,7 +19,7 @@ buttons at the top of the file table are the only navigation aids now.)
   (`objectName`s: `pushButton_back`/`pushButton_up`/`pushButton_refresh`/
   `pushButton_create_folder`/`pushButton_open_current_directory`,
   `lineEdit_path`, `lineEdit_search`, `listWidget_column_1..5` +
-  `lineEdit_column_1..5_search`, `tableView_current_directory`,
+  `lineEdit_column_1..5_search`, `tableWidget_current_directory`,
   `listWidget_last_opened_file`, `listView_bookmarks`, `groupBox_5` (empty
   container the commit panel gets added into at runtime)) without touching
   Python. `RepoBrowserWidget.__init__` binds each widget via
@@ -56,8 +56,9 @@ buttons at the top of the file table are the only navigation aids now.)
   `UICommandService.refresh_section("repo_browser")`) — Submit's "Sync
   Others Commit" button calls into this after every sync so the file table
   doesn't sit stale until the user manually reopens the tab or restarts the
-  app (`QFileSystemModel`'s own filesystem watcher can miss/lag a bulk
-  change like a git clone/pull). `refresh_content()` re-runs the same
+  app (the file table is only rebuilt on an explicit `_navigate_to`, so a
+  bulk change like a git clone/pull otherwise wouldn't show up until the
+  next navigation). `refresh_content()` re-runs the same
   not-cloned/exists check `set_repo()` does (covers "just cloned for the
   first time", where `browser.set_root()` has never run) — if this page was
   already showing the same repo, `set_repo()`'s
@@ -91,15 +92,13 @@ buttons at the top of the file table are the only navigation aids now.)
   A Reload button (`reload_button`) sits right after `add_folder_button` in
   `nav_row` — calls `reload()`, which force-rescans the current folder from
   disk without changing which folder is open or touching navigation
-  history. `QFileSystemModel` has no public "rescan" call and normally
-  relies on its own filesystem watcher, which can miss or lag a bulk change
-  like a git clone/pull (many files created/modified/deleted at once);
-  `reload()` works around this by toggling `fs_model.setRootPath("")` then
-  back to the real root, which forces Qt to drop its cached listing and
-  re-fetch. `RepoBrowserPage.refresh_content()` (above) calls this same
-  method for the automatic post-sync case — the nav button is the manual
-  escape hatch for any other staleness (e.g. a file changed by an external
-  tool while Explorer was open).
+  history. Since the file table is populated directly from `iterdir()` on
+  every navigation (see below) rather than a cached filesystem-model
+  listing, `reload()` is just a re-navigate to the current path.
+  `RepoBrowserPage.refresh_content()` (above) calls this same method for
+  the automatic post-sync case — the nav button is the manual escape hatch
+  for any other staleness (e.g. a file changed by an external tool while
+  Explorer was open).
   Right-clicking a row opens a context menu (Add this to bookmarks/Copy
   Name/Copy File Relative Path/Copy File Absolute Path/Rename/Delete) via
   `_on_table_context_menu`;
@@ -108,12 +107,35 @@ buttons at the top of the file table are the only navigation aids now.)
   Folder/Rename Folder/Delete Folder act on the currently open folder
   (`_current_path`) rather than a selected row — Rename/Delete Folder are
   disabled while `_current_path` is the repo root, since renaming/deleting
-  it out from under `set_root()`'s `fs_model`/`_last_opened_store` would
-  leave them pointed at a path that no longer exists. The file table hides
-  the Type column (redundant with
-  the file's icon/name) and gives Name/Date Modified `Stretch` resize
-  priority over Size and the synthetic Time Ago column (see
-  `file_table_proxy.py` below) so they can't get squeezed narrow.
+  it out from under `set_root()`'s `_last_opened_store` would leave them
+  pointed at a path that no longer exists. The file table
+  (`tableWidget_current_directory`, a plain `QTableWidget` — 6 columns
+  authored directly in `explorer_section.ui`: Name/Size/Date
+  Modified/Time Ago/Local Modified/Last Commit) is populated manually
+  by `_populate_table`/`_set_row` on every `_navigate_to` (a synchronous
+  `iterdir()` + `stat()` per entry, sorted case-insensitively by name) —
+  there's no `QFileSystemModel`/proxy backing it anymore, so `reload()` is
+  just a re-navigate to the current path rather than a filesystem-watcher
+  workaround. Each row's absolute path lives in `Qt.UserRole` on the
+  column-0 (Name) item, same convention as the Last Opened/Bookmarks
+  tables below — `_path_for_row`/`_row_for_path` are the lookup helpers
+  (`_row_for_path` does a linear scan comparing `Path` equality, so it's
+  separator-agnostic). Size and Date Modified/Time Ago use a small
+  `_SortableItem(QTableWidgetItem)` subclass that sorts by an explicit key
+  (byte count / mtime) instead of the displayed text, since "12.3 KB" and
+  "5 min ago" don't sort correctly as strings; Date Modified's own display
+  text is ISO 8601 (`yyyy-MM-dd HH:mm:ss`) so it would actually sort
+  correctly as plain text too, but uses the same subclass for consistency.
+  Local Modified/Last Commit start blank and are filled in per-row by
+  `_on_folder_author_ready` (see `FileRowAuthorsWorker` below) via
+  `_row_for_path` — since the table is fully rebuilt on every navigation,
+  revisiting a folder briefly shows these two columns blank again until
+  the async worker (usually near-instant, since "Last Commit" is cached by
+  relative path) re-populates them. `search_edit`'s filtering
+  (`_apply_search`) hides non-matching rows directly via
+  `setRowHidden` instead of a proxy-model filter, and is re-applied at the
+  end of every `_populate_table` call so a folder switch doesn't silently
+  drop the current search text's effect.
   `search_edit` sits at the end of the same nav row as the breadcrumb path
   field (`lineEdit_path`) rather than on its own row below the table. Each
   Folder Navigator column list uses zero item padding/margin (on top of
@@ -140,7 +162,7 @@ buttons at the top of the file table are the only navigation aids now.)
   survives app restarts. Clicking an entry (`_on_last_opened_clicked`)
   navigates to that file's current parent folder and then selects the
   file's own row in the table (`_select_file_in_table`, via
-  `fs_model.index()`/`proxy.mapFromSource()`) — deliberately no
+  `_row_for_path`) — deliberately no
   double-click-to-open wired up here, so this list can never be a second
   way to launch a file, only a navigation-plus-highlight shortcut back to
   one. `open_directory_button` (`pushButton_open_current_directory`, in the
@@ -274,36 +296,15 @@ buttons at the top of the file table are the only navigation aids now.)
   cached across selections (unlike commit history) — a working-tree status
   can change the moment the user saves the file in another app, so always
   refetches on `show_local_change_for`.
-- `file_table_proxy.py` — `FileTableFilterProxy`: the `QSortFilterProxyModel`
-  behind the file table (search-text filtering) that also appends 3
-  synthetic columns after `QFileSystemModel`'s real Name/Size/Type/Date
-  Modified columns 0-3 — `TIME_AGO_COLUMN = 4` (`format_time_ago()` renders
-  `QFileSystemModel.lastModified()` as "5 min ago"/"2 hours ago"/etc.),
-  `LOCAL_MODIFIED_BY_COLUMN = 5`, `LAST_COMMIT_BY_COLUMN = 6` (see
-  `file_row_authors_worker.py` below — `_SYNTHETIC_HEADERS` maps all three
-  to their header text). `QSortFilterProxyModel`'s default
-  `index()`/`mapToSource()` bound column requests against the *source*
-  model's own `columnCount()`, so a column that doesn't exist there needs
-  `index()` and `mapToSource()` overridden to redirect it onto column 0's
-  source index instead — every column of the same row shares one
-  internalPointer/parent in Qt's model/view contract, so reusing column 0's
-  identifies the same file correctly (this is also why existing code like
-  `proxy.mapToSource(current)` in `_on_table_selection_changed`/
-  `_on_table_double_clicked` keeps working even if the user clicks/double-
-  clicks a synthetic-column cell itself). Clicking any synthetic column's
-  header is a no-op (`sort()` override) rather than sorting — there's no
-  real source column to sort by, and reconstructing one inside
-  `lessThan()` isn't worth the complexity for what are supplementary
-  display columns. Local Modified By / Last Commit By can't be computed
-  from `QFileSystemModel` at all — `set_author_info(abs_path, FileAuthorInfo)`/
-  `clear_author_cache()` let `RepoBrowserWidget` push in async
-  git/GitHub results as they arrive (keyed by the same absolute path
-  `QFileSystemModel.filePath()` returns), and `data()` reads
-  `Qt.DisplayRole` (name) and `Qt.DecorationRole` (avatar `QIcon`) from
-  whatever's currently cached for that path — `set_author_info` emits
-  `dataChanged` for just that row so the view repaints one row at a time as
-  results trickle in, instead of the whole folder staying blank until every
-  file resolves.
+- `file_table_proxy.py` — just `format_time_ago(dt)` now ("5 min ago"/"2
+  hours ago"/etc., shared by `browser_widget.py` and
+  `file_local_change_panel.py`). Used to also hold `FileTableFilterProxy`,
+  a `QSortFilterProxyModel` that wrapped a `QFileSystemModel` and appended
+  synthetic columns for Time Ago/Local Modified By/Last Commit By — removed
+  when the file table (see above) moved from a model/view
+  `QTableView`+`QFileSystemModel` to a plain `QTableWidget` populated
+  directly from `iterdir()`/`stat()`, which has no source model to proxy
+  in the first place.
 - `file_row_authors_worker.py` — `FileAuthorInfo` (dataclass:
   `local_modified_by`/`local_modified_icon`/`last_commit_by`/
   `last_commit_icon`) + `FileRowAuthorsWorker`: `QThread` that, for every
@@ -344,11 +345,11 @@ buttons at the top of the file table are the only navigation aids now.)
   folders quickly used to redo that scan (and, before the change above, a
   git-log fetch) on every single click along the way; now only the folder
   the user actually lands on pays for it (`_apply_settled_navigation`).
-  `_navigate_to` also calls `self.table.selectionModel().clear()` right
-  after `setRootIndex` — `setRootIndex` alone doesn't invalidate a
-  selection made in the previous folder, so without this a stale current
-  index could otherwise keep `_on_table_selection_changed` reporting the
-  old folder's file. `_relative_path_str` (used for every git/GitHub
+  `_navigate_to` also calls `_clear_file_panels()` right after repopulating
+  the table — rebuilding the table's rows already drops any selection made
+  in the previous folder, but the explicit call avoids depending on
+  `currentRowChanged` firing synchronously for that. `_relative_path_str`
+  (used for every git/GitHub
   lookup keyed by path) returns `.as_posix()`, not `str(path)` — a
   Windows-style backslash-separated relative path silently fails to match
   either `git log -- <path>`'s pathspec or the GitHub commits API's `path=`
