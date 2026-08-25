@@ -93,6 +93,7 @@ end.
 | `register_file_opener` | `(plugin_id: str, extensions: list[str], opener: Callable[[Path, Repo], bool]) -> None` | Claims responsibility for opening certain file extensions from Repo Browser. |
 | `register_program_launcher` | `(spec: ProgramLaunchSpec) -> None` | Contributes custom launch behavior for a Program (e.g. Maya's setProject/env-merge wiring) instead of a bare `subprocess.Popen`. |
 | `register_sidebar_footer_action` | `(spec: SidebarFooterActionSpec) -> None` | Adds a widget to Sidebar's footer strip. |
+| `register_notification` | `(spec: NotificationSpec) -> None` | Adds a plugin's own widget as a row in Sidebar's `listWidget_notification`. |
 
 ## `PluginAPI` — lifecycle hooks
 
@@ -126,11 +127,13 @@ for the full worked examples and when to reach for each option.
 - **`SectionSpec`** — `key, label, order, page_factory: Callable[[], QWidget]`, optional `background_threads`, `icon_path` (a real bundled bitmap `Path` — no built-in section uses this anymore, kept for a future plugin that genuinely needs a custom bitmap, e.g. a brand logo), `standard_icon` (`QStyle.StandardPixmap` — what every built-in section's sidebar row icon uses now; `icon_path` wins if both are set), `trailing_widget_factory`, `wire: Callable[[QWidget, UICommandService], None]`.
 - **`SettingsTabSpec`** — `key, label, order, page_factory`, optional `on_activated: Callable[[QWidget], None]`, `category` (one of `CATEGORY_GENERAL` (default), `CATEGORY_PROJECT`, `CATEGORY_REPO`, `CATEGORY_DEVELOPER`).
 - **`SidebarFooterActionSpec`** — `key, order, widget_factory: Callable[[], QWidget]`, optional `background_threads`.
+- **`NotificationSpec`** — `key, order, widget_factory: Callable[[], QWidget]`, optional `background_threads` — same shape as `SidebarFooterActionSpec`, but the widget becomes a real row in `listWidget_notification` (wrapped in a `QListWidgetItem` via `setItemWidget`), not just a kept-alive-for-cleanup widget with no layout home.
 - **`ProgramLaunchSpec`** — `match: Callable[[Program], bool]`, `launch: Callable[[Repo], bool]`. First match wins, in registration order.
 - **`UICommandService`** — passed to `SectionSpec.wire(page, host)`: `set_status_message`, `navigate_and_focus`, `set_active_repo`, `open_settings_tab`, `switch_project`, `refresh_section` — named callbacks a plugin page calls into without holding a `MainWindow` reference. `refresh_section(key)` asks another section to re-read its own on-disk/data state (calls that page's optional `refresh_content()` method if it has one) without switching the visible tab — e.g. Submit's Sync button telling Explorer to rescan after a clone/pull, since Explorer's `QFileSystemModel` watcher can miss/lag a bulk filesystem change.
 
-All four `*Registry` classes (`SectionRegistry`, `SettingsTabRegistry`,
-`SidebarFooterActionRegistry`, `ProgramLaunchRegistry`) and
+All five `*Registry` classes (`SectionRegistry`, `SettingsTabRegistry`,
+`SidebarFooterActionRegistry`, `ProgramLaunchRegistry`,
+`NotificationRegistry`) and
 `UIRegistryManager` (bundles all of them + `FileOpenerRegistry`) are also
 importable directly from `plugin_api` — a plugin almost never constructs
 these itself (that's `launcher.py`'s job), only the spec dataclasses above.

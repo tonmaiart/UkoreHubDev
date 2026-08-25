@@ -162,10 +162,11 @@ class _StatusCheckTask(QRunnable):
 
 
 class ExternalPluginUpdaterPage(QWidget):
-    """Top-level section (not a Settings tab — this is the side used day to
-    day, see plugin.py's register()): shows every cache/plugins/ repo
-    plugin this Project's External Plugins catalog declares, whether it's
-    behind its remote, and two toolbar actions:
+    """Settings > Account tab (CATEGORY_GENERAL, label "Plugins" — see
+    plugin.py's register()), alongside the built-in "Account" tab: shows
+    every cache/plugins/ repo plugin this Project's External Plugins
+    catalog declares, whether it's behind its remote, and two toolbar
+    actions:
 
     - "Check for Status" runs every row's fetch/ahead-behind check in
       parallel on a QThreadPool (see _StatusCheckTask) instead of one at a

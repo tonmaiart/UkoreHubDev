@@ -118,9 +118,20 @@ buttons at the top of the file table are the only navigation aids now.)
   field (`lineEdit_path`) rather than on its own row below the table. Each
   Folder Navigator column list uses zero item padding/margin (on top of
   `setSpacing(0)`) to keep entries as compact as possible. A "Last Opened
-  File"/"Bookmarks" side panel (`listWidget_last_opened_file`/
-  `listView_bookmarks`, defined in `explorer_section.ui`) sits to the left
-  of the Folder Navigator. Last Opened is an MRU list (capped at
+  File"/"Bookmarks" side panel (`tableWidget_last_opened_file`/
+  `tableWidget_bookmarks`, defined in `explorer_section.ui` — plain
+  `QTableWidget`s, headers hidden via code in `_setup_last_opened_table`/
+  `_setup_bookmarks_table`, not `.ui` attributes; migrated from
+  `QListWidget`/`QListView` so both could grow an icon column) sits to the
+  left of the Folder Navigator. Column 0 on both is icon-only (file or
+  folder glyph via `_file_icon()`, `QFileIconProvider` rather than a
+  bundled bitmap since a bookmark can point at either), fixed at 24px; Last
+  Opened has a 3rd column, on-disk mtime formatted by `file_table_proxy.py`'s
+  `format_time_ago()` (`_mtime_ago()`). Every row's path lives in
+  `Qt.UserRole` on the column-0 item specifically (not duplicated across
+  the row) — click handlers look it up via
+  `table.item(clicked_item.row(), 0).data(Qt.UserRole)`. Last Opened is an
+  MRU list (capped at
   `_MAX_LAST_OPENED`) appended to whenever a table double-click actually
   opens a file (`_record_last_opened`, called from
   `_on_table_double_clicked`), backed by `LastOpenedStore`
@@ -215,34 +226,133 @@ buttons at the top of the file table are the only navigation aids now.)
   `get_last_opened()` also prunes (and persists the removal of) any entry
   whose file no longer exists on disk, so deleted files don't linger in
   the list forever.
-- `path_commit_history_panel.py` — `PathCommitHistoryPanel`: commit
-  history scoped to whichever path is currently being viewed — narrower
+- `path_commit_history_panel.py` — `PathCommitHistoryPanel`: commit history
+  for whichever **file** is currently selected in the file table — narrower
   than the whole-repo log on `plugins/core/submit/repo_git_status_page.py`.
-  Shares `CommitCard`/`CommitHistoryEntry` with Submit via
+  Only ever populated for an actual file selection (`clear()` empties the
+  table — `setRowCount(0)`, no hint-text row — on folder navigation, a
+  directory selection, or no selection at all — see
+  `RepoBrowserWidget._on_table_selection_changed`/
+  `_clear_file_panels`; this used to also fire once per folder navigated
+  into, which was both the wrong UX and a real perf/crash risk under rapid
+  double-click, see below). A plain controller class (not a `QWidget`) that
+  renders into `tableWidget_file_commit_history`, a `QTableWidget` authored
+  directly in `explorer_section.ui` (Author/Message/Time columns, header
+  hidden) — it used to own its own scrollable `CommitCard`-based widget
+  tree inserted into `groupBox_5` at runtime; migrated so the layout can be
+  edited in Designer instead. Still shares `CommitHistoryEntry`/
+  `format_commit_date`/`fetch_entries_via_github` with Submit via
   `interface/shared/commit_history.py` (that shared helper module stays in
-  `interface/`, imported normally by both plugins).
+  `interface/`, imported normally by both plugins) — just not `CommitCard`
+  anymore. `_start_fetch`'s `_retire_worker` keeps a strong reference to any
+  `PathCommitHistoryWorker` being replaced (in `self._retiring_workers`)
+  until its own `finished` signal fires, instead of letting Python's
+  refcounting drop the last reference to a `QThread` the instant a queued
+  request re-triggers `_start_fetch` — `entries_ready` is emitted as the
+  last line of `run()`, so the OS thread may not have fully unwound yet;
+  destroying a `QThread` before that is a real, documented Qt crash ("QThread:
+  Destroyed while thread is still running") that gets more likely the
+  faster the user navigates/selects.
+- `file_local_change_panel.py` — `FileLocalChangePanel`: whether the
+  currently-selected file has an uncommitted local change (working tree
+  modification/untracked/staged, via `GitService.get_status(repo_path)`).
+  Same shape as `PathCommitHistoryPanel` — plain controller class over
+  `tableWidget_file_local_change` (Author/Time columns, header hidden),
+  same `clear()`-on-non-file-selection contract, same
+  `_retire_worker`/`_retiring_workers` `QThread`-lifetime pattern. "Author"
+  is `local_config_store.github_username` (there's no commit yet to read an
+  author from — it's always the signed-in user), read fresh on every result
+  rather than cached at construction so a login/logout mid-session shows up
+  next selection; "Time" is the file's on-disk mtime (`Path.stat()`, not
+  `QFileSystemModel`), formatted via `file_table_proxy.py`'s
+  `format_time_ago`. `RepoBrowserWidget` now takes an optional
+  `local_config_store` param (threaded through from `RepoBrowserPage`,
+  which already had one) just to construct this.
+- `file_local_change_worker.py` — `QThread` backing
+  `file_local_change_panel.py`'s `git status --porcelain` lookup (via
+  `GitService.get_status`) + file-mtime stat, off the UI thread. Not
+  cached across selections (unlike commit history) — a working-tree status
+  can change the moment the user saves the file in another app, so always
+  refetches on `show_local_change_for`.
 - `file_table_proxy.py` — `FileTableFilterProxy`: the `QSortFilterProxyModel`
-  behind the file table (search-text filtering) that also appends a
-  synthetic "Time Ago" column (`TIME_AGO_COLUMN = 4`, after
-  `QFileSystemModel`'s real Name/Size/Type/Date Modified columns 0-3) —
-  `format_time_ago()` renders `QFileSystemModel.lastModified()` as "5 min
-  ago"/"2 hours ago"/etc. `QSortFilterProxyModel`'s default
+  behind the file table (search-text filtering) that also appends 3
+  synthetic columns after `QFileSystemModel`'s real Name/Size/Type/Date
+  Modified columns 0-3 — `TIME_AGO_COLUMN = 4` (`format_time_ago()` renders
+  `QFileSystemModel.lastModified()` as "5 min ago"/"2 hours ago"/etc.),
+  `LOCAL_MODIFIED_BY_COLUMN = 5`, `LAST_COMMIT_BY_COLUMN = 6` (see
+  `file_row_authors_worker.py` below — `_SYNTHETIC_HEADERS` maps all three
+  to their header text). `QSortFilterProxyModel`'s default
   `index()`/`mapToSource()` bound column requests against the *source*
-  model's own `columnCount()`, so a column that doesn't exist there (index
-  4 vs. `QFileSystemModel`'s 4 real columns, 0-3) needs `index()` and
-  `mapToSource()` overridden to redirect it onto column 0's source index
-  instead — every column of the same row shares one internalPointer/parent
-  in Qt's model/view contract, so reusing column 0's identifies the same
-  file correctly (this is also why existing code like
+  model's own `columnCount()`, so a column that doesn't exist there needs
+  `index()` and `mapToSource()` overridden to redirect it onto column 0's
+  source index instead — every column of the same row shares one
+  internalPointer/parent in Qt's model/view contract, so reusing column 0's
+  identifies the same file correctly (this is also why existing code like
   `proxy.mapToSource(current)` in `_on_table_selection_changed`/
   `_on_table_double_clicked` keeps working even if the user clicks/double-
-  clicks the Time Ago cell itself). Clicking the Time Ago column header is
-  a no-op (`sort()` override) rather than sorting — there's no real source
-  column to sort by, and reconstructing one inside `lessThan()` isn't worth
-  the complexity for what's a supplementary display column.
+  clicks a synthetic-column cell itself). Clicking any synthetic column's
+  header is a no-op (`sort()` override) rather than sorting — there's no
+  real source column to sort by, and reconstructing one inside
+  `lessThan()` isn't worth the complexity for what are supplementary
+  display columns. Local Modified By / Last Commit By can't be computed
+  from `QFileSystemModel` at all — `set_author_info(abs_path, FileAuthorInfo)`/
+  `clear_author_cache()` let `RepoBrowserWidget` push in async
+  git/GitHub results as they arrive (keyed by the same absolute path
+  `QFileSystemModel.filePath()` returns), and `data()` reads
+  `Qt.DisplayRole` (name) and `Qt.DecorationRole` (avatar `QIcon`) from
+  whatever's currently cached for that path — `set_author_info` emits
+  `dataChanged` for just that row so the view repaints one row at a time as
+  results trickle in, instead of the whole folder staying blank until every
+  file resolves.
+- `file_row_authors_worker.py` — `FileAuthorInfo` (dataclass:
+  `local_modified_by`/`local_modified_icon`/`last_commit_by`/
+  `last_commit_icon`) + `FileRowAuthorsWorker`: `QThread` that, for every
+  entry (file or folder) in the folder `RepoBrowserWidget._apply_settled_navigation`
+  just landed on, resolves both new columns and emits one `entry_ready`
+  signal per entry as it resolves. "Local Modified By" is one
+  `GitService.get_status(repo_path)` call for the whole folder (cheap),
+  reused for every entry — matching path means the signed-in user
+  (`local_config_store.github_username`), since an uncommitted change has
+  no commit author; folders never get one (only files can appear in
+  `unstaged_changes`/`staged_changes`). "Last Commit By" is
+  GitHub-API-first/local-git-fallback per entry (`fetch_entries_via_github`
+  then `GitService.get_commit_log_for_path`, same pattern as
+  `PathCommitHistoryWorker`) — the expensive part, so it's cached in
+  `RepoBrowserWidget._last_commit_cache` (keyed by relative_path, shared
+  across every `FileRowAuthorsWorker` instance for the repo's lifetime —
+  reset only on `set_root()`/repo switch) and never re-fetched for a path
+  already resolved, unlike Local Modified By which is always recomputed
+  fresh. The cache dict is safe to mutate directly from `run()` (background
+  thread) for the same reason `PathCommitHistoryPanel`'s `avatar_cache` is:
+  only one worker is ever active at a time
+  (`RepoBrowserWidget._retire_authors_worker` retires the previous one
+  before a new one starts) and the GUI thread never touches it directly,
+  only the per-entry results delivered via the signal. `run()` checks
+  `isInterruptionRequested()` between entries (set by `requestInterruption()`
+  in `_retire_authors_worker`) so navigating away mid-fetch stops promptly
+  instead of grinding through the rest of the old folder's files first —
+  same `_retiring_authors_workers`-holds-a-strong-reference-until-`finished`
+  pattern as `PathCommitHistoryPanel._retire_worker`, for the same
+  QThread-lifetime reason.
 - `path_commit_history_worker.py` — `QThread` backing
   `path_commit_history_panel.py`'s GitHub-API-first/local-git-fallback
   fetch, off the UI thread.
+- **Navigation debounce + selection-index hygiene**: `_navigate_to` starts a
+  120ms single-shot `_nav_settle_timer` instead of immediately re-running
+  Miller-column population (`_sync_columns_from_path`, several synchronous
+  `iterdir()`+`sorted()` disk scans) — double-clicking through several
+  folders quickly used to redo that scan (and, before the change above, a
+  git-log fetch) on every single click along the way; now only the folder
+  the user actually lands on pays for it (`_apply_settled_navigation`).
+  `_navigate_to` also calls `self.table.selectionModel().clear()` right
+  after `setRootIndex` — `setRootIndex` alone doesn't invalidate a
+  selection made in the previous folder, so without this a stale current
+  index could otherwise keep `_on_table_selection_changed` reporting the
+  old folder's file. `_relative_path_str` (used for every git/GitHub
+  lookup keyed by path) returns `.as_posix()`, not `str(path)` — a
+  Windows-style backslash-separated relative path silently fails to match
+  either `git log -- <path>`'s pathspec or the GitHub commits API's `path=`
+  query parameter.
 
 **Working here:** stay inside this folder unless the change needs a new
 `core_api` primitive, an `interface/shared/` addition, or touches

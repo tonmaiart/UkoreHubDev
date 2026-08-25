@@ -78,9 +78,10 @@ actually used in); that old file is left on disk, unread by anything now.
 This plugin used to be one Settings tab with every action (Add/Edit/Remove
 *and* Clone/Unclone/Pull/Force Update/Check for Status/Open Directory/Bulk
 Push) crammed into one `.ui`/page. It's now split into a backend admin
-page (rarely opened, Settings tab) and a day-to-day operational page (its
-own top-level sidebar tab, used constantly) — same catalog, same stores,
-two different windows and Python classes:
+page (Settings > Project, rarely opened) and a day-to-day operational page
+(Settings > Account, key `external_plugins_updater`, label "Plugins") —
+same catalog, same stores, two different windows, Python classes, and
+Settings categories:
 
 - **`ExternalPluginManagerWindow.ui` / `external_plugins_page.py`
   (`ExternalPluginsPage`)** — Settings > Project tab (`register_settings_tab`,
@@ -99,12 +100,16 @@ two different windows and Python classes:
   (`QAbstractItemView.SingleSelection`) since Edit/Remove are the only
   row-scoped actions left.
 - **`ExternalPluginUpdaterWindow.ui` / `external_plugin_updater_page.py`
-  (`ExternalPluginUpdaterPage`)** — a top-level section (`register_section`,
-  key `external_plugins_updater`, sidebar label **"Plugins"**,
-  `standard_icon=QStyle.SP_VistaShield`, order 800 — after every regular
-  tab (Explorer=10, Submit=20, Software Linker/CloudDataAdmin=40), just
-  above Debug Console (order=900)), **not** a Settings tab, since this is the
-  side artists actually use day to day. 4-column table (Name, Status,
+  (`ExternalPluginUpdaterPage`)** — a Settings tab (`register_settings_tab`,
+  key `external_plugins_updater`, label **"Plugins"**, order 10,
+  `category=CATEGORY_GENERAL`) — Settings > **Account**, alongside the
+  built-in "Account" tab (`common_settings_page.py`, see `interface.md`).
+  Went through two other placements before landing here (2026-08-24): first
+  its own top-level sidebar section, then briefly a `standard_icon` was
+  picked for that section (`QStyle.SP_VistaShield`) before the section
+  approach itself was dropped in favor of Settings > Account — neither the
+  icon nor `SectionSpec` registration apply anymore, since
+  `SettingsTabSpec` has no icon parameter. 4-column table (Name, Status,
   Detail, Last Checked — **no Requires column here**, deliberately, since
   that's static catalog metadata the Manager page already shows and this
   page is about live git status instead) with the same `_local_status`/

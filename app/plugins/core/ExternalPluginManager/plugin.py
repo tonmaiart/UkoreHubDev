@@ -5,13 +5,13 @@ import shutil
 import subprocess
 import sys
 
-from PySide6.QtWidgets import QApplication, QMessageBox, QStyle
+from PySide6.QtWidgets import QApplication, QMessageBox
 
 from plugin_api import (
+    CATEGORY_GENERAL,
     CATEGORY_PROJECT,
     AppLifecycleContext,
     GitOperationError,
-    SectionSpec,
     SettingsTabSpec,
     relaunch_ukorehub_exe,
 )
@@ -211,12 +211,11 @@ class _SyncController:
 
 
 def register(api) -> None:
-    # A fresh page per Settings/section open (same page_factory convention
-    # every Settings tab and top-level section uses — see
-    # interface/settings/settings_view.py's SettingsView docstring), but the
-    # sync controller itself is built once for the whole app session so its
-    # background sync survives across Settings dialog opens/closes and
-    # section switches.
+    # A fresh page per Settings open (same page_factory convention every
+    # Settings tab uses — see interface/settings/settings_view.py's
+    # SettingsView docstring), but the sync controller itself is built once
+    # for the whole app session so its background sync survives across
+    # Settings dialog opens/closes.
     sync_controller = _SyncController(api)
     api.on_app_start(sync_controller.on_lifecycle_event)
     api.on_repo_changed(sync_controller.on_lifecycle_event)
@@ -241,16 +240,13 @@ def register(api) -> None:
         )
     )
 
-    # Day-to-day clone/status/update UI — its own top-level sidebar tab
-    # (not buried in Settings), since this is the side users actually use.
-    api.register_section(
-        SectionSpec(
+    # Day-to-day clone/status/update UI — Settings > Account (CATEGORY_GENERAL),
+    # alongside the built-in "Account" tab (common_settings_page.py).
+    api.register_settings_tab(
+        SettingsTabSpec(
             key="external_plugins_updater",
             label="Plugins",
-            # Just above Debug Console (order=900) — after every regular
-            # tab (Explorer=10, Submit=20, Software Linker/CloudDataAdmin=40).
-            order=800,
-            standard_icon=QStyle.SP_VistaShield,
+            order=10,
             page_factory=lambda: ExternalPluginUpdaterPage(
                 git_service=api.git,
                 plugins_root=api.cache_dir / "plugins",  # see _SyncController's own comment on this
@@ -259,5 +255,6 @@ def register(api) -> None:
                 sync_status_store=sync_controller.status_store,
                 last_check_store=sync_controller.last_check_store,
             ),
+            category=CATEGORY_GENERAL,
         )
     )

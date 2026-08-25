@@ -109,9 +109,10 @@ for the no-repo-selected state, unchanged from before.
 **No custom widget subclasses remain in this plugin.** The pre-rewrite
 `LogPanel(QPlainTextEdit)` and `RepoStatusDot(QLabel)` classes are gone —
 `plainTextEdit_git_log` (from the `.ui`) is driven by a private
-`_append_log(text)` method instead of a subclass, and `self.status_dot` is
-a plain `QLabel` updated by a private `_set_status_dot_state(state)`
-method. Modified/Staged are `QStandardItemModel`-backed `QTableView`s
+`_append_log(text)` method instead of a subclass, and
+`self.notification_widget` is a plain `QWidget` updated by a private
+`_set_notification_state(state)` method (see "Sidebar notification row"
+below). Modified/Staged are `QStandardItemModel`-backed `QTableView`s
 instead of the old checkable-`QListWidgetItem` pattern. This was a
 deliberate choice (not just incidental to the `.ui` move) to avoid the
 class of UI bugs bespoke widget subclasses tend to accumulate — stick to
@@ -388,33 +389,53 @@ still fall through to the plain error box, since there's nothing
   `git_service`/`repo_path`/`github_token`/`my_username` alongside
   `conflicted_files`).
 
-## Sidebar status dot
+## Sidebar notification row
 
-`plugin_api/registries/section_registry.py`'s `SectionSpec.trailing_widget_factory`
-(a general-purpose slot any section can use for a small status widget at
-the right edge of its own sidebar row) is handed `page.status_dot` (a plain
-`QLabel`) in `plugin.py`. `RepoGitStatusPage` owns/updates it directly via
-`_set_status_dot_state` — `SectionTabList` only lays it out.
+2026-08-25: moved off the old tab-row status dot
+(`SectionSpec.trailing_widget_factory`, a plain icon-only `QLabel` at the
+right edge of Submit's own sidebar row) onto the new
+`plugin_api.NotificationRegistry` instead — `plugin.py`'s
+`api.register_notification(NotificationSpec(key=SECTION_KEY, widget_factory=lambda:
+page.notification_widget))` hands `page.notification_widget` (a small
+icon+text `QWidget`, built in `RepoGitStatusPage.__init__`) to
+`interface/main_window.py`, which lays it out as its own row in Sidebar's
+`listWidget_notification` (between the repo name label and the Setting
+button — see `interface.md`). `RepoGitStatusPage` owns/updates it directly
+via `_set_notification_state`/`_update_notification` — `MainWindow` only
+lays it out (`QListWidgetItem`/`setItemWidget`, sized once at construction
+via `widget.sizeHint()`, so the row's height is fixed — only its icon/text/
+visibility change afterward, not its size).
 
-Three states, driven entirely by the existing `refresh_status()` call (Sync,
-Refresh Status, and repo switch — no extra polling
-or network calls added for this). Icons are built-in Qt standard icons
-(`QStyle.standardIcon`):
-- **loading** (hidden, no icon) — a status check is in flight, or the last
-  one is more than 10 minutes stale. `refresh_status()` sets this
-  immediately on every call, before the new `RepoStatusWorker` reports back,
-  so the dot never shows a stale/wrong-repo icon mid-check.
-- **dirty** (`QStyle.SP_MessageBoxWarning`) — `_on_status_ready` saw a
-  non-clean `RepoStatus` (unstaged or staged changes present).
-- **fresh** (`QStyle.SP_DialogApplyButton`) — `_on_status_ready` saw a clean
-  `RepoStatus`. Only valid for `FRESHNESS_WINDOW_MS` (10 minutes) —
-  `_freshness_timer` (restarted on every `refresh_status()` call) flips it
-  back to **loading** once that verification goes stale, rather than
-  claiming a possibly-outdated "clean" forever between manual
-  refreshes/syncs.
+Four states, driven by the same two things this page already tracks —
+`_last_status.is_clean` (from `_on_status_ready`, i.e. `refresh_status()` —
+Sync, Refresh Status, repo switch) and `_has_new_commits` (from
+`_on_commit_log_ready`, i.e. `_poll_commit_log()` — the "Sync New Commit"
+list's own trigger set, see "Commit history panels" above, so no extra
+polling/network calls were added for this). `_update_notification` combines
+both into one of:
+- **loading** (row hidden) — a status/commit-log check is in flight, or the
+  last "fresh" verification is more than 10 minutes stale. `refresh_status()`
+  sets this immediately on every call, before either worker reports back, so
+  the row never shows a stale/wrong-repo state mid-check.
+- **behind** ("New Commit Not Sync!", `QStyle.SP_MessageBoxWarning`) —
+  `_has_new_commits` is true (the "Sync New Commit" table has entries).
+  Outranks **dirty** — nothing else on this page is very meaningful until
+  the user syncs.
+- **dirty** ("You have modified!", `QStyle.SP_MessageBoxWarning`) —
+  no new commits to sync, but `_last_status` is non-clean (unstaged or
+  staged changes present).
+- **fresh** ("Up to date", `QStyle.SP_DialogApplyButton`) — no new commits,
+  and `_last_status` is clean. Only valid for `FRESHNESS_WINDOW_MS` (10
+  minutes) — `_freshness_timer` (restarted on every `refresh_status()` call)
+  flips it back to **loading** once that verification goes stale, rather
+  than claiming a possibly-outdated "up to date" forever between manual
+  refreshes/syncs. **behind**/**dirty** are left standing even if stale — a
+  false warning is safer than a false all-clear, so the timer only ever
+  reverts **fresh**.
 
-There is deliberately no "would conflict on push" state on this dot — that
-question is what the diagnostics table's Up-to-date row answers instead.
+There is deliberately no "would conflict on push" state here either — that
+question is still what the diagnostics table's Up-to-date row answers
+instead (a separate, independent check — see above).
 
 **Working here:** stay inside this folder unless the change needs a new
 `core_api`/`plugin_api` primitive (see "Where `FileChange` comes from"

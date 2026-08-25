@@ -47,6 +47,12 @@ file that threads all of it together.
   builds the real UI immediately on construction — no gate to show/teardown.
   Every section (Explorer/Submit/About/Project Editor) is its own
   standalone page in `view_stack`, switched to via `Sidebar.navigation_changed`.
+  `listWidget_notification` (in the `.ui`, between the repo name label and
+  the Setting button) is populated the same way as the footer strip below —
+  one row per `plugin_api.NotificationRegistry` entry, built via
+  `spec.widget_factory()` and wrapped in a `QListWidgetItem`/`setItemWidget`
+  call — any plugin adds its own row with `api.register_notification(NotificationSpec(...))`,
+  nothing hardcoded here.
 - `page_protocols.py` — `SetRepoPage`/`PathFocusablePage`/`RefreshablePage`:
   small `@runtime_checkable Protocol`s a page can optionally satisfy
   (structurally — no inheritance needed) so `main_window.py`'s per-page
@@ -88,7 +94,9 @@ stylesheet string:
 - Status/semantic icons (git dirty/fresh, linked/not-linked, cloned/not
   cloned — the old `[status="..."]`/`[linkStatus="..."]` QSS rules and
   bundled-PNG badges) → `self.style().standardIcon(QStyle.SP_...)` (see
-  `plugins/core/submit/status_dot.py`, `plugins/core/software_linker/plugin.py`'s
+  `plugins/core/submit/repo_git_status_page.py`'s notification row
+  (`_set_notification_state` — see `plugins/submit.md`),
+  `plugins/core/software_linker/plugin.py`'s
   `_ProgramLinkCard.refresh`, and
   `plugins/core/project_editor/project_graph_view.py`'s
   `_clone_status_icon` for the pattern — `QGraphicsItem.paint()` has no
@@ -222,17 +230,27 @@ no Save/Cancel step. Cloud sync has no settings window at all anymore — a
 single shared R2 key is baked into `UkoreHubLauncher.exe` (see the
 `ukorehub-cloud-sync` skill), no per-artist config.
 
-- `settings_view.py` — `SettingsView` (a top-level `QTabWidget`, three
-  categories) + `SettingsDialog` (the popup wrapper).
-  `MainWindow._on_settings_requested` constructs a fresh `SettingsDialog`
-  on every open — no state carried between opens. Driven by
-  `plugin_api.SettingsTabRegistry` (open, ordered — built-in and
-  plugin-provided tabs register into the same collection). Renders three
-  top-level tabs: **Account** (`CATEGORY_GENERAL`), **Project (Dev)**
-  (`CATEGORY_PROJECT` + `CATEGORY_DEVELOPER`), **Repo Setting (Dev)**
-  (`CATEGORY_REPO`). `get_tab_widget(key)` is the public escape hatch for
-  reaching a specific constructed page from outside — `main_window.py`
-  uses it to connect `CommonSettingsPage.logout_requested`.
+- `settings_view.py` — `SettingsView` (UI authored in Qt Designer,
+  `SettingsWindow.ui` at `interface/` root, loaded via `QUiLoader` — same
+  pattern `repo_settings/requirements_and_plugins_page.py` uses) +
+  `SettingsDialog` (the popup wrapper). `MainWindow._on_settings_requested`
+  constructs a fresh `SettingsDialog` on every open — no state carried
+  between opens. Driven by `plugin_api.SettingsTabRegistry` (open, ordered
+  — built-in and plugin-provided tabs register into the same collection).
+  As of the 2026-08-25 consolidation, every tab renders as one row in a
+  single flat `listWidget_settings` (no more nested `QTabWidget`s), grouped
+  under a header per category — **Account** (`CATEGORY_GENERAL`),
+  **Project** (`CATEGORY_PROJECT`), **Developer** (`CATEGORY_DEVELOPER`),
+  **Repository** and **Plugins** (both `CATEGORY_REPO`, split the same way
+  the old "Repo Setting (Dev)" tab did). `widget_setting_info` hosts a
+  `QStackedWidget` switched by the list's current row.
+  `checkBox_admin_mode` (unchecked by default) hides every group except
+  Account; `select_tab(key)` force-checks it when jumping straight to an
+  admin-only row. `pushButton_close` (inside the `.ui`, not a separate
+  `QDialogButtonBox`) closes `SettingsDialog`. `get_tab_widget(key)` is the
+  public escape hatch for reaching a specific constructed page from
+  outside — `main_window.py` uses it to connect
+  `CommonSettingsPage.logout_requested`.
 - `common_settings_page.py` — account info (avatar, GitHub username, login
   date), workspace folder (read-only), Logout button (clears cached
   token/username/login-date via `core_api`'s `SecureTokenStore` and
@@ -256,9 +274,11 @@ single shared R2 key is baked into `UkoreHubLauncher.exe` (see the
 `SettingsView` didn't render `CATEGORY_REPO` at all — every such tab
 rendered instead inside `plugins/core/project_editor/`'s "Repository
 Setting" popup (now retired). `CATEGORY_REPO` tabs render here again,
-under **Repo Setting (Dev)**, and a repo node's "Repository Setting..."
-right-click opens this same dialog (`UICommandService.open_settings_tab`)
-instead of a popup — see `plugins/core/project_editor/project_graph_view.py`'s
+under the **Repository**/**Plugins** groups (formerly one combined "Repo
+Setting (Dev)" top tab, flattened into the single list on 2026-08-25 — see
+above), and a repo node's "Repository Setting..." right-click opens this
+same dialog (`UICommandService.open_settings_tab`) instead of a popup —
+see `plugins/core/project_editor/project_graph_view.py`'s
 `open_repo_settings()`.
 
 **Working here:** stay inside this folder unless the change needs a new
