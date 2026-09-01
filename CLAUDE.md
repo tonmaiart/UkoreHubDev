@@ -13,8 +13,9 @@ for how this fits together and why.
 plugin works at a basic level (what it does, how its pieces fit together),
 read its own doc under
 [developer/app/docs/plugins/](developer/app/docs/plugins/) first**
-(`CloudDataAdmin.md`, `DebugConsole.md`, `ExternalPluginManager.md`,
-`explorer.md`, `project_editor.md`, `software_linker.md`, `submit.md`) —
+(`CloudDataAdmin.md`, `explorer.md`, `project_editor.md` — covers the
+former `ExternalPluginManager` plugin too, merged into `project_editor`
+2026-09-01 — `software_linker.md`, `submit.md`) —
 each is written so a session can answer "how does this plugin work"
 without opening the plugin's source, and each individual
 `app/plugins/core/<Name>/` folder is now an `ask` permission rule in

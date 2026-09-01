@@ -20,23 +20,26 @@ the GitHub username/avatar). Wired through
 
 **Not to be confused with:**
 
-- **Program Database** — Settings > Developer > "Program Database", a CRUD
-  list of pipeline software (Maya, Nuke, ...) a repo can declare as a
-  requirement (`core/program_store.py`,
-  `interface/settings/program_database_page.py`). "Program" here means one
+- **Program Database** — Settings > Project > "Project Database" (its own
+  groupbox there, alongside External Plugins Database and Repositories
+  Database), a CRUD list of pipeline software (Maya, Nuke, ...) a repo can
+  declare as a requirement (`core/program_store.py`,
+  `plugins/core/project_editor/project_database_page.py` — moved there
+  from the old builtin `interface/settings/program_database_page.py` in
+  the 2026-09 External Plugin Manager merge). "Program" here means one
   catalog entry, not the app.
-- **Repository Setting** — the phrase used for *per-repo* settings, opened
-  from Project Editor's node right-click menu ("Repository Setting...").
-  Not a popup of its own anymore — it opens the same app-level Setting
-  dialog (`interface/settings/settings_view.py`'s `SettingsDialog`),
-  landing on its **Repo Setting (Dev)** top tab, which groups tabs under
-  two headers — "Repository" (Local Repository, Custom Paths, Enable
-  Plugin) and "Plugins" (every plugin-contributed `CATEGORY_REPO`
-  tab). Before this refactor (2026-07-15 through 2026-08-09) it was its
-  own popup (`plugins/core/project_editor/repo_settings_panel.py`,
-  retired) to avoid duplicating these tabs in both Settings and here — the
-  same reasoning now argues for one dialog instead of one popup, since
-  both ever only rendered the same `SettingsTabRegistry` entries.
+- **Repository Setting** (retired 2026-09-01) — used to be the phrase for
+  *per-repo* settings, opened from Project Editor's repo-row right-click
+  menu ("Repository Setting..."), landing on the app-level Setting
+  dialog's **Repo Setting (Dev)** top tab. That menu entry's only target,
+  the builtin "Local Repository" tab, was removed as redundant with
+  `project_editor_page.py`'s own Unclone button (see
+  `developer/app/docs/plugins/project_editor.md`), so the menu entry went
+  with it. Every plugin-contributed `CATEGORY_REPO` tab (Custom Paths
+  moved out to `CATEGORY_PROJECT` the same day) still renders generically
+  under `interface/settings/settings_view.py`'s single **Plugins**
+  group — there's no dedicated repo-scoped entry point into it anymore,
+  just the regular Settings dialog.
 
 ## "UkoreBrowser" vs. "Browser Links" (removed)
 

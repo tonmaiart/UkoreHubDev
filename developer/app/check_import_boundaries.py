@@ -12,8 +12,8 @@ structure" for the app/ layout this assumes):
 - app/plugins/**  must never import `core.*` or `interface.*` — plugins go
                     through plugin_api instead (plugin_api/__init__.py
                     re-exports every core/ type via core_api, and every
-                    interface/ UI symbol (shared widgets, theme helpers,
-                    LOCAL_REPOSITORY) via interface_api, that a plugin
+                    interface/ UI symbol (shared widgets, theme helpers)
+                    via interface_api, that a plugin
                     needs). interface/ is fully closed as of the
                     interface_api refactor — a plugin file never writes
                     `from interface.xxx import yyy`, only

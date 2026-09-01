@@ -72,13 +72,13 @@ end.
 |---|---|---|
 | `api.metadata` | `MetadataStore` | The Project/Repo registry. Also owns Program CRUD (`list_programs(project_id)`, `get_program(project_id, id)`, ...) — `.get_program(...)` raises `plugin_api.NotFoundError`, not `None`/`KeyError`. The sanctioned way to write to the registry. |
 | `api.local_config` | `LocalConfigStore` | Per-machine settings (workspace root, theme, active project/repo, GitHub username). |
-| `api.git` | `GitService` | Git subprocess wrapper (clone/pull/push/commit/status/log/...). The sanctioned way to run a git operation — typically from a background `QThread`. Includes `force_sync(repo_path)` — fetch + `reset --hard origin/<branch>` + `clean -fd`, discarding all local changes/unpushed commits and clearing any in-progress merge; never confirms with the user itself, added for `ExternalPluginManager`'s "Force Update Selected". |
+| `api.git` | `GitService` | Git subprocess wrapper (clone/pull/push/commit/status/log/...). The sanctioned way to run a git operation — typically from a background `QThread`. Includes `force_sync(repo_path)` — fetch + `reset --hard origin/<branch>` + `clean -fd`, discarding all local changes/unpushed commits and clearing any in-progress merge; never confirms with the user itself, added for `ExternalPluginManager`'s "Force Update Selected" (now `plugins/core/project_editor/`'s `_SyncController`/`ExternalPluginUpdaterPage`, merged in 2026-09-01). |
 | `api.repo_context` | `RepoContextDTO \| None` | Read-only snapshot of the active project/repo (id/name, resolved repo path, `workspace_root`, `required_plugin_ids`). `None` if no repo is active yet. **Does not replace** `api.metadata`/`api.git` for writes or git operations — a frozen DTO architecturally can't cover those. |
 | `api.plugin_catalog` | `list[DiscoveredPlugin]` | Every plugin `discover_plugins()` loaded this launch (Core and repo/`cache/plugins` alike). For resolving another plugin's id to its manifest (name, `requires`, ...). |
 | `api.system_config_store` | `SystemConfigStore` | Shared, cloud-synced studio config (e.g. `r2_bucket_name`, `github_client_id`). |
 | `api.cache_dir` | `Path` | UkoreHub's per-machine `cache/` directory (gitignored) — for a plugin building its own per-machine state. |
 | `api.cloud_sync` | `R2JsonSync \| None` | The already-built cloud-sync engine, or `None` if not configured/reachable this run. Read-only access — don't import `R2JsonSync` yourself (see "What's deliberately not re-exported" below). |
-| `api.debug_log_handler` | `QtLogHandler \| None` | DebugConsole-only plumbing — the shared `interface_api.QtLogHandler` its page reads/subscribes to, or `None` if unwired (e.g. a bare test construction). **Don't use this for general logging** — any plugin just calls `logging.getLogger("YourPlugin").info(...)`/`.warning(...)` etc. directly, no `api` involved at all, and it shows up live in DebugConsole automatically. See `developer/app/docs/plugins/DebugConsole.md`. |
+| `api.debug_log_handler` | `QtLogHandler \| None` | DebugConsole-only plumbing — the shared `interface_api.QtLogHandler` its page reads/subscribes to, or `None` if unwired (e.g. a bare test construction). **Don't use this for general logging** — any plugin just calls `logging.getLogger("YourPlugin").info(...)`/`.warning(...)` etc. directly, no `api` involved at all, and it shows up live in DebugConsole automatically. DebugConsole itself moved out to its own `cache/plugins/DebugConsole/` external-plugin repo 2026-09-01 (own README there, not documented in this repo anymore). |
 | `api.file_opener_registry` | `FileOpenerRegistry` | Read access to the registry `register_file_opener()` writes into — for a page that needs to call `.find_opener()` itself (e.g. Explorer). |
 | `api.program_launch_registry` | `ProgramLaunchRegistry` | Read access to the registry `register_program_launcher()` writes into — `software_linker`'s Program Launcher tab uses this to look up a plugin-contributed launch behavior for a given Program. |
 | `api.settings_tab_registry` | `SettingsTabRegistry` | Read access to the registry `register_settings_tab()` writes into — for a page that needs to enumerate every `CATEGORY_REPO` tab generically (e.g. `project_editor`'s right panel). |
@@ -169,8 +169,8 @@ construct these yourself): `GitService`, `MetadataStore`,
 **Events** (`core/events/`): `AppLifecycleContext`, `AppLifecycleHandler`
 
 **Logging** (`interface/qt_log_handler.py`, re-exported via
-`interface_api`): `QtLogHandler` — DebugConsole-only, see
-`api.debug_log_handler` above; general plugin code should use
+`interface_api`): `QtLogHandler` — DebugConsole-only (now an external
+plugin), see `api.debug_log_handler` above; general plugin code should use
 `logging.getLogger(__name__)` instead.
 
 **Misc helpers**: `check_repo_access` (`core/vcs/repo_access.py`),
@@ -183,7 +183,9 @@ Submit's merge-conflict dialog's "my avatar" — see
 (`core/relaunch.py` — `(repo_root: Path) -> bool`; spawns
 `UkoreHubLauncher.exe` detached and returns `True`, or returns `False` if
 no built exe exists one directory above `repo_root` — pass `api.app_root`.
-Added for `ExternalPluginManager`'s Force Update popup, which falls back
+Added for `ExternalPluginManager`'s Force Update popup (now
+`plugins/core/project_editor/plugin.py`'s `_SyncController`, merged in
+2026-09-01), which falls back
 to `subprocess.Popen([sys.executable, *sys.argv])` + `QApplication.quit()`
 when it returns `False`, same dev-checkout fallback
 `interface/main_window.py`'s own `_restart_app` uses — see that plugin's
@@ -208,10 +210,6 @@ see `interface.md`'s Zero QSS Policy section); `CommitCard`,
 **Theme** (`interface/theme.py`): `DEFAULT_THEME_NAME`, `get_theme` — a
 color palette for direct `QPainter`/`QColor` call sites only now, not app
 chrome (see `interface-api.md`)
-
-**Misc**: `LOCAL_REPOSITORY` (`interface/builtin_settings_tabs.py` — the
-`SettingsTabRegistry` key for the Local Repository tab, used by
-`project_editor` to open it from a right-click menu)
 
 ## What's deliberately *not* re-exported
 

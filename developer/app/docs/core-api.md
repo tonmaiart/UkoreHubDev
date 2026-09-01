@@ -82,14 +82,14 @@ re-exports above.
   `bus.py`/`debug_log.py` (`InMemoryEventBus[T]`/`DebugLogBus`/
   `DebugLogEntry`) were retired 2026-08-21 in favor of stdlib `logging` —
   see `interface/qt_log_handler.py`'s `QtLogHandler` (Qt-layer, not
-  `core/`-layer, since it subclasses `QObject`) and
-  `developer/app/docs/plugins/DebugConsole.md`. `UkoreCore` still holds
+  `core/`-layer, since it subclasses `QObject`). `UkoreCore` still holds
   the shared handler instance, now as `core.debug_log_handler`/
   `api.debug_log_handler` (loosely typed `object` in `core_api` to avoid
   `core_api` importing `interface_api`) — but general code should just
   call `logging.getLogger(__name__)` directly instead of going through
   `core`/`api` at all; that property exists only for DebugConsole's own
-  page.
+  page (moved out to its own `cache/plugins/DebugConsole/` external-plugin
+  repo 2026-09-01, own README there).
 - **`extensibility/`** — `loader.py` (plugin discovery/apply — see
   `plugin-api.md` for the plugin-authoring side of this), `config_store.py`'s
   `PluginConfigStore`/`ProjectPluginConfigStore`, `file_opener.py`'s
@@ -130,7 +130,7 @@ core = UkoreCore(
 | `core.hooks` | `AppLifecycleHooks` | App-start/repo-changed/app-close subscriber lists — `PluginAPI.on_app_start`/etc. delegate here. |
 | `core.git` | `GitService` | Git subprocess wrapper. |
 | `core.github_tokens` | `SecureTokenStore` | Cached GitHub token — read only for logout (`clear_github_session`); never used to authenticate anything itself. |
-| `core.debug_log_handler` | `object \| None` (really `interface_api.QtLogHandler`) | Shared handler DebugConsole's page reads/subscribes to — `None` if not wired up. |
+| `core.debug_log_handler` | `object \| None` (really `interface_api.QtLogHandler`) | Shared handler DebugConsole's page reads/subscribes to — `None` if not wired up. DebugConsole is now an external plugin under `cache/plugins/DebugConsole/`. |
 
 | Method | Notes |
 |---|---|

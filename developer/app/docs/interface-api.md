@@ -32,10 +32,9 @@ launcher.py     imports MainWindow/ProjectSelectorDialog/apply_theme/
                  register_builtin_settings_tabs FROM interface_api, calls
                  each at its own existing call site (see "Why not a single
                  composition facade" below).
-plugin_api/     imports the shared-widget/theme/LOCAL_REPOSITORY symbols
-                 FROM interface_api, re-exporting them to plugins/ (plugins
-                 themselves never see interface_api directly — see
-                 plugin-api.md).
+plugin_api/     imports the shared-widget/theme symbols FROM interface_api,
+                 re-exporting them to plugins/ (plugins themselves never
+                 see interface_api directly — see plugin-api.md).
 ```
 
 A `launcher.py` or `plugin_api/__init__.py` line should never write `from
@@ -84,21 +83,23 @@ node/edge colors — `ThemeColors` only carries the fields those direct
 `QPainter`/`QColor` call sites still need, not a full app-chrome palette).
 
 **Builtin settings wiring**: `register_builtin_settings_tabs`
-(`interface/builtin_settings_tabs.py`, `launcher.py`-only) and
-`LOCAL_REPOSITORY` (`interface/repo_settings/local_repository_page.py` —
-deliberately *not* defined in `builtin_settings_tabs.py` alongside the
-other settings-tab key constants, despite being one; see that file's own
-comment on why. Also re-exported via `plugin_api` — the
-`SettingsTabRegistry` key `project_editor` uses to open the Local
-Repository tab from a right-click menu)
+(`interface/builtin_settings_tabs.py`, `launcher.py`-only). Used to also
+re-export `LOCAL_REPOSITORY` (a settings-tab key constant that
+deliberately lived in its own `plugin_api`-free module,
+`interface/repo_settings/local_repository_page.py`, rather than alongside
+`COMMON`/`GITHUB_OAUTH`/etc. in `builtin_settings_tabs.py` — see "Import
+order... is load-bearing" below for why that split existed) — removed
+2026-09-01 along with the Local Repository Settings tab itself, see
+`developer/app/docs/plugins/project_editor.md`.
 
 **Logging** (`interface/qt_log_handler.py`): `QtLogHandler`,
 `configure_app_logging` — `launcher.py`-only for `configure_app_logging`
 (called once, right after these imports resolve in `main()`, to attach a
-freshly-constructed `QtLogHandler` to the root `logging` logger — see
-`developer/app/docs/plugins/DebugConsole.md`); `QtLogHandler` itself is
-also re-exported via `plugin_api` (DebugConsole's page type-hints
-`api.debug_log_handler` with it).
+freshly-constructed `QtLogHandler` to the root `logging` logger, read by
+DebugConsole — now an external plugin under `cache/plugins/DebugConsole/`,
+own README there); `QtLogHandler` itself is also re-exported via
+`plugin_api` (DebugConsole's page type-hints `api.debug_log_handler` with
+it).
 
 **Shared widgets** (`interface/shared/`), all also re-exported via
 `plugin_api`:
@@ -109,6 +110,9 @@ also re-exported via `plugin_api` (DebugConsole's page type-hints
   `fetch_entries_via_github`, `format_commit_date`, `format_relative_time`
 - `image_asset.py`: `pick_image_file`, `save_image_asset`
 - `requirements_tree_widget.py`: `RequirementsTreeWidget`
+- `settings/program_dialog.py`: `ProgramDialog` — re-exported specifically
+  for `plugins/core/project_editor/project_database_page.py`'s Program
+  Database groupbox (see `developer/app/docs/plugins/project_editor.md`).
 
 ## Import order inside `interface_api/__init__.py` is load-bearing
 
@@ -121,7 +125,7 @@ out names it's already bound) as long as both `__init__.py` files order
 their imports so that everything the *other* facade needs is bound before
 the import that triggers the cross-load:
 - `interface_api/__init__.py` imports every plugin-facing symbol (shared
-  widgets, theme, `LOCAL_REPOSITORY`) *before* `interface.builtin_settings_tabs`/
+  widgets, theme) *before* `interface.builtin_settings_tabs`/
   `interface.main_window` (the two that pull `plugin_api` in).
 - `plugin_api/__init__.py` imports its own registries (`CATEGORY_*`,
   `SettingsTabRegistry`, `SettingsTabSpec`, ...) *before* its
@@ -130,15 +134,16 @@ the import that triggers the cross-load:
 Break either ordering and you get `ImportError: cannot import name 'X'
 from partially initialized module` — confusing, since the missing name
 *is* defined, just not yet at that point in module-load order. This is
-also why `LOCAL_REPOSITORY` lives in
-`interface/repo_settings/local_repository_page.py` instead of alongside
-`COMMON`/`PROGRAM_DATABASE`/etc. in `builtin_settings_tabs.py` — that file
-already needs `plugin_api`, so if the constant lived there too,
-`interface_api` couldn't re-export it without going through the same
-`builtin_settings_tabs` import that triggers the cross-load, defeating the
-ordering trick above. Adding a new plugin-facing re-export whose only
-home is a module that itself needs `plugin_api` means giving it the same
-treatment (a small `plugin_api`-free module of its own) rather than
+also why the now-removed `LOCAL_REPOSITORY` constant used to live in its
+own small file (`interface/repo_settings/local_repository_page.py`)
+instead of alongside `COMMON`/`GITHUB_OAUTH`/etc. in
+`builtin_settings_tabs.py` — that file already needs `plugin_api`, so a
+plugin-facing constant defined there too couldn't be re-exported without
+going through the same `builtin_settings_tabs` import that triggers the
+cross-load, defeating the ordering trick above. Adding a new plugin-facing
+re-export whose only home is a module that itself needs `plugin_api` means
+giving it the same treatment (a small `plugin_api`-free module of its own)
+rather than
 inlining it into `builtin_settings_tabs.py`.
 
 This only matters for the two `__init__.py` files themselves — real usage

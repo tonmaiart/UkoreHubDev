@@ -34,10 +34,13 @@ use X"/"what's in here" without opening every file in X.
   cross-plugin data/UI sharing, testing). Companion to `plugin-api.md`
   (that one's the command reference; this one's the authoring guide).
 - [`plugins/`](plugins/) — one doc per `app/plugins/core/<Name>/` plugin's
-  own implementation details (`CloudDataAdmin.md`, `DebugConsole.md`,
-  `ExternalPluginManager.md`, `explorer.md`, `project_editor.md`,
-  `software_linker.md`, `submit.md`). Kept as separate files, not merged
-  into one, so working on a single plugin only needs that plugin's own doc
+  own implementation details (`CloudDataAdmin.md`, `explorer.md`,
+  `project_editor.md` — covers the former `ExternalPluginManager` plugin
+  too, merged into `project_editor` 2026-09-01 — `software_linker.md`,
+  `submit.md`). DebugConsole moved out to its own `cache/plugins/DebugConsole/`
+  external-plugin repo 2026-09-01 (own README there, no doc here anymore —
+  see the `ukorehub-external-plugin` skill). Kept as separate files,
+  not merged into one, so working on a single plugin only needs that plugin's own doc
   — see the `ukorehub-plugin` skill's "never open a sibling plugin's
   source" discipline, which applies the same way to these docs.
 - [`data-layout.md`](data-layout.md) — what's on disk under `app/data/`,

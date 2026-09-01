@@ -179,8 +179,7 @@ optimistic concurrency instead of a document model:
   save, since the local file already saved successfully before
   `on_save()` even fires.
 - UI call sites that mutate these stores (`plugins/core/project_editor/`'s
-  `project_settings_page.py`/`project_graph_view.py`,
-  `interface/settings/program_database_page.py`) catch `ConflictError`
+  `project_editor_page.py`/`project_database_page.py`) catch `ConflictError`
   specifically, call `self.store.load()` to pick up the just-re-pulled
   file, then refresh their display — a plain `except UkoreHubError` alone
   would show the message but leave stale in-memory state.

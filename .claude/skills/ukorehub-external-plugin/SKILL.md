@@ -1,6 +1,6 @@
 ---
 name: ukorehub-external-plugin
-description: Strict token-scoping for editing an "external plugin" — an app/cache/plugins/<Name>/ entry (its own separate git clone, e.g. PublishApi, MayaToolkit, UkoreShot, AdvancedSkeleton). When the user says "แก้ external plugin", "edit external plugin <Name>", or names a repo plugin under cache/plugins/ for a feature/fix, read ONLY that plugin's own folder plus developer/app/docs/plugin-api.md — nothing else in this dev repo, not even other docs, unless a real bug forces opening actual app/ source (core/, core_api/, interface/, interface_api/, plugin_api/, or a sibling plugin). Not to be confused with app/plugins/core/ExternalPluginManager/, the in-app catalog/sync manager for these clones — see developer/app/docs/plugins/ExternalPluginManager.md for that plugin instead. Layer this under ukoreshot/ukorehub-maya-plugins when the named plugin is covered by one of those more specific skills.
+description: Strict token-scoping for editing an "external plugin" — an app/cache/plugins/<Name>/ entry (its own separate git clone, e.g. PublishApi, MayaToolkit, UkoreShot, AdvancedSkeleton). When the user says "แก้ external plugin", "edit external plugin <Name>", or names a repo plugin under cache/plugins/ for a feature/fix, read ONLY that plugin's own folder plus developer/app/docs/plugin-api.md — nothing else in this dev repo, not even other docs, unless a real bug forces opening actual app/ source (core/, core_api/, interface/, interface_api/, plugin_api/, or a sibling plugin). Not to be confused with the in-app catalog/sync manager for these clones (Clone/Pull, auto-sync, "Plugins" Settings tab) — folded into app/plugins/core/project_editor/ 2026-09-01 (formerly its own app/plugins/core/ExternalPluginManager/ plugin) — see developer/app/docs/plugins/project_editor.md for that instead. Layer this under ukoreshot/ukorehub-maya-plugins when the named plugin is covered by one of those more specific skills.
 ---
 
 # Editing an external plugin — folder + plugin-api.md only, nothing else
@@ -10,11 +10,13 @@ description: Strict token-scoping for editing an "external plugin" — an app/ca
 not part of this dev repo at all (see root `CLAUDE.md`'s `app/cache/`
 entry and the `ukorehub-plugin` skill). Examples: `PublishApi`,
 `MayaToolkit`, `UkoreShot`, `RigPublisher`, `AdvancedSkeleton`,
-`UkoreReferenceEditor`. Don't confuse this with
-`app/plugins/core/ExternalPluginManager/`, the bundled plugin that manages
-the *catalog* of these clones (Clone/Pull, auto-sync) — a task about that
-catalog page itself is a normal `plugins/core/` task, not this skill; see
-`developer/app/docs/plugins/ExternalPluginManager.md`.
+`UkoreReferenceEditor`. Don't confuse this with the in-app catalog/sync
+manager for these clones — `app/plugins/core/project_editor/`'s
+`_SyncController`/`ExternalPluginUpdaterPage`/Project Database tab (Clone/
+Pull, auto-sync; formerly its own `app/plugins/core/ExternalPluginManager/`
+plugin, merged into `project_editor` 2026-09-01) — a task about that
+catalog/sync tooling itself is a normal `plugins/core/` task, not this
+skill; see `developer/app/docs/plugins/project_editor.md`.
 
 ## Rule
 

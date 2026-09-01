@@ -70,10 +70,11 @@ right:
   About — every section is standalone, there's no shared sidebar-backed
   container), one page per dynamic Browser Link tab, plus the **settings
   view** (`SettingsTabRegistry`-driven, shown when the Setting row is
-  selected — as of 2026-07-15 it only renders `CATEGORY_GENERAL`/
-  `CATEGORY_DEVELOPER`; every `CATEGORY_REPO` tab now renders generically
-  inside a "Repository Setting..." popup opened from a Project Editor
-  node's right-click menu instead, see that plugin's README).
+  selected — this description is 2026-07-15-era and stale on the details;
+  as of 2026-08-25 every `CATEGORY_REPO` tab renders generically inside
+  this same settings view too, under its own "Plugins" group — see
+  `developer/app/docs/interface.md`'s `settings/` "Rendering history" note
+  for the current, accurate mechanics).
   `Sidebar.navigation_changed` picks a page by key via
   `MainWindow._on_navigation_changed`, which special-cases
   `key == SETTINGS_KEY` to show the settings view instead of looking it up

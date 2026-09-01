@@ -175,47 +175,32 @@ identity, section tab list, sync progress), not Qt's `QMenuBar`.
 ### `repo_settings/` — the repo-configuration domain
 
 Settings tabs that manage one specific per-repo concern, split out from
-`settings/`'s app/machine-level tabs. Both tabs here are `CATEGORY_REPO`
-(registered in `interface/builtin_settings_tabs.py`) and render inside
-`interface/settings/settings_view.py`'s **Repo Setting (Dev)** top tab
-(see "Rendering history" under `settings/` below). Both subclass
+`settings/`'s app/machine-level tabs — **removed entirely 2026-09-01**,
+folder and all. Used to hold one builtin `CATEGORY_REPO` tab,
+`local_repository_page.py`'s `LocalRepositoryPage` (subclassing
 `interface/shared/base_repo_settings_page.py`'s `BaseRepoSettingsPage`,
 which resolves the active project/repo itself from `local_config_store` on
-`refresh()` and calls each page's own `_on_refresh_content()` override.
+`refresh()` and calls each page's own `_on_refresh_content()` override) —
+showed the active repo's local clone status/path and a "Remove Local
+Repositories" button that `shutil.rmtree`s the clone folder and marks the
+repo `not_cloned` (`MetadataStore.mark_status`). Removed as redundant with
+`plugins/core/project_editor/project_editor_page.py`'s own per-repo
+Unclone button (same operation, just scoped to whichever repo is selected
+in that table instead of only the active one) — that plugin's new "Open
+Local Directory" button (added the same day) covers the other half of
+what this tab was for. `BaseRepoSettingsPage` itself stays (see
+`interface/shared/`'s own section) — `custom_paths_settings_page.py` is
+its one remaining subclass.
 
-- `local_repository_page.py` — `LocalRepositoryPage`: shows the active
-  repo's local clone status/path and a "Remove Local Repositories" button
-  that `shutil.rmtree`s the clone folder (`core/vcs/paths.py`'s
-  `resolve_repo_path`) and marks the repo `not_cloned`
-  (`MetadataStore.mark_status`) — does not touch the registry record
-  itself, only the on-disk clone.
-- `requirements_and_plugins_page.py` — `RequirementsAndPluginsPage`: UI
-  authored in Qt Designer (`RepoSettingWindow.ui`, same folder) and loaded
-  at runtime via `QUiLoader`, same pattern
-  `plugins/core/explorer/browser_widget.py` uses for `explorer_section.ui`
-  and `project_editor/custom_paths_settings_page.py` uses for
-  `CustomPathWindow.ui`. Two stacked `QGroupBox` sections — **Program
-  Requirements** (`groupBox`/`treeWidget_program_requirements` — the `.ui`'s
-  placeholder `QTreeWidget` is swapped out on every refresh for a real
-  `interface/shared/requirements_tree_widget.py`'s `RequirementsTreeWidget`
-  instance, editing an *existing* repo's
-  `required_program_ids`/`program_version_pins`) and **Enable External
-  Plugins** (`groupBox_2`/`tableWidget_external_plugins`, four columns —
-  checkbox, plugin name, requires, info). Only `core/extensibility/loader.py`'s
-  `plugin_source() == "repo"` (External, `cache/plugins/`, opt-in via
-  `Repo.required_plugin_ids`) plugins get a row — Core plugins
-  (`plugins/core/`, always on, no opt-out) have nothing to toggle so they no
-  longer get a read-only list of their own (dropped in the `.ui` migration).
-  (Un)checking an External plugin flips its sidebar section's visibility for
-  this repo (`interface/main_window.py`'s `_apply_plugin_visibility`). The
-  **Info** column carries a catalog row's on-disk status text ("Not
-  installed — check to clone" / "Installed — restart UkoreHub to activate" /
-  "Broken clone — fix via Settings > Developer > External Plugins") instead
-  of it being appended to the plugin name itself. A project-selected entry
-  not yet cloned shows as its own checkable row — checking it clones it
-  immediately via `GitService` and marks it required by reading the fresh
-  clone's `manifest.json`; still needs a restart to actually load (plugin
-  discovery is one-shot at app startup).
+`requirements_and_plugins_page.py` (`RequirementsAndPluginsPage`,
+`RepoSettingWindow.ui`) used to live here too — a `CATEGORY_REPO` tab that
+always edited whichever repo was currently *active*. Removed as part of
+the 2026-09 External Plugin Manager merge: its Program Requirements +
+Enable External Plugins sections moved to
+`plugins/core/project_editor/repo_settings_page.py`'s `RepoSettingsPage`
+(`RepoSettingsWindow.ui`), now a `CATEGORY_PROJECT` "Repository Settings"
+tab with its own repo picker (any repo in the active project, not just the
+active one) — see `developer/app/docs/plugins/project_editor.md`.
 
 **Working here:** stay inside this folder unless the change needs a new
 `core_api` primitive, a `shared/` addition, or touches
@@ -232,8 +217,9 @@ single shared R2 key is baked into `UkoreHubLauncher.exe` (see the
 
 - `settings_view.py` — `SettingsView` (UI authored in Qt Designer,
   `SettingsWindow.ui` at `interface/` root, loaded via `QUiLoader` — same
-  pattern `repo_settings/requirements_and_plugins_page.py` uses) +
-  `SettingsDialog` (the popup wrapper). `MainWindow._on_settings_requested`
+  pattern `plugins/core/project_editor/custom_paths_settings_page.py` uses
+  for `CustomPathWindow.ui`) + `SettingsDialog` (the popup wrapper).
+  `MainWindow._on_settings_requested`
   constructs a fresh `SettingsDialog` on every open — no state carried
   between opens. Driven by `plugin_api.SettingsTabRegistry` (open, ordered
   — built-in and plugin-provided tabs register into the same collection).
@@ -260,13 +246,16 @@ single shared R2 key is baked into `UkoreHubLauncher.exe` (see the
   GitHub OAuth Client ID field — studio-admin plumbing, still needed since
   the launcher's own login step reads this same `data/system_config.json`
   value. `CATEGORY_DEVELOPER`.
-- `program_database_page.py` — `ProgramDatabasePage`: CRUD for the active
-  Project's own Program Database (`core/models.py`'s `Project.programs`,
-  via `core_api`'s `MetadataStore` — each Project has its own, not
-  shared). Reads `local_config_store.active_project_id` directly. Uses
-  `program_dialog.py`'s `ProgramDialog` for add/edit. `CATEGORY_PROJECT`.
 - `program_dialog.py` — `ProgramDialog`: name/version/description/icon
-  editor for one `Program`, used only by `program_database_page.py`.
+  editor for one `Program` (`core/models.py`'s `Project.programs`, via
+  `core_api`'s `MetadataStore` — each Project has its own, not shared),
+  re-exported through `interface_api`/`plugin_api` specifically for
+  `plugins/core/project_editor/project_database_page.py`'s Program
+  Database groupbox to use — see that plugin's doc. The old
+  `program_database_page.py`/`ProgramDatabasePage` (`CATEGORY_PROJECT`
+  "Program Database" tab) that used to be this dialog's only consumer was
+  removed in the same 2026-09 merge that moved Program Database CRUD into
+  `project_database_page.py`.
 - `plugin_catalog_page.py` — read-only listing of what got discovered
   under `plugins/`. `CATEGORY_DEVELOPER`.
 
@@ -274,12 +263,16 @@ single shared R2 key is baked into `UkoreHubLauncher.exe` (see the
 `SettingsView` didn't render `CATEGORY_REPO` at all — every such tab
 rendered instead inside `plugins/core/project_editor/`'s "Repository
 Setting" popup (now retired). `CATEGORY_REPO` tabs render here again,
-under the **Repository**/**Plugins** groups (formerly one combined "Repo
-Setting (Dev)" top tab, flattened into the single list on 2026-08-25 — see
-above), and a repo node's "Repository Setting..." right-click opens this
-same dialog (`UICommandService.open_settings_tab`) instead of a popup —
-see `plugins/core/project_editor/project_graph_view.py`'s
-`open_repo_settings()`.
+under the **Plugins** group (formerly one combined "Repo Setting (Dev)"
+top tab, flattened into the single list on 2026-08-25 — see above; there
+used to be a separate **Repository** group alongside it for a handful of
+builtin `CATEGORY_REPO` tabs, retired 2026-09-01 once the last one, Local
+Repository, was removed — see `repo_settings/`'s own section above —
+leaving every remaining `CATEGORY_REPO` spec plugin-contributed, so the
+split had nothing left to distinguish). There is no repo-node right-click
+entry point into this dialog anymore either — `project_editor_page.py`'s
+old "Repository Setting..." context-menu action was removed in the same
+change, since its only target (Local Repository) no longer exists.
 
 **Working here:** stay inside this folder unless the change needs a new
 `core_api` primitive, a `shared/` addition, or touches `main_window.py`'s
@@ -298,9 +291,10 @@ consumer's own folder instead.
 - `requirements_tree_widget.py` — `RequirementsTreeWidget`: each Program is
   a checkable top-level node, with a checkable child per version for a
   multi-version Program (pin, radio-style). Used by
-  `plugins/core/project_editor/dialogs.py`'s `RepoDialog` (repo creation,
-  via `plugin_api`) and `interface/repo_settings/requirements_and_plugins_page.py`
-  (editing an existing repo's requirements, direct in-`interface/` import).
+  `plugins/core/project_editor/dialogs.py`'s `RepoDialog` (repo creation)
+  and that same plugin's `repo_settings_page.py` (editing an existing
+  repo's requirements) — both via `plugin_api`, now that this widget's
+  only editing-an-existing-repo consumer moved out of `interface/`.
 - `commit_history.py` — `CommitCard` widget, `CommitFilesDialog` (the
   "Files changed" popup, public since 2026-08-13 so a caller can open it
   without going through a `CommitCard`), `CommitHistoryEntry`,
@@ -314,9 +308,9 @@ consumer's own folder instead.
 - `image_asset.py` — `pick_image_file` (the `QFileDialog.getOpenFileName`
   wrapper every icon/thumbnail chooser uses) and `save_image_asset` (copy
   the chosen file into an `assets/*_icons`/`assets/thumbnails`-style dir).
-  Used by `plugins/core/project_editor/`'s node context menu (via
-  `plugin_api`) and `settings/program_dialog.py`/`program_database_page.py`
-  (direct in-`interface/` import).
+  Used by `plugins/core/project_editor/`'s node context menu and its
+  `project_database_page.py` (both via `plugin_api`) and
+  `settings/program_dialog.py` (direct in-`interface/` import).
 - `widget_helpers.py` — `wrap_scrollable` (the `QScrollArea(widgetResizable)`
   wrapper every scrollable tab/panel builds by hand), `confirm_action`
   (the Yes/No-defaulting-to-No `QMessageBox.warning` every delete/revert
