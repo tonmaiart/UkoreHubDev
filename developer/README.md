@@ -10,17 +10,19 @@ Split into two folders:
 - [`launcher/`](launcher/README.md) — `UkoreHubLauncher.exe`'s own source
   (`launcher_build/`).
 
-Plus two scripts, right here (repo-wide tooling, not specific to either
+Plus three scripts, right here (repo-wide tooling, not specific to any one
 side):
 
 - `release_app.ps1` — publishes `../app/`'s contents to the `UkoreHub`
   release repo.
 - `release_launcher.ps1` — rebuilds the exe, then publishes it to the
   `UkoreHubLauncher` release repo.
+- `release_portal.ps1` — publishes `../portal/`'s contents to the
+  `UkoreHubPortal` release repo.
 
 ## Repo split
 
-One dev repo, two release repos:
+One dev repo, three release repos:
 - **`UkoreHubDev`** (this repo, remote `origin`) — all day-to-day work
   (app features/fixes, launcher changes, `.claude/` skills, this folder)
   happens directly on its `main` branch. There is no `dev` branch here —
@@ -39,6 +41,14 @@ One dev repo, two release repos:
   `release_launcher.ps1` if missing) — holds only the tracked
   `UkoreHubLauncher.exe` at its root. Artists' installs self-update from
   here (rare — only when an admin rebuilds/republishes it).
+- **`UkoreHubPortal`** (remote `release-portal`, added automatically by
+  `release_portal.ps1` if missing) — holds only `main`, a clean mirror of
+  this repo's `../portal/` contents (flattened up to its own root).
+  `UkoreHubLauncher.exe` bootstraps/updates a nested `portal/` clone from
+  here before spawning it — see
+  `../developer/launcher/launcher_build/updater.py`'s `PORTAL_REMOTE_URL`.
+  Portal in turn bootstraps/updates its own nested `app/` clone from
+  `UkoreHub` above — see `../portal/main.py`.
 
 ## Publishing: `release_app.ps1`
 
@@ -88,7 +98,21 @@ The release-repo publish checks out only the tracked `UkoreHubLauncher.exe`
 file (no flatten step needed — the release repo's root only ever holds
 that one file).
 
-## Git aliases: `git release-app` / `git release-launcher`
+## Publishing: `release_portal.ps1`
+
+```powershell
+git release-portal
+git release-portal -Message "Add project dashboard"
+git release-portal -NoRelease
+```
+
+Must be run from `main`. Same shape as `release_app.ps1` — publishes the
+`../portal/` subtree (flattened) to `UkoreHubPortal` instead of `../app/`
+to `UkoreHub`. Run this any time `portal/`'s own code changes;
+`UkoreHubLauncher.exe` picks it up on artists' machines the same way it
+already picks up `app/` changes via `release_app.ps1`.
+
+## Git aliases: `git release-app` / `git release-launcher` / `git release-portal`
 
 Per-machine settings stored in `.git/config`, not tracked by the repo —
 each dev who wants the shortcut runs these once:
@@ -96,12 +120,14 @@ each dev who wants the shortcut runs these once:
 ```bash
 git config alias.release-app '!powershell -ExecutionPolicy Bypass -File "$(git rev-parse --show-toplevel)/developer/release_app.ps1"'
 git config alias.release-launcher '!powershell -ExecutionPolicy Bypass -File "$(git rev-parse --show-toplevel)/developer/release_launcher.ps1"'
+git config alias.release-portal '!powershell -ExecutionPolicy Bypass -File "$(git rev-parse --show-toplevel)/developer/release_portal.ps1"'
 ```
 
-After that, `git release-app` / `git release-launcher` (from anywhere
-inside the repo, Git Bash or PowerShell) do the same thing as the
-invocations above — extra args pass straight through, e.g.
-`git release-app -NoRelease` or `git release-launcher -Message "..."`.
+After that, `git release-app` / `git release-launcher` / `git
+release-portal` (from anywhere inside the repo, Git Bash or PowerShell) do
+the same thing as the invocations above — extra args pass straight
+through, e.g. `git release-app -NoRelease` or `git release-launcher
+-Message "..."`.
 
 ### Running the scripts directly from Git Bash / MINGW64
 

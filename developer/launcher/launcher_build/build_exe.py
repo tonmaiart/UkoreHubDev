@@ -7,11 +7,18 @@ repo's app/ and reaches artists via git pull / Update and Restart as plain
 
 Installs pyinstaller into the CURRENT environment only if missing, kept
 deliberately separate from app/launcher.py's REQUIRED_PACKAGES bootstrap.
+
+UPX (https://upx.github.io/, `winget install UPX.UPX`) is optional but
+meaningfully shrinks the resulting exe — auto-detected via PATH (see
+find_upx_dir) and passed to PyInstaller when present; the build silently
+skips compression when it isn't installed, same "optional, degrade
+gracefully" treatment as git-lfs elsewhere in this codebase.
 """
 from __future__ import annotations
 
 import argparse
 import importlib.util
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -38,18 +45,14 @@ def ensure_pyinstaller() -> None:
     subprocess.run([sys.executable, "-m", "pip", "install", "pyinstaller"], check=True)
 
 
-def ensure_build_dependencies() -> None:
-    """updater.py (bundled into the exe alongside exe_entry.py — see
-    build()) uses keyring for the GitHub token cache (tkinter itself is
-    stdlib, ships with Python, needs nothing installed) — needs to be
-    importable in *this* environment for PyInstaller's analysis to bundle
-    it. Installed here rather than added to launcher.py's own
-    REQUIRED_PACKAGES bootstrap — that one governs the already-running
-    app's environment, not this admin-only build step's."""
-    if importlib.util.find_spec("keyring") is not None:
-        return
-    print("build_exe.py: installing missing build dependency 'keyring>=24.0'...")
-    subprocess.run([sys.executable, "-m", "pip", "install", "keyring>=24.0"], check=True)
+def find_upx_dir() -> Path | None:
+    """UPX isn't a pip package — it's a standalone exe (winget id UPX.UPX,
+    or https://upx.github.io/), so this just looks for it on PATH rather
+    than auto-installing like ensure_pyinstaller does. Returns the
+    containing directory (what PyInstaller's --upx-dir wants), or None if
+    it isn't installed."""
+    upx_path = shutil.which("upx")
+    return Path(upx_path).resolve().parent if upx_path else None
 
 
 def build(icon: Path, name: str) -> Path:
@@ -75,6 +78,14 @@ def build(icon: Path, name: str) -> Path:
         cmd.append(f"--icon={icon}")
     else:
         print(f"build_exe.py: warning — icon not found at {icon}, building without a custom icon.")
+
+    upx_dir = find_upx_dir()
+    if upx_dir:
+        cmd.append(f"--upx-dir={upx_dir}")
+        print(f"build_exe.py: UPX found at {upx_dir} — compressing.")
+    else:
+        print("build_exe.py: UPX not found on PATH — building without compression (see this file's own docstring).")
+
     cmd.append(str(entry))
 
     subprocess.run(cmd, check=True, cwd=str(REPO_ROOT))
@@ -88,7 +99,6 @@ def main() -> None:
     args = parser.parse_args()
 
     ensure_pyinstaller()
-    ensure_build_dependencies()
     exe_path = build(args.icon, args.name)
     print(f"build_exe.py: built {exe_path}")
 
