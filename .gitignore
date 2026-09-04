@@ -59,6 +59,12 @@ __pycache__/
 # developer/launcher/launcher_build/r2_credentials.example.py and the
 # ukorehub-cloud-sync skill.
 /developer/launcher/launcher_build/r2_credentials.py
+# Marker files ensure_dependencies_installed/_ensure_app_dependencies
+# (developer/launcher/launcher_build/updater.py, portal/main.py) write next
+# to a requirements.txt after a successful pip install, so a later launch
+# with the same requirements.txt content can skip the redundant pip
+# subprocess entirely.
+*.installed-hash
 # Old UkoreHubLauncher.exe renamed aside by updater.py's
 # _relocate_self_exe during a self-update (Windows won't let git overwrite
 # the exe while it's running, but it will let it be renamed) - cleaned up

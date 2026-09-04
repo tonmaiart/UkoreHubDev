@@ -61,6 +61,7 @@ safe to remove in a follow-up cleanup.
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import os
 import queue
 import shutil
@@ -163,20 +164,57 @@ def _run_git(args: list[str], cwd: Path) -> str:
     return result.stdout.strip()
 
 
+def _requirements_marker_path(requirements_path: Path) -> Path:
+    return requirements_path.with_name(requirements_path.name + ".installed-hash")
+
+
+def _requirements_up_to_date(requirements_path: Path) -> bool:
+    """True when the last successful ensure_dependencies_installed run
+    already covered this exact requirements.txt content — lets the caller
+    skip the pip subprocess entirely, which costs a second or more even
+    when its own dependency resolver finds nothing to do. The marker lives
+    next to requirements.txt as a plain untracked file, so it's swept by
+    _clean_untracked whenever a real update actually lands (forcing a
+    reinstall then) but survives an ordinary no-update launch."""
+    marker_path = _requirements_marker_path(requirements_path)
+    if not marker_path.exists():
+        return False
+    try:
+        digest = hashlib.sha256(requirements_path.read_bytes()).hexdigest()
+        return marker_path.read_text(encoding="utf-8").strip() == digest
+    except OSError:
+        return False
+
+
+def _mark_requirements_installed(requirements_path: Path) -> None:
+    try:
+        digest = hashlib.sha256(requirements_path.read_bytes()).hexdigest()
+        _requirements_marker_path(requirements_path).write_text(digest, encoding="utf-8")
+    except OSError:
+        pass
+
+
 def ensure_dependencies_installed(portal_root: Path, interpreter: str) -> None:
     """Installs/updates every package portal/requirements.txt pins, using a
     console-capable interpreter (see find_pip_interpreter) rather than
     necessarily the pythonw one portal/main.py itself gets spawned with.
 
-    Runs on every launch, not just after an update: portal/main.py is
-    spawned detached with no console by default (see _launch), so a
-    package a release just added/bumped in requirements.txt that isn't yet
-    installed on this machine would otherwise fail as a silent
+    Skips the pip subprocess when requirements.txt's content hash matches
+    the marker left by the last successful install (see
+    _requirements_up_to_date) — the common case on every ordinary launch.
+    A release that adds/bumps a dependency changes requirements.txt's
+    bytes, which changes the hash, which forces a real reinstall: this
+    never hides a genuine new dependency, it only skips the redundant
+    no-op pip run. portal/main.py is spawned detached with no console by
+    default (see _launch), so a package a release just added that isn't
+    yet installed on this machine would otherwise fail as a silent
     ModuleNotFoundError — no window, no visible error, just "the app
-    doesn't open". pip's own dependency resolver is a fast no-op when
-    everything already matches, so the per-launch cost is small."""
+    doesn't open" — which is why this still runs at all rather than being
+    removed outright."""
     requirements_path = portal_root / "requirements.txt"
     if not requirements_path.exists():
+        return
+    if _requirements_up_to_date(requirements_path):
         return
     pip_interpreter = find_pip_interpreter() or interpreter
     result = subprocess.run(
@@ -198,6 +236,7 @@ def ensure_dependencies_installed(portal_root: Path, interpreter: str) -> None:
     )
     if result.returncode != 0:
         raise UpdaterError(result.stderr.strip() or result.stdout.strip() or "pip install failed")
+    _mark_requirements_installed(requirements_path)
 
 
 def is_git_repo(repo_root: Path) -> bool:
