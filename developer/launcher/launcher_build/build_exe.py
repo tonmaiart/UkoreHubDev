@@ -60,7 +60,11 @@ def build(icon: Path, name: str) -> Path:
     cmd = [
         sys.executable, "-m", "PyInstaller",
         "--onefile",
-        "--noconsole",
+        # Console mode (no --noconsole) — updater.py's pre-launch flow is
+        # plain print()/input() status output now, not a GUI (see its own
+        # docstring for why: pulling in even tkinter for four lines of
+        # status text wasn't worth it, and tkinter's Tcl/Tk DLLs were flaky
+        # under UPX compression to begin with).
         # PyInstaller's own build cache can silently skip re-bundling a
         # sibling module that changed without updater.py itself changing —
         # e.g. editing r2_credentials.py (real key rotation) without

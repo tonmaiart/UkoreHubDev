@@ -14,13 +14,13 @@ launcher-repo release (rebranding the icon, changing this file) still
 needs the `_relocate_self_exe` rename-aside trick below.
 
 Handles only what has to happen before this exe can hand off to something
-that knows how to run Python: check that git is on PATH (required — shows
-a "Download" button linking to the official installer and stops if it's
-missing, no silent auto-install anymore), self-update this launcher repo
+that knows how to run Python: check that git is on PATH (required — prints
+a message with the official installer's URL and stops if it's missing, no
+silent auto-install anymore), self-update this launcher repo
 (rare — bootstrapping it into a real git clone first if it's a plain ZIP
 extract with no .git directory), then bootstrap/update the nested
 `portal/` clone the same way, check that Python is on PATH (also
-required, same Download-button treatment, used to spawn portal/main.py),
+required, same print-and-stop treatment, used to spawn portal/main.py),
 install/update every package portal/requirements.txt pins via pip
 (required — portal/main.py is spawned detached with no console by
 default, so a missing dependency there fails silently otherwise). Finally
@@ -38,15 +38,22 @@ lets you double-click the exe here to exercise the real pre-launch UX
 (prereq checks) against your local `portal/`/`app/` edits without it
 hard-resetting either working tree against a release remote.
 
-Uses `tkinter` (stdlib, ships with every python.org Windows install that
-includes Tcl/Tk, the default) rather than PySide6: a PySide6 build of just
-this pre-launch stage came out to ~50MB (Qt6Core/Qt6Gui/Qt6Widgets + the
-opengl32sw.dll software-rasterizer fallback alone are ~45MB, largely
-unavoidable even after excluding every unrelated Qt submodule — see git
-history around `build_exe.py`'s now-removed `_UNUSED_PYSIDE6_MODULES`
-list), against tkinter's ~5-8MB (`tcl86t.dll`/`tk86t.dll` + script
-library). Portal itself already depends on PySide6, so this tradeoff only
-applies to this thin exe stage.
+Plain console output (print/input), not a GUI: an earlier version used
+tkinter for a progress window (chosen over PySide6 for size — Qt6Core/
+Qt6Gui/Qt6Widgets alone came to ~50MB just for this thin pre-launch stage,
+against tkinter's ~5-8MB), but tkinter's own Tcl/Tk DLLs turned out to be
+flaky under UPX compression (a corrupted tcl86t.dll/tk86t.dll fails at
+runtime as "ModuleNotFoundError: No module named 'tkinter'" despite
+PyInstaller's analysis finding everything correctly — see UkoreHubDev's
+`ukorehub-launcher` skill for the incident), and pulling in a GUI toolkit
+at all for four lines of status text was more than this stage needs.
+Console mode (build_exe.py builds without `--noconsole` now) means this
+exe briefly flashes a console window with plain status lines, then that
+window closes itself the instant this process hands off to Portal — a
+failure instead pauses on an `input()` prompt so the message stays
+readable before the window would otherwise vanish. Portal itself still
+uses PySide6 for its own (much larger, unfrozen) real GUI; this tradeoff
+only ever applied to this thin exe stage.
 
 Import discipline: the prerequisite-check helpers and the git bootstrap/
 update logic below are near-duplicates of portal/git_update.py's own
@@ -63,15 +70,10 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import os
-import queue
 import shutil
 import subprocess
 import sys
-import threading
-import tkinter as tk
-import webbrowser
 from pathlib import Path
-from tkinter import ttk
 
 # The shared Cloudflare R2 key for cloud sync (app/core/vcs/cloud_sync.py) —
 # baked into this exe at build time via a gitignored sibling module (see
@@ -105,16 +107,14 @@ GIT_DOWNLOAD_URL = "https://git-scm.com/install/windows"
 PYTHON_DOWNLOAD_URL = "https://www.python.org/ftp/python/pymanager/python-manager-26.3.msix"
 
 _NO_WINDOW_FLAGS = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
-_ICON_PATH = Path(__file__).resolve().parent / "icon.ico"
 
 
 class UpdaterError(Exception):
     pass
 
 
-# -- prerequisite checks (presence only — no auto-install; see the
-# "Download" button in _UpdaterWindow for what happens when one is missing)
-# (near-duplicate of app/launcher.py's) --
+# -- prerequisite checks (presence only — no auto-install; see _fail for
+# what happens when one is missing) (near-duplicate of app/launcher.py's) --
 
 
 def check_git_prerequisite() -> bool:
@@ -396,7 +396,7 @@ def ensure_up_to_date(
     sitting where an incoming commit wants to add one — is in the way).
     There is nothing in this working tree worth a merge conflict over:
     per-machine files (cache/, storage/) live outside it entirely (see
-    _UpdaterWindow). The clean step (_clean_untracked) only ever removes
+    _do_prelaunch_work). The clean step (_clean_untracked) only ever removes
     files this repo genuinely doesn't want lying around — never the
     per-machine/in-flight ones above.
 
@@ -432,164 +432,97 @@ def _is_dev_checkout(repo_root: Path) -> bool:
     return (repo_root / "developer").exists()
 
 
-# -- main window -------------------------------------------------------------
+# -- console pre-launch flow --------------------------------------------
 
 
-class _UpdaterWindow:
-    """Progress window — status label + indeterminate ttk.Progressbar.
-    Runs prereq checks/self-update on a background thread; a queue.Queue is
-    how it talks back, since Tk widgets aren't safe to touch from any
-    thread but the one running mainloop()."""
+def _print_status(message: str) -> None:
+    print(message, flush=True)
 
-    def __init__(self, repo_root: Path):
-        self.repo_root = repo_root
-        # Nested portal-repo clone — see module docstring.
-        self.portal_root = repo_root / PORTAL_DIRNAME
-        self._interpreter: str | None = None
 
-        self._download_url: str | None = None
+def _fail(message: str, download_url: str | None = None) -> None:
+    """Prints a failure message (with a download URL to paste into a
+    browser, if there is one) and pauses on an input() prompt — otherwise
+    a double-clicked console exe closes its window the instant the process
+    exits, taking the message with it before anyone can read it."""
+    print(f"\n{message}", flush=True)
+    if download_url:
+        print(f"Download: {download_url}", flush=True)
+    try:
+        input("\nPress Enter to exit...")
+    except (EOFError, OSError):
+        pass
 
-        self.root = tk.Tk()
-        self.root.title("UkoreHub")
-        self.root.geometry("420x180")
-        self.root.resizable(False, False)
-        if _ICON_PATH.exists():
-            try:
-                self.root.iconbitmap(str(_ICON_PATH))
-            except tk.TclError:
-                pass
-        self.root.protocol("WM_DELETE_WINDOW", lambda: sys.exit(1))
 
-        self.status_var = tk.StringVar(value="Starting...")
-        ttk.Label(self.root, textvariable=self.status_var, padding=16, wraplength=380).pack(fill="x")
+def _do_prelaunch_work(repo_root: Path) -> tuple[Path, str] | None:
+    """Runs every check/self-update/dependency step in order, printing
+    status to the console as it goes. Returns (portal_root, interpreter)
+    on success; on failure it has already called _fail (message printed,
+    paused for the user) and returns None — the caller just stops."""
+    portal_root = repo_root / PORTAL_DIRNAME
 
-        self.progress = ttk.Progressbar(self.root, mode="indeterminate")
-        self.progress.pack(fill="x", padx=16)
-        self.progress.start(12)
+    # git is checked first because the update step right after it depends
+    # on it (git fetch/pull) — everything else, including the Python
+    # check, waits until Portal itself is confirmed up to date.
+    _print_status("Checking for git...")
+    if not check_git_prerequisite():
+        _fail(
+            "UkoreHub requires 'git' to be installed and available on your PATH.\n"
+            "Install it, then restart UkoreHub.",
+            GIT_DOWNLOAD_URL,
+        )
+        return None
 
-        self.download_button = ttk.Button(self.root, text="Download", command=self._on_download_clicked)
-        self.exit_button = ttk.Button(self.root, text="Exit", command=lambda: sys.exit(1))
-
-        self._queue: "queue.Queue[tuple]" = queue.Queue()
-        self._worker = threading.Thread(target=self._do_prelaunch_work, daemon=True)
-        self._worker.start()
-        self.root.after(100, self._poll_queue)
-
-    def _do_prelaunch_work(self) -> None:
-        # git is checked first because the update step right after it
-        # depends on it (git fetch/pull) — everything else, including the
-        # Python check, waits until Portal itself is confirmed up to date.
-        self._queue.put(("status", "Checking for git..."))
-        if not check_git_prerequisite():
-            self._queue.put((
-                "fail",
-                "UkoreHub requires 'git' to be installed and available on your PATH.\n"
-                "Download and install it, then restart UkoreHub.",
-                GIT_DOWNLOAD_URL,
-            ))
-            return
-
-        if _is_dev_checkout(self.repo_root):
-            # See _is_dev_checkout's docstring — never self-update either
-            # this repo or portal/ here, both are this dev repo's own
-            # working tree, not independent release-repo clones.
-            self._queue.put(("status", "Dev mode — using local portal/, skipping auto-update."))
-            if not (self.portal_root / "main.py").exists():
-                self._queue.put((
-                    "fail",
-                    f"Dev mode: no portal/main.py found under {self.repo_root}.\n"
-                    "Run UkoreHubLauncher.exe from this repo's own root.",
-                    None,
-                ))
-                return
-        else:
-            self._queue.put(("status", "Checking for launcher updates..."))
-            try:
-                ensure_up_to_date(self.repo_root, LAUNCHER_REMOTE_URL, LAUNCHER_BRANCH)
-            except UpdaterError as exc:
-                self._queue.put((
-                    "fail",
-                    f"UkoreHub launcher update failed:\n{exc}\n\n"
-                    "You can continue with the current version — restart to retry.",
-                    None,
-                ))
-                return
-
-            self._queue.put(("status", "Checking for updates..."))
-            try:
-                self.portal_root.mkdir(parents=True, exist_ok=True)
-                ensure_up_to_date(self.portal_root, PORTAL_REMOTE_URL, PORTAL_BRANCH)
-            except UpdaterError as exc:
-                self._queue.put((
-                    "fail",
-                    f"UkoreHub update failed:\n{exc}\n\nYou can continue with the current version — restart to retry.",
-                    None,
-                ))
-                return
-
-        self._queue.put(("status", "Checking for Python..."))
-        interpreter = find_python_interpreter()
-        if interpreter is None:
-            self._queue.put((
-                "fail",
-                "UkoreHub requires Python to be installed and available on your PATH.\n"
-                "Download and install it, then restart UkoreHub.",
-                PYTHON_DOWNLOAD_URL,
-            ))
-            return
-
-        self._queue.put(("status", "Installing required Python packages..."))
+    if _is_dev_checkout(repo_root):
+        # See _is_dev_checkout's docstring — never self-update either this
+        # repo or portal/ here, both are this dev repo's own working tree,
+        # not independent release-repo clones.
+        _print_status("Dev mode — using local portal/, skipping auto-update.")
+        if not (portal_root / "main.py").exists():
+            _fail(
+                f"Dev mode: no portal/main.py found under {repo_root}.\n"
+                "Run UkoreHubLauncher.exe from this repo's own root."
+            )
+            return None
+    else:
+        _print_status("Checking for launcher updates...")
         try:
-            ensure_dependencies_installed(self.portal_root, interpreter)
+            ensure_up_to_date(repo_root, LAUNCHER_REMOTE_URL, LAUNCHER_BRANCH)
         except UpdaterError as exc:
-            self._queue.put((
-                "fail",
-                f"Failed to install required Python packages:\n{exc}\n\n"
-                "Check your internet connection and restart UkoreHub.",
-                None,
-            ))
-            return
+            _fail(
+                f"UkoreHub launcher update failed:\n{exc}\n\n"
+                "You can continue with the current version — restart to retry."
+            )
+            return None
 
-        self._queue.put(("prelaunch_ready", interpreter))
-
-    def _poll_queue(self) -> None:
+        _print_status("Checking for updates...")
         try:
-            while True:
-                item = self._queue.get_nowait()
-                kind = item[0]
-                if kind == "status":
-                    self.status_var.set(item[1])
-                elif kind == "fail":
-                    self._show_error(item[1], item[2])
-                    return  # stop polling — window stays open until the user closes it
-                elif kind == "prelaunch_ready":
-                    self._on_prelaunch_ready(item[1])
-                    return
-        except queue.Empty:
-            pass
-        self.root.after(100, self._poll_queue)
+            portal_root.mkdir(parents=True, exist_ok=True)
+            ensure_up_to_date(portal_root, PORTAL_REMOTE_URL, PORTAL_BRANCH)
+        except UpdaterError as exc:
+            _fail(f"UkoreHub update failed:\n{exc}\n\nYou can continue with the current version — restart to retry.")
+            return None
 
-    def _show_error(self, message: str, download_url: str | None = None) -> None:
-        self.progress.stop()
-        self.progress.pack_forget()
-        self.status_var.set(message)
-        if download_url:
-            self._download_url = download_url
-            self.download_button.pack(pady=(4, 0))
-        self.exit_button.pack(pady=8)
+    _print_status("Checking for Python...")
+    interpreter = find_python_interpreter()
+    if interpreter is None:
+        _fail(
+            "UkoreHub requires Python to be installed and available on your PATH.\n"
+            "Install it, then restart UkoreHub.",
+            PYTHON_DOWNLOAD_URL,
+        )
+        return None
 
-    def _on_download_clicked(self) -> None:
-        if self._download_url:
-            webbrowser.open(self._download_url)
+    _print_status("Installing required Python packages...")
+    try:
+        ensure_dependencies_installed(portal_root, interpreter)
+    except UpdaterError as exc:
+        _fail(
+            f"Failed to install required Python packages:\n{exc}\n\n"
+            "Check your internet connection and restart UkoreHub."
+        )
+        return None
 
-    def _on_prelaunch_ready(self, interpreter: str) -> None:
-        self._interpreter = interpreter
-        self.status_var.set("Launching...")
-        _launch(self.portal_root, self._interpreter)
-        self.root.destroy()
-
-    def run(self) -> None:
-        self.root.mainloop()
+    return portal_root, interpreter
 
 
 def _launch(portal_root: Path, interpreter: str) -> None:
@@ -625,5 +558,12 @@ def _launch(portal_root: Path, interpreter: str) -> None:
 def main(repo_root: Path) -> None:
     """repo_root is this launcher repo's own root (UkoreHubLauncher.exe's folder) —
     see module docstring for how the nested portal/ clone gets derived and
-    bootstrapped from there."""
-    _UpdaterWindow(repo_root).run()
+    bootstrapped from there. Runs entirely on the main thread — see this
+    file's own docstring for why this stage is plain console output rather
+    than a GUI."""
+    result = _do_prelaunch_work(repo_root)
+    if result is None:
+        return
+    portal_root, interpreter = result
+    _print_status("Launching...")
+    _launch(portal_root, interpreter)

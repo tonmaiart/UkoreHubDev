@@ -2,8 +2,8 @@
 
 Locates this exe's own repo root (this launcher repo, UkoreHubLauncher —
 see README.md), then hands off to updater.main() (same folder — see
-updater.py) which shows a progress window, self-updates this launcher repo,
-bootstraps/updates the nested app/ clone (the actual UkoreHub app repo),
+updater.py) which prints status to the console, self-updates this launcher
+repo, bootstraps/updates the nested app/ clone (the actual UkoreHub app repo),
 checks/installs Python + git + git-lfs, then spawns app/launcher.py
 detached and returns. This process never supervises launcher.py after
 that — self-update's os.execv() inside the spawned Python process is

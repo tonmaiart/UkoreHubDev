@@ -18,20 +18,21 @@ the exe, published via `git release-launcher` (see `../README.md`).
   - `exe_entry.py` — the tiny script PyInstaller compiles into
     `UkoreHubLauncher.exe`. Hands off to `updater.py`'s `main()`.
   - `updater.py` — the actual pre-launch logic: git/Python prerequisite
-    checks, self-update of the launcher (skipped in dev mode — see below),
-    bootstrap/update of `app/` (also skipped in dev mode), `pip install -r
-    app/requirements.txt` on every launch (so a new/bumped dependency in a
-    release is installed automatically — `launcher.py` runs detached with
-    no console, so a missing import there otherwise fails with no visible
-    error at all), GitHub device-flow login (tkinter UI), then spawns
-    `../../app/launcher.py`.
-    See its own module docstring for the full breakdown, including why
-    `core/exceptions.py`/`core/models.py`/`core/paths.py`/`core/theme.py`/
-    `core/store.py`/`core/github/` here are **vendored copies** of
-    `../../app/core/`'s identically-named files rather than an import — a
-    change to the real ones (OAuth flow, token storage, config schema)
-    needs to be manually mirrored here too if it should also apply to this
-    pre-launch login screen.
+    checks, self-update of this launcher repo and the nested `portal/`
+    clone (both skipped in dev mode — see below), `pip install -r
+    portal/requirements.txt` on every launch (so a new/bumped dependency in
+    a release is installed automatically — `portal/main.py` runs detached
+    with no console, so a missing import there otherwise fails with no
+    visible error at all), then spawns `portal/main.py`. Plain console
+    output (print/input), not a GUI — see its own module docstring for why.
+    Bootstrapping/updating `app/`, installing `app/`'s own dependencies,
+    the GitHub device-flow login, and spawning `app/launcher.py` are
+    Portal's job now, not this file's — see `portal/main.py`'s own
+    docstring. This repo's own `core/exceptions.py`/`core/models.py`/
+    `core/paths.py`/`core/theme.py`/`core/store.py`/`core/github/`
+    (vendored copies of `../../app/core/`'s identically-named files) are
+    left in place from before that split but no longer imported by
+    anything here — `portal/core/` is the vendored copy that matters now.
   - `build_exe.py` — admin-only: run this (or `git release-launcher`, which
     calls it automatically) to rebuild `UkoreHubLauncher.exe` at the repo
     root after rebranding `icon.ico` or changing `exe_entry.py`/
