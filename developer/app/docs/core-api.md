@@ -163,7 +163,13 @@ these yourself): `GitService`, `MetadataStore`, `LocalConfigStore`,
 
 **Plugin-loader** (`core/extensibility/loader.py`): `DiscoveredPlugin`,
 `PluginManifest`, `PluginLoadFailure`, `discover_plugins`, `apply_plugins`,
-`plugin_source`
+`plugin_source`. `discover_plugins(roots, api_version, on_discovering=None)`
+takes an optional `on_discovering(folder_name: str)` callback, called right
+before each plugin's entry_point is imported (the real per-plugin cost,
+since `apply_plugins` just calls `register()` on already-imported modules)
+— `launcher.py` wires this to its own Portal loading-screen status
+reporting (`_report_status`) so a slow plugin's import shows up by name
+instead of one opaque "Discovering plugins..." step.
 
 **Config store classes** (`core/extensibility/config_store.py`):
 `PluginConfigStore`, `ProjectPluginConfigStore`
