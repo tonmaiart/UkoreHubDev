@@ -240,16 +240,42 @@ def ensure_dependencies_installed(portal_root: Path, interpreter: str) -> None:
 
 
 def is_git_repo(repo_root: Path) -> bool:
-    return (repo_root / ".git").exists()
+    """True only for a working checkout with an actual commit checked out —
+    not just a `.git` directory. A `.git` dir can exist with no commits yet
+    when a previous bootstrap_git_repo run got partway through (`init` +
+    `remote add` succeeded, then `fetch`/`checkout` failed — e.g. a network
+    outage mid-bootstrap). Treating that the same as "no repo here yet" lets
+    ensure_up_to_date retry the full bootstrap instead of calling
+    `rev-parse HEAD`/`@{u}` on a branch that was never created (which fails
+    as "ambiguous argument 'HEAD': unknown revision")."""
+    if not (repo_root / ".git").exists():
+        return False
+    result = subprocess.run(
+        [shutil.which("git") or "git", "rev-parse", "--verify", "-q", "HEAD"],
+        cwd=str(repo_root),
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        env=_non_interactive_env(),
+        creationflags=_NO_WINDOW_FLAGS,
+    )
+    return result.returncode == 0
 
 
 def bootstrap_git_repo(repo_root: Path, remote_url: str, branch: str) -> None:
     """Turns a plain folder (e.g. a GitHub "Download ZIP" extract, which has
     no .git directory at all) into a real git working tree tracking
     remote_url/branch, in place — so every later run can use ordinary git
-    fetch/pull from then on."""
+    fetch/pull from then on. Also re-entrant against a `.git` dir left over
+    from an earlier bootstrap attempt that failed after `remote add` (see
+    is_git_repo) — `remote add` errors on a remote name that already
+    exists, so that step is skipped in favor of `set-url` when needed."""
     _run_git(["init"], cwd=repo_root)
-    _run_git(["remote", "add", "origin", remote_url], cwd=repo_root)
+    existing_remotes = _run_git(["remote"], cwd=repo_root).split()
+    if "origin" in existing_remotes:
+        _run_git(["remote", "set-url", "origin", remote_url], cwd=repo_root)
+    else:
+        _run_git(["remote", "add", "origin", remote_url], cwd=repo_root)
     _run_git(["fetch", "origin", branch], cwd=repo_root)
     try:
         _run_git(["checkout", "-B", branch, "--track", f"origin/{branch}"], cwd=repo_root)
