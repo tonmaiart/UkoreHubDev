@@ -105,6 +105,16 @@ LAUNCHER_BRANCH = "main"
 PORTAL_DIRNAME = "portal"
 GIT_DOWNLOAD_URL = "https://git-scm.com/install/windows"
 PYTHON_DOWNLOAD_URL = "https://www.python.org/ftp/python/pymanager/python-manager-26.3.msix"
+# Matches app/README.md's documented prerequisite — app/core/ (e.g.
+# core/vcs/git_service.py's `Callable[[str], None] | None` type alias) uses
+# PEP 604 `X | Y` union syntax in real runtime expressions, not just
+# annotations, so `from __future__ import annotations` doesn't save it: on
+# an interpreter older than this, that import raises
+# "TypeError: unsupported operand type(s) for |: ..." several imports deep
+# into app/launcher.py, with nothing above it explaining why. Checking the
+# version explicitly here turns that into a clear message before spawning
+# anything.
+MIN_PYTHON_VERSION = (3, 10)
 
 _NO_WINDOW_FLAGS = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
 
@@ -123,6 +133,27 @@ def check_git_prerequisite() -> bool:
 
 def find_python_interpreter() -> str | None:
     return shutil.which("pythonw") or shutil.which("python")
+
+
+def check_python_version(interpreter: str) -> tuple[int, int] | None:
+    """Actually runs the found interpreter rather than checking this exe's
+    own sys.version_info — this exe is a frozen PyInstaller build (see
+    module docstring), so its own runtime version has nothing to do with
+    whatever `python`/`pythonw` PATH resolves to for portal/ and app/.
+    Returns None (treated as "too old" by the caller) on any failure to
+    run it at all, same as a missing interpreter would be."""
+    try:
+        result = subprocess.run(
+            [interpreter, "-c", "import sys; print(f'{sys.version_info[0]}.{sys.version_info[1]}')"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            creationflags=_NO_WINDOW_FLAGS,
+        )
+        major, minor = result.stdout.strip().split(".")
+        return int(major), int(minor)
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        return None
 
 
 def find_pip_interpreter() -> str | None:
@@ -227,6 +258,15 @@ def ensure_dependencies_installed(portal_root: Path, interpreter: str) -> None:
             str(requirements_path),
             "--disable-pip-version-check",
             "--quiet",
+            # pip's default --timeout is 15s *per read*, not for the whole
+            # download — a large wheel (PySide6 is tens of MB) on a slow/
+            # congested connection can stall a single chunk past that and
+            # raise ReadTimeoutError even though the connection is fine,
+            # just slow. 60s gives real slow connections room without
+            # meaningfully lengthening the failure case (still on top of
+            # pip's own retry loop for a genuinely dead connection).
+            "--timeout",
+            "60",
         ],
         stdin=subprocess.DEVNULL,
         capture_output=True,
@@ -534,6 +574,18 @@ def _do_prelaunch_work(repo_root: Path) -> tuple[Path, str] | None:
         _fail(
             "UkoreHub requires Python to be installed and available on your PATH.\n"
             "Install it, then restart UkoreHub.",
+            PYTHON_DOWNLOAD_URL,
+        )
+        return None
+
+    version = check_python_version(interpreter)
+    if version is None or version < MIN_PYTHON_VERSION:
+        found = f"{version[0]}.{version[1]}" if version else "unknown"
+        _fail(
+            f"UkoreHub requires Python {MIN_PYTHON_VERSION[0]}.{MIN_PYTHON_VERSION[1]}+ on your PATH "
+            f"(found {found}).\n"
+            "If you have multiple Python installs, make sure a newer one comes first on PATH, "
+            "then restart UkoreHub.",
             PYTHON_DOWNLOAD_URL,
         )
         return None
