@@ -103,11 +103,17 @@ needed here anymore.
   of 2026-08-19, for the Category catalog — see `pipeline_store.py` below)
   and one `ProjectEditorPage` instance, registers it via
   `api.register_section(...)`
-  with `wire=_wire` — `_wire` calls `page.bind_set_active_repo(host.set_active_repo)`,
-  the only `UICommandService` field (see
-  `plugin_api/registries/section_registry.py`) this plugin still binds, so
-  a row selection can trigger a real active-repo switch, without the page
-  holding a `MainWindow` reference. `bind_switch_project`/`bind_open_settings_tab`
+  with `wire=_wire` — `_wire` calls `page.bind_set_active_repo(host.set_active_repo)`
+  (so a row selection, or the Clone button, can trigger a real active-repo
+  switch without the page holding a `MainWindow` reference) and, added
+  2026-09-09 for the Clone button's new behavior (see "Clone / Unclone
+  buttons" below),
+  `page.bind_navigate_to_submit(lambda: host.navigate_and_focus("repo_git_status", Path()))`
+  — `"repo_git_status"` is Submit's `SectionRegistry` key, hardcoded as a
+  literal string rather than imported (same convention `submit/plugin.py`
+  itself uses for Explorer's `"repo_browser"` key, so this plugin's
+  `register(api)` doesn't fail to load if Submit's plugin were ever
+  missing/broken). `bind_switch_project`/`bind_open_settings_tab`
   used to be bound here too, for the now-removed "Switch Project..."
   button and "Repository Setting..." row context-menu entry respectively —
   both removed 2026-09-01, see `project_settings_page.py`'s bullet and the
@@ -192,26 +198,19 @@ needed here anymore.
   (2026-08-19)" below. Used to hold `ProjectGraphView` (`QGraphicsView`),
   `RepoNodeItem`, `PipelineEdgeItem`, and `CategoryBoxItem` — the node
   graph this plugin used from 2026-07-15 through then.
-- `required_repo_clone_worker.py` — `RequiredRepoCloneWorker` (`QThread`):
-  clones/pulls a fixed list of `(project_id, Repo)` targets sequentially,
-  stopping at the first failure (repos already cloned earlier in the same
-  batch are left on disk, never rolled back). Used by
-  `project_editor_page.py`'s Clone button (a single-element target list —
-  see "UI rewrite" below; before 2026-08-19 also used by the now-removed
-  `ProjectGraphView.request_active_repo` to clone a repo's direct pipeline
-  requirements before switching to it, a cascading-clone behavior the list
-  rewrite dropped in favor of the explicit per-repo Clone button plus the
-  visible Repositories Requirement list). A deliberate local duplicate of
+- `repo_status_scan_worker.py` — `RepoStatusScanWorker` (`QThread`): the
+  table's Status column background check — see the "Status column" bullet
+  below. Continues past a single repo's failure, since one repo's git
+  status has no bearing on any other row. A deliberate local duplicate of
   `plugins/core/submit/git_stream_worker.py`'s
   QThread-wraps-a-callable/`finished_ok`/`failed` shape rather than an
   import of it — this plugin doesn't reach into a sibling plugin's source
   (see "Working here" at the bottom of this file).
-- `repo_status_scan_worker.py` — `RepoStatusScanWorker` (`QThread`): the
-  table's Status column background check — see the "Status column" bullet
-  below. Continues past a single repo's failure (unlike
-  `RequiredRepoCloneWorker` above, which stops at the first one), since
-  one repo's git status has no bearing on any other row. Same local-copy
-  boundary rule as `required_repo_clone_worker.py`.
+  `required_repo_clone_worker.py` (`RequiredRepoCloneWorker`) used to live
+  here too, backing the Clone button's own blocking `QProgressDialog`
+  clone — **removed 2026-09-09** per the user's own request, since it
+  duplicated Submit's already-existing first-clone handling (see "Clone /
+  Unclone buttons" below) with a second, redundant loading dialog.
 - `sync_engine.py`, `sync_worker.py`, `sync_status_store.py`,
   `last_check_store.py`, `external_plugin_updater_page.py`,
   `ExternalPluginUpdaterWindow.ui` — moved here from the former
@@ -591,12 +590,23 @@ and adding an Info groupbox — see "Second pass" below for that revision.
   was for; Unclone below already covered the other half.
 - **Clone / Unclone buttons** — act on whichever repo is currently
   *selected* in the table (`_selected_repo_id`, independent of the active
-  repo). Clone (disabled once already cloned) confirms, then runs
-  `RequiredRepoCloneWorker` with a single `[(project_id, repo)]` target
-  behind a `QProgressDialog` (`_run_clone_worker` — the same
-  worker/dialog/`QEventLoop` shape `ProjectGraphView._clone_required_repos`
-  used to use for the cascading multi-repo case), then also switches the
-  active repo to it. Unclone (disabled while not cloned) confirms, then
+  repo). Clone (disabled once already cloned) confirms, then **doesn't
+  clone anything itself** (`_on_clone_clicked` — the old blocking
+  `QProgressDialog`/`RequiredRepoCloneWorker` path, itself a descendant of
+  `ProjectGraphView._clone_required_repos`'s cascading-clone dialog, was
+  **removed 2026-09-09** per the user's own request): it switches the
+  active repo to the selected one and jumps straight to the Submit tab
+  (`UICommandService.navigate_and_focus("repo_git_status", ...)`, bound via
+  `plugin.py`'s new `bind_navigate_to_submit` — the `path` argument is an
+  unused placeholder, since Submit's page doesn't implement
+  `PathFocusablePage`), whose own "Sync New Commit"
+  (`submit/repo_git_status_page.py`'s `start_sync`) already clones a
+  not-yet-cloned repo before syncing, with its own progress/log feedback —
+  no second, redundant loading dialog needed here. Both callback
+  invocations are deferred one event-loop tick
+  (`QTimer.singleShot(0, ...)`), same reasoning as the row-selection
+  handler below: `set_active_repo` can round-trip back into this page's
+  own `set_repo()`. Unclone (disabled while not cloned) confirms, then
   `shutil.rmtree`s `workspace_root / repo.local_path` and calls
   `MetadataStore.mark_status(project_id, repo_id, "not_cloned")` — the
   same operation the builtin "Local Repository" Settings tab's "Remove

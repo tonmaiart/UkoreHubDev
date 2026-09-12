@@ -47,6 +47,12 @@ __pycache__/
 # detection (that's the developer/ folder itself - see
 # developer/launcher/launcher_build/updater.py's _is_dev_checkout).
 /launcher_config.json
+# Portal's own per-session log files (see portal/main.py's _setup_logging) -
+# deliberately a sibling of app/ and portal/ here at the repo root, not
+# under workspace_root like cache/storage/data above, since these are a
+# small install-local diagnostic trail rather than per-machine user/project
+# data.
+/logs/
 # PyInstaller intermediates from developer/launcher/launcher_build/
 # build_exe.py - regenerated every build, never committed. The resulting
 # UkoreHubLauncher.exe at the repo root IS committed - a shared
