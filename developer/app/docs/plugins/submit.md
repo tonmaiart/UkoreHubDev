@@ -309,6 +309,25 @@ in the matching half) so it can map a table row back to its
 - **No dedup/unread tracking**: each panel just re-renders whatever the
   latest fetch returns (newest first, capped at 20).
 
+## Auto git identity on commit
+
+`_on_submit_all_staged_clicked` calls `_ensure_git_identity(dest_path)`
+before `git_service.commit(...)` — a machine with no `user.name`/
+`user.email` configured anywhere (local or global) otherwise fails the
+commit with git's raw "Author identity unknown" error, which is exactly
+what a brand-new artist machine hits on its first-ever commit. Uses
+`GitService.has_user_identity` (checks the effective, not just local,
+`user.name` — a machine with its own real global identity is left alone)
+and, if unset, `GitService.set_user_identity` with
+`local_config_store.github_username` as the name and a
+`<username>@users.noreply.github.com` placeholder email (there's no
+GitHub-verified email available here — only the username from login).
+`interface/main_window.py` also has an older `_setup_auto_git_identity`
+that does the same thing on app-start/repo-changed hooks, but only if the
+repo folder already exists on disk at that moment — it misses a repo that
+gets cloned later via the Sync button, which is why this plugin-level
+check exists as the actual guard right at the point of failure.
+
 ## Other Command buttons
 
 Inside the "Git Log" group box (`groupBox_5`, alongside the diagnostics
