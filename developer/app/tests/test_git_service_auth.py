@@ -28,14 +28,18 @@ def test_auth_args_for_github_https_with_token():
     service = GitService()
     service.set_github_token("abc123")
     args, env = service._github_auth_args_and_env("https://github.com/owner/repo.git")
+    # First pair clears any machine-wide credential.helper (e.g. Git
+    # Credential Manager) so it can't run ahead of ours and win.
     assert args[0] == "-c"
-    assert "credential.helper=" in args[1]
+    assert args[1] == "credential.helper="
+    assert args[2] == "-c"
+    assert "credential.helper=" in args[3]
     assert len(env) == 1
     (env_var_name, env_var_value), = env.items()
     assert env_var_value == "abc123"
     # the token value itself must never appear in the argv-visible helper string
-    assert "abc123" not in args[1]
-    assert env_var_name in args[1]
+    assert "abc123" not in args[3]
+    assert env_var_name in args[3]
 
 
 def test_set_github_token_none_clears_it():

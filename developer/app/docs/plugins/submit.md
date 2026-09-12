@@ -186,7 +186,15 @@ in-progress selection.
 
 **"Submit All Staged"** (`pushButton_submit_all_staged` — the old "Pull and
 Push" button) is unconditional: it always acts on every currently staged
-file, ignoring table selection, exactly as before.
+file, ignoring table selection, exactly as before. When `_last_status` has
+no staged changes at click time, `_on_submit_all_staged_clicked` skips
+`CommitDialog`/`git_service.commit` entirely (nothing to commit, so that
+would just fail with git's own "nothing to commit" error) and goes
+straight to `_start_pull_step()` — this is what actually pushes commits
+that were already made locally but never made it to the remote (e.g. a
+push that failed after the commit already succeeded), so the button
+doubles as a plain "sync/retry push" action whenever there's nothing new
+to stage.
 
 Right-click on a row still offers "Inspect in Explorer" (jumps to Explorer
 via `browse_file_requested`), scoped to the row under the cursor.
