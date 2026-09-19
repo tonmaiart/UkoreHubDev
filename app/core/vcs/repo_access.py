@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import urllib.error
 import urllib.request
 
@@ -29,3 +30,31 @@ def check_repo_access(owner: str, repo: str, token: str | None) -> bool:
         raise GitHubAuthError(f"GitHub API error checking repo access: {exc.code}") from exc
     except (urllib.error.URLError, TimeoutError) as exc:
         raise GitHubAuthError(f"Network error contacting GitHub: {exc}") from exc
+
+
+def get_repo_permissions(owner: str, repo: str, token: str) -> dict | None:
+    """The signed-in token's own permission levels on this repo (`push`,
+    `pull`, `admin`, ...), straight off the same repo-metadata endpoint
+    check_repo_access already hits — None if the repo can't be seen at all
+    (private and inaccessible, or genuinely doesn't exist — GitHub returns
+    404 for both, same ambiguity check_repo_access's own docstring
+    describes). A repo this returns None for should be treated as "no push
+    access" by callers, same as one where permissions()["push"] is False —
+    either way a push against it will fail."""
+    url = REPO_API_URL.format(owner=owner, repo=repo)
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "UkoreHub",
+        "Authorization": f"Bearer {token}",
+    }
+    request = urllib.request.Request(url, headers=headers, method="GET")
+    try:
+        with urllib.request.urlopen(request, timeout=15) as response:
+            data = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        if exc.code in (403, 404):
+            return None
+        raise GitHubAuthError(f"GitHub API error checking repo permissions: {exc.code}") from exc
+    except (urllib.error.URLError, TimeoutError) as exc:
+        raise GitHubAuthError(f"Network error contacting GitHub: {exc}") from exc
+    return data.get("permissions")

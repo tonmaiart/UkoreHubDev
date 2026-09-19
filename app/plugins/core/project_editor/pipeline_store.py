@@ -174,14 +174,23 @@ class PipelineStore:
         self._set_field(project_id, repo_id, "pipeline_inputs", [ref.to_dict() for ref in refs])
 
     def get_custom_paths(self, project_id: str, repo_id: str) -> list[CustomPath]:
-        entry = self._metadata_store.get_repo_plugin_data(project_id, repo_id, PLUGIN_ID)
+        # A RepoRef can point at a repo that's since been deleted from the
+        # registry (deleting a repo doesn't clean up other repos' refs to
+        # it) — treat that the same as "no custom paths" rather than
+        # propagating NotFoundError, since every caller here is resolving a
+        # possibly-stale ref, not asserting the target still exists.
+        try:
+            entry = self._metadata_store.get_repo_plugin_data(project_id, repo_id, PLUGIN_ID)
+        except NotFoundError:
+            return []
         return [CustomPath.from_dict(d) for d in entry.get("custom_paths", [])]
 
     def get_custom_path(self, project_id: str, repo_id: str, custom_path_id: str | None) -> CustomPath | None:
         """Looks up one of a repo's declared CustomPath entries by id —
         the common lookup a RepoRef consumer needs (resolve what a
         pipeline ref's custom_path_id actually points at). Returns None
-        if custom_path_id is None or no longer exists (e.g. it was
+        if custom_path_id is None, the target repo no longer exists, or the
+        custom_path_id itself is no longer declared on it (e.g. it was
         deleted after some RepoRef was already pointed at it)."""
         if not custom_path_id:
             return None

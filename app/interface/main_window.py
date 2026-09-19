@@ -309,7 +309,17 @@ class MainWindow(QMainWindow):
         # button (via UICommandService.open_settings_tab) land directly on one
         # tab instead of whatever opens by default — see
         # plugin_api/registries/section_registry.py's UICommandService.
-        dialog = SettingsDialog(self, settings_tab_registry=self.settings_tab_registry)
+        try:
+            dialog = SettingsDialog(self, settings_tab_registry=self.settings_tab_registry)
+        except Exception:
+            # A single misbehaving SettingsTabSpec.page_factory (built-in or
+            # plugin-provided) raising here previously killed the whole
+            # dialog silently — nothing but an unhandled traceback on
+            # stderr, invisible in DebugConsole since that only reads the
+            # `logging` module. Route it there instead so "Setting button
+            # does nothing" is diagnosable from the Debug Log.
+            logging.getLogger("Settings").exception("Failed to open Setting dialog")
+            return
         common_settings_page = dialog.view.get_tab_widget(builtin_settings_tabs.COMMON)
         if common_settings_page is not None:
             common_settings_page.logout_requested.connect(self._on_logout_requested)

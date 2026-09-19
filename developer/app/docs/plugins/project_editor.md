@@ -459,8 +459,8 @@ second time the same day (still 2026-08-19) — swapping the repo
 `QListWidget` for a `QTableWidget`, dropping the Assign Categories button,
 and adding an Info groupbox — see "Second pass" below for that revision.
 
-- **`tableWidget_Repo`** (`QTableWidget`, 3 columns —
-  `_COL_NAME`/`_COL_STATUS`/`_COL_CONNECTION`,
+- **`tableWidget_Repo`** (`QTableWidget`, 5 columns —
+  `_COL_NAME`/`_COL_CLONED`/`_COL_EDITED`/`_COL_CONNECTION`/`_COL_ACCESS`,
   `SelectRows`/`SingleSelection`/`NoEditTriggers`) — one row per repo in
   the loaded project (`project.repos`' own order — no category grouping;
   see "Second pass" for why Category assignment is gone). The active
@@ -489,27 +489,64 @@ and adding an Info groupbox — see "Second pass" below for that revision.
   `listWidget_repositories_requirements` icons (`_repo_icon`, sized via
   `_REPO_ICON_SIZE`, renamed from `_REPO_TABLE_ICON_SIZE` since it's no
   longer table-specific) rather than as a table column.
-- **Status column** (`_set_status_cell`, `_STATUS_ICONS`) — a live icon,
-  same three states `submit/repo_git_status_page.py`'s sidebar status dot
-  uses (`QStyle.SP_MessageBoxWarning` dirty / `SP_DialogApplyButton`
-  clean), plus `SP_DialogNoButton` for not-cloned and
-  `SP_MessageBoxCritical` if the check itself failed. Not-cloned is known
-  synchronously (same `GitService.is_cloned` check as the thumbnail); a
-  cloned repo shows `SP_BrowserReload` ("Syncing...") immediately, then a
-  background `RepoStatusScanWorker` (`repo_status_scan_worker.py` — a
-  local duplicate of `submit/git_stream_worker.py`'s shape, same boundary
-  rule `required_repo_clone_worker.py` already follows) runs
-  `GitService.get_status` per cloned repo sequentially and flips each row
-  to Modified/Up to date (or the critical icon on a per-repo failure) as
-  results stream in — non-blocking, no `QProgressDialog`, unlike Clone's
-  worker use below. `_status_scan_token` (bumped on every
-  `_reload_repo_table()`) lets `_on_status_ready`/`_on_status_failed` drop
-  a result from a scan the table has since moved past, without needing to
-  cancel the worker thread itself. `_status_workers` is a plain list kept
-  only so a running `QThread` isn't garbage-collected out from under
-  itself before it finishes — each worker removes itself
-  (`_on_scan_finished`) and calls `deleteLater()` when its `scan_finished`
-  signal fires.
+- **Cloned/Edited/Access columns — icon-or-blank, 2026-09-12 redesign**:
+  these three (plus Connection, unchanged below) all follow one convention
+  now, per the user's own request — a blank cell is always the
+  default/unremarkable case, and a single custom PNG (`icons/cloned.png`/
+  `icons/edited.png`/`icons/locked.png`, this plugin's own
+  `icons/` folder, loaded once per `ProjectEditorPage` instance as
+  `self._cloned_icon`/`self._edited_icon`/`self._locked_icon` in
+  `__init__` — needs a live `QApplication` to construct a `QPixmap` from,
+  so these can't be module-level constants) is the one state worth calling
+  out. This replaces an earlier design (still visible in git history) that
+  used `QStyle` standard icons for a multi-state "Status" column
+  (not-cloned/syncing/modified/up-to-date/check-failed) plus a similar
+  multi-state Access column — both collapsed into simpler binary columns
+  here.
+  - **Cloned column** (`_COL_CLONED`, `_set_cloned_cell`) — `cloned.png` if
+    `GitService.is_cloned` (same synchronous check the detail panel's
+    thumbnail grayscale already uses), blank otherwise. No background scan
+    needed, known immediately in `_reload_repo_table`.
+  - **Edited column** (`_COL_EDITED`, `_set_edited_cell`) — `edited.png`
+    only if the repo has uncommitted working-tree changes, blank for
+    everything else (clean, not yet cloned, still checking, or the check
+    itself failed — `_on_status_failed` deliberately treats a failed check
+    the same as "no evidence of a change" rather than guessing). Still
+    background-checked by `RepoStatusScanWorker`
+    (`repo_status_scan_worker.py` — a local duplicate of
+    `submit/git_stream_worker.py`'s shape, same boundary rule
+    `required_repo_clone_worker.py` already follows) running
+    `GitService.get_status` per **cloned** repo only (this column is the
+    one of the three that still needs a local clone to check at all) —
+    `_status_scan_token`/`_status_workers` unchanged from before, still
+    guard against a superseded scan and keep a running `QThread` alive
+    until it finishes.
+  - **Access column** (`_COL_ACCESS`, `_set_access_cell`) — added after an
+    artist's push kept hitting GitHub's `Permission to <owner>/<repo>.git
+    denied to <user>` (a 403) with no earlier signal anywhere in the app
+    that the signed-in account wasn't a collaborator with write access.
+    `locked.png` only when push access is *confirmed* denied; blank for
+    both "has push access" and "couldn't be checked" (a non-github.com
+    remote, no signed-in token, or a network/API error,
+    `_on_access_unknown`) — deliberately the same blank as "has access" so
+    "can't check" is never mistaken for "confirmed no access". Background-
+    checked by `RepoAccessScanWorker` (`repo_access_scan_worker.py`, a
+    local duplicate of `RepoStatusScanWorker`'s QThread-wraps-a-callable
+    shape) via `core_api`/`plugin_api`'s `get_repo_permissions(owner,
+    repo, token)` (`core/vcs/repo_access.py` — same `GET
+    /repos/{owner}/{repo}` endpoint `check_repo_access` already hits, just
+    reading the response body's own `permissions` object instead of
+    discarding it). Unlike the Edited column's scan, this one runs for
+    **every** repo in the table regardless of clone state
+    (`_reload_repo_table` builds `access_targets` from `repo.git_url`
+    unconditionally) — it's a pure GitHub API call, no local clone needed
+    to ask "could I push here." `_access_scan_token` (bumped alongside
+    `_status_scan_token` on every `_reload_repo_table()`) drops a result
+    from a superseded scan the same way the Edited column's own token
+    does. Public/private repo visibility is irrelevant here — a public
+    repo is freely clone/pull-able by anyone, but push still always
+    requires being a collaborator with write access, which is exactly what
+    this column checks and none of the others could surface.
 - **Connection column** (`_refresh_connection_column`) — only lights up
   for a row the currently **active** repo (not the *selected* row) has a
   Custom Paths connection to: reads `PipelineStore.get_inputs(project_id,
@@ -518,7 +555,10 @@ and adding an Info groupbox — see "Second pass" below for that revision.
   `SP_MediaSkipForward` for `"output"` — a quick-glance replacement for
   the old graph's directed edges, per the user's own request. Recomputed
   on every `_reload_repo_table()` and, cheaply (no table rebuild), on
-  every pure active-repo switch via `set_repo()`.
+  every pure active-repo switch via `set_repo()`. Still uses `QStyle`
+  standard icons, not a custom PNG — untouched by the 2026-09-12 redesign
+  above since it's a two-way "input vs. output", not an icon-or-blank
+  column.
 - **Selecting a row** (`_on_repo_selection_changed`, via `currentRow()`)
   only refreshes the detail panel — it deliberately never clones anything
   and never changes the active repo unless the selected repo is *already*
@@ -720,7 +760,17 @@ folded into the same files rather than kept as a separate revision:
   `"input"` for any ref saved before the field existed — see `RepoRef`'s
   own docstring (the arrowhead direction it drove is moot now that the
   graph that drew arrows is gone, but the field and its default still
-  round-trip on old data unchanged).
+  round-trip on old data unchanged). `get_custom_paths`/`get_custom_path`
+  swallow `NotFoundError` for a target repo that no longer exists
+  (2026-09-14 fix) — deleting a repo doesn't clean up other repos'
+  `pipeline_inputs` refs pointing at it (`project_editor_page.py`'s
+  `_delete_repo` has no such cleanup step), and
+  `project_editor_settings_page.py`'s `_rebuild_connected_table` resolves
+  every stale ref's custom path on every Settings-dialog open — before this
+  fix, one dangling ref to a deleted repo crashed the whole Setting dialog
+  (`NotFoundError` propagating out of `MetadataStore.get_repo`) instead of
+  rendering the `"(deleted custom path)"` row it already had a fallback
+  string for.
   `get_required_repos(project_id, repo_id)` resolves a repo's own direct
   `pipeline_inputs` refs into the actual target `Repo` objects (deduped,
   direct-only — no recursion into each target's own inputs), used by

@@ -41,28 +41,25 @@ from plugin_api import (
 )
 from plugins.core.project_editor.dialogs import EditInfoDialog, RepoDialog
 from plugins.core.project_editor.pipeline_store import PipelineStore
+from plugins.core.project_editor.repo_access_scan_worker import RepoAccessScanWorker
 from plugins.core.project_editor.repo_status_scan_worker import RepoStatusScanWorker
 
 _UI_FILE = Path(__file__).parent / "ProjectEditorTabWindows.ui"
+_ICONS_DIR = Path(__file__).parent / "icons"
 _STATUS_ICON_SIZE = QSize(18, 18)
 _PREVIEW_MAX_SIZE = QSize(320, 180)
 _REQUIREMENT_ICON_SIZE = QSize(32, 32)
 
-_COL_NAME, _COL_STATUS, _COL_CONNECTION = range(3)
-_COLUMN_LABELS = ("Name", "Status", "Connection")
+_COL_NAME, _COL_CLONED, _COL_EDITED, _COL_CONNECTION, _COL_ACCESS = range(5)
+_COLUMN_LABELS = ("Name", "Cloned", "Edited", "Connection", "Access")
 
-# tableWidget_Repo's Status column — same three live-status icons
-# submit/repo_git_status_page.py's sidebar status dot uses
-# (QStyle.SP_MessageBoxWarning/SP_DialogApplyButton), plus a not-cloned and
-# a check-failed state that page doesn't need (Submit only ever shows the
-# already-active repo, which is always cloned by definition).
-_STATUS_ICONS = {
-    "not_cloned": (QStyle.SP_DialogNoButton, "Not cloned"),
-    "syncing": (QStyle.SP_BrowserReload, "Syncing..."),
-    "modified": (QStyle.SP_MessageBoxWarning, "Modified"),
-    "up_to_date": (QStyle.SP_DialogApplyButton, "Up to date"),
-    "unknown": (QStyle.SP_MessageBoxCritical, "Status check failed"),
-}
+# Cloned/Edited/Access all follow the same "icon or nothing" convention
+# (per the user's own request) rather than the old multi-state icon sets —
+# a blank cell is the default/positive/unknown case, a custom PNG
+# (icons/cloned.png, icons/edited.png, icons/locked.png) is the one state
+# worth calling out. Loaded once per-instance in __init__ (needs a live
+# QApplication, so not module-level constants), reused across every row/
+# reload rather than constructing a fresh QIcon per cell.
 
 
 def _grayscale(pixmap: QPixmap) -> QPixmap:
@@ -83,12 +80,17 @@ class ProjectEditorPage(QWidget):
     list with thumbnails" instead of a pipeline diagram.
 
     tableWidget_Repo is the whole project's repos, one row each: name
-    (bold for the active repo), a live Status icon (Not
-    cloned / Syncing / Up to date / Modified — background-scanned, see
-    RepoStatusScanWorker), and a Connection icon that only lights up for a
-    row the currently ACTIVE repo has a Custom Paths connection to
-    (SP_MediaSkipBackward for an Input connection, SP_MediaSkipForward for
-    Output — see _refresh_connection_column). Selecting a row only updates
+    (bold for the active repo), a Cloned icon (icons/cloned.png if cloned,
+    blank otherwise), an Edited icon (icons/edited.png if the working tree
+    has uncommitted changes — background-scanned, see
+    RepoStatusScanWorker/_on_status_ready — blank otherwise, including
+    while not yet cloned or still checking), a Connection icon that only
+    lights up for a row the currently ACTIVE repo has a Custom Paths
+    connection to (SP_MediaSkipBackward for an Input connection,
+    SP_MediaSkipForward for Output — see _refresh_connection_column), and
+    an Access icon (icons/locked.png if the signed-in GitHub account can't
+    push to that repo, blank otherwise — background-scanned via
+    RepoAccessScanWorker, independent of clone state). Selecting a row only updates
     the detail panel on the right — it never clones anything and never
     changes the active repo unless the selected repo is already cloned.
     Clone doesn't touch disk itself anymore (see _on_clone_clicked) — it
@@ -140,8 +142,14 @@ class ProjectEditorPage(QWidget):
         self._repo_rows: dict[str, int] = {}
         self._status_scan_token = 0
         self._status_workers: list[RepoStatusScanWorker] = []
+        self._access_scan_token = 0
+        self._access_workers: list[RepoAccessScanWorker] = []
         self._set_active_repo_callback: Callable[[str, str], None] | None = None
         self._navigate_to_submit_callback: Callable[[], None] | None = None
+
+        self._cloned_icon = QIcon(str(_ICONS_DIR / "cloned.png"))
+        self._edited_icon = QIcon(str(_ICONS_DIR / "edited.png"))
+        self._locked_icon = QIcon(str(_ICONS_DIR / "locked.png"))
 
         loader = QUiLoader()
         ui_file = QFile(str(_UI_FILE))
@@ -179,8 +187,10 @@ class ProjectEditorPage(QWidget):
         self.repo_table.setContextMenuPolicy(Qt.CustomContextMenu)
         header = self.repo_table.horizontalHeader()
         header.setSectionResizeMode(_COL_NAME, QHeaderView.Stretch)
-        header.setSectionResizeMode(_COL_STATUS, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(_COL_CLONED, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(_COL_EDITED, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(_COL_CONNECTION, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(_COL_ACCESS, QHeaderView.ResizeToContents)
 
         self.image_label.setAlignment(Qt.AlignCenter)
         self.image_label.setMinimumHeight(_PREVIEW_MAX_SIZE.height())
@@ -287,6 +297,7 @@ class ProjectEditorPage(QWidget):
 
     def _reload_repo_table(self) -> None:
         self._status_scan_token += 1
+        self._access_scan_token += 1
         self._repo_rows = {}
         table = self.repo_table
 
@@ -302,6 +313,7 @@ class ProjectEditorPage(QWidget):
         table.blockSignals(True)
         table.setRowCount(len(repos))
         scan_targets: list[tuple[str, Path]] = []
+        access_targets: list[tuple[str, str]] = []
         found_selected = False
         workspace_root = self.local_config_store.workspace_root
         for row, repo in enumerate(repos):
@@ -309,12 +321,11 @@ class ProjectEditorPage(QWidget):
             self._populate_repo_row(row, repo)
 
             cloned = self._is_repo_cloned(self._project_id, repo.id)
-            if cloned:
-                self._set_status_cell(row, "syncing")
-                if workspace_root:
-                    scan_targets.append((repo.id, Path(workspace_root) / repo.local_path))
-            else:
-                self._set_status_cell(row, "not_cloned")
+            self._set_cloned_cell(row, cloned)
+            if cloned and workspace_root:
+                scan_targets.append((repo.id, Path(workspace_root) / repo.local_path))
+
+            access_targets.append((repo.id, repo.git_url))
 
             if repo.id == self._selected_repo_id:
                 table.setCurrentCell(row, _COL_NAME)
@@ -332,6 +343,8 @@ class ProjectEditorPage(QWidget):
         self._refresh_connection_column()
         if scan_targets:
             self._start_status_scan(scan_targets)
+        if access_targets:
+            self._start_access_scan(access_targets)
 
     def _populate_repo_row(self, row: int, repo: Repo) -> None:
         table = self.repo_table
@@ -343,8 +356,10 @@ class ProjectEditorPage(QWidget):
         name_item.setFont(font)
         table.setItem(row, _COL_NAME, name_item)
 
-        table.setItem(row, _COL_STATUS, QTableWidgetItem())
+        table.setItem(row, _COL_CLONED, QTableWidgetItem())
+        table.setItem(row, _COL_EDITED, QTableWidgetItem())
         table.setItem(row, _COL_CONNECTION, QTableWidgetItem())
+        table.setItem(row, _COL_ACCESS, QTableWidgetItem())
 
     def _update_active_repo_highlight(self) -> None:
         for repo_id, row in self._repo_rows.items():
@@ -355,13 +370,19 @@ class ProjectEditorPage(QWidget):
             font.setBold(repo_id == self._active_repo_id)
             item.setFont(font)
 
-    def _set_status_cell(self, row: int, status_key: str) -> None:
-        item = self.repo_table.item(row, _COL_STATUS)
+    def _set_cloned_cell(self, row: int, cloned: bool) -> None:
+        item = self.repo_table.item(row, _COL_CLONED)
         if item is None:
             return
-        standard_icon, label = _STATUS_ICONS[status_key]
-        item.setIcon(QApplication.style().standardIcon(standard_icon))
-        item.setToolTip(label)
+        item.setIcon(self._cloned_icon if cloned else QIcon())
+        item.setToolTip("Cloned" if cloned else "")
+
+    def _set_edited_cell(self, row: int, dirty: bool) -> None:
+        item = self.repo_table.item(row, _COL_EDITED)
+        if item is None:
+            return
+        item.setIcon(self._edited_icon if dirty else QIcon())
+        item.setToolTip("Has uncommitted changes" if dirty else "")
 
     def _refresh_connection_column(self) -> None:
         """The Connection column only lights up for a row the currently
@@ -439,14 +460,63 @@ class ProjectEditorPage(QWidget):
             return  # a superseded scan (table reloaded again since) — drop it
         row = self._repo_rows.get(repo_id)
         if row is not None:
-            self._set_status_cell(row, "modified" if is_dirty else "up_to_date")
+            self._set_edited_cell(row, is_dirty)
 
     def _on_status_failed(self, token: int, repo_id: str) -> None:
         if token != self._status_scan_token:
             return
         row = self._repo_rows.get(repo_id)
         if row is not None:
-            self._set_status_cell(row, "unknown")
+            # A failed check has no evidence of a real change — leave the
+            # Edited column blank rather than guessing, same "icon or
+            # nothing, blank is the default" convention this column and
+            # Access both follow now.
+            self._set_edited_cell(row, False)
+
+    # -- background access scan ---------------------------------------------
+
+    def _set_access_cell(self, row: int, blocked: bool, tooltip: str = "") -> None:
+        item = self.repo_table.item(row, _COL_ACCESS)
+        if item is None:
+            return
+        item.setIcon(self._locked_icon if blocked else QIcon())
+        item.setToolTip(tooltip)
+
+    def _start_access_scan(self, targets: list[tuple[str, str]]) -> None:
+        token = self._access_scan_token
+        worker = RepoAccessScanWorker(
+            git_service=self.git_service, targets=targets, token=self.git_service.get_github_token()
+        )
+        worker.access_ready.connect(lambda repo_id, has_push, t=token: self._on_access_ready(t, repo_id, has_push))
+        worker.access_unknown.connect(lambda repo_id, t=token: self._on_access_unknown(t, repo_id))
+        worker.scan_finished.connect(lambda w=worker: self._on_access_scan_finished(w))
+        self._access_workers.append(worker)
+        worker.start()
+
+    def _on_access_scan_finished(self, worker: RepoAccessScanWorker) -> None:
+        if worker in self._access_workers:
+            self._access_workers.remove(worker)
+        worker.deleteLater()
+
+    def _on_access_ready(self, token: int, repo_id: str, has_push: bool) -> None:
+        if token != self._access_scan_token:
+            return  # a superseded scan (table reloaded again since) — drop it
+        row = self._repo_rows.get(repo_id)
+        if row is not None:
+            self._set_access_cell(
+                row, not has_push, "" if has_push else "No push access — ask a repo admin to add you as a collaborator"
+            )
+
+    def _on_access_unknown(self, token: int, repo_id: str) -> None:
+        if token != self._access_scan_token:
+            return
+        row = self._repo_rows.get(repo_id)
+        if row is not None:
+            # Can't be confirmed (non-github remote, no signed-in token, or
+            # a network/API error) — leave it blank rather than showing the
+            # locked icon, so "can't check" is never mistaken for
+            # "confirmed no access".
+            self._set_access_cell(row, False)
 
     # -- detail panel ------------------------------------------------------
 

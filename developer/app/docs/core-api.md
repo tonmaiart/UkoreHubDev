@@ -183,8 +183,12 @@ instead of one opaque "Discovering plugins..." step.
 
 **Misc helpers**: `relaunch_ukorehub_exe` (`core/relaunch.py`),
 `migrate_legacy_programs`, `read_project_ids` (`core/storage/metadata_store.py`),
-`fetch_avatar_bytes` (`core/auth/github_auth.py`), `check_repo_access`
-(`core/vcs/repo_access.py`), `extract_git_repo_name` (`core/vcs/paths.py`),
+`fetch_avatar_bytes` (`core/auth/github_auth.py`), `check_repo_access`,
+`get_repo_permissions` (the signed-in token's own `push`/`pull`/`admin`/...
+levels on a repo, `None` if the repo can't be seen at all — treat that the
+same as `push: False`; added for Project Editor's per-repo "can I push
+here" Access column) (`core/vcs/repo_access.py`), `extract_git_repo_name`
+(`core/vcs/paths.py`),
 `open_in_file_explorer`, `open_with_default_app` (`core/os_utils.py`),
 `GitHubCommitsApiError`, `download_bytes`, `fetch_commits_for_path`
 (`core/vcs/commits_api.py`)

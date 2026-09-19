@@ -53,7 +53,7 @@ from core.time_utils import format_relative_datetime, parse_iso_datetime
 from core.vcs.commits_api import GitHubCommitsApiError, download_bytes, fetch_commits_for_path
 from core.vcs.git_service import GitService
 from core.vcs.paths import extract_git_repo_name
-from core.vcs.repo_access import check_repo_access
+from core.vcs.repo_access import check_repo_access, get_repo_permissions
 from core.version import APP_NAME, APP_VERSION
 
 from core_api.app_core import UkoreCore
@@ -95,6 +95,7 @@ __all__ = [
     "fetch_avatar_bytes",
     "fetch_commits_for_path",
     "format_relative_datetime",
+    "get_repo_permissions",
     "migrate_legacy_programs",
     "open_in_file_explorer",
     "open_with_default_app",

@@ -181,24 +181,38 @@ class GitService:
         # \r to redraw the same line rather than \n, so splitting only on \n
         # would buffer up every tick until the next real newline and make the
         # log look frozen. Treat \r as a line boundary too for a live feed.
+        # Lines are also kept here (not just handed to on_output) so a
+        # failure can report git's actual message instead of a bare exit
+        # code — on_output's caller may log them, but the raised exception
+        # is what callers that only catch GitOperationError (e.g. Submit's
+        # "Push Failed" dialog) ever actually see.
         buffer = ""
+        lines: list[str] = []
+
+        def _emit(line: str) -> None:
+            lines.append(line)
+            if on_output:
+                on_output(line)
+
         while True:
             char = process.stdout.read(1)
             if char == "":
                 break
             if char in ("\n", "\r"):
-                if buffer and on_output:
-                    on_output(buffer)
+                if buffer:
+                    _emit(buffer)
                 buffer = ""
             else:
                 buffer += char
-        if buffer and on_output:
-            on_output(buffer)
+        if buffer:
+            _emit(buffer)
         return_code = process.wait()
         if return_code != 0:
-            raise GitOperationError(
-                f"git {' '.join(args)} failed with exit code {return_code}"
-            )
+            detail = "\n".join(lines[-20:])
+            message = f"git {' '.join(args)} failed with exit code {return_code}"
+            if detail:
+                message += f": {detail}"
+            raise GitOperationError(message)
 
     def clone(self, git_url: str, dest: Path, on_output: OutputCallback = None) -> None:
         dest = Path(dest)

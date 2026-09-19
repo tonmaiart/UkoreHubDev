@@ -173,7 +173,11 @@ construct these yourself): `GitService`, `MetadataStore`,
 plugin), see `api.debug_log_handler` above; general plugin code should use
 `logging.getLogger(__name__)` instead.
 
-**Misc helpers**: `check_repo_access` (`core/vcs/repo_access.py`),
+**Misc helpers**: `check_repo_access`, `get_repo_permissions` (the
+signed-in token's own `push`/`pull`/`admin`/... levels on a repo, `None`
+if the repo can't be seen at all — treat that the same as `push: False`;
+added for Project Editor's per-repo "can I push here" Access column)
+(`core/vcs/repo_access.py`),
 `extract_git_repo_name` (`core/vcs/paths.py`), `fetch_avatar_bytes`
 (`core/auth/github_auth.py` — `(username) -> bytes | None`, the public
 `github.com/<user>.png` URL directly, no API token/rate limit; added for
