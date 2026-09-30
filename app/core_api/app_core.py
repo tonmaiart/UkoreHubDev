@@ -109,14 +109,3 @@ class UkoreCore:
 
     def switch_active_repo(self, project_id: str, repo_id: str) -> None:
         self.local_config.set_active_repo(project_id, repo_id)
-
-    def clear_github_session(self) -> None:
-        """Clears the cached GitHub token and remembered username/login-at
-        fields — the non-Qt half of logout. Does not relaunch UkoreHub.exe;
-        that's the caller's job (interface/main_window.py's
-        _relaunch_to_login), since core/ never touches Qt or spawns
-        processes on its own."""
-        self.github_tokens.clear_token()
-        self.local_config.set_github_username(None)
-        self.local_config.set_github_login_at(None)
-        self.git.set_github_token(None)

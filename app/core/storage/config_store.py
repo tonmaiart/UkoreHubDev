@@ -72,12 +72,10 @@ class LocalConfigStore:
         self.save()
 
     def set_active_project(self, project_id: str | None) -> None:
-        """Fixes which Project this run is scoped to — called once by
-        launcher.py's mandatory Project Selector gate before MainWindow/
-        plugins are constructed, never mid-session (see
-        plugins/core/project_editor's Settings > Project tab, which only
-        offers "Switch Project" — a full app restart back through that same
-        gate, interface/main_window.py's _request_switch_project). Clears
+        """Fixes which Project this run is scoped to — normally chosen in
+        Portal (portal/main.py's project combobox) before this process starts;
+        launcher.py only calls this itself for the zero/one-project case.
+        Never called mid-session. Clears
         active_repo_id too: a repo id left over from a previously active
         project would otherwise resolve against the wrong project's registry."""
         self.active_project_id = project_id

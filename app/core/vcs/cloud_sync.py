@@ -76,6 +76,13 @@ class R2JsonSync:
         self._bucket = bucket_name
         self._etags: dict[str, str | None] = {}
 
+    def seed_etags(self, etags: dict[str, str | None]) -> None:
+        """Adopts ETags from a pull another process already did — Portal
+        (portal/cloud_sync.py) pulls every shared blob before launcher.py
+        starts, so push() can still send the right precondition without
+        this process pulling everything a second time."""
+        self._etags.update(etags)
+
     def pull(self, blob_name: str, local_path: Path) -> str | None:
         """Downloads blob_name to local_path, returns its ETag. If the
         blob doesn't exist yet (fresh studio setup, nobody has pushed this

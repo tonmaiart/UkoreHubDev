@@ -149,6 +149,24 @@ step, unlike the retired Google OAuth design:
   (storing them there would be circular, and would also mean every
   artist's local synced-file cache carries the master key in plaintext).
 
+## Portal owns the launch-time pull (2026-09-30)
+
+`portal/cloud_sync.py` (Portal is unfrozen `pythonw`, so importing
+`boto3` there doesn't touch the exe bundle — keep it imported before
+PySide6, same as `app/launcher.py`) pulls every fixed blob +
+`projects/<id>.json` right after GitHub login, *before* Portal's project
+picker (a combobox in `portal/UkoreHubPortal.ui` — the app has no
+selector anymore)
+and plugin update (`portal/plugin_update.py`). It's pull-only: it writes
+every ETag it saw to `cache/cloud_etags.json` and passes that path to
+`app/launcher.py` as `UKOREHUB_CLOUD_ETAGS`, which calls
+`R2JsonSync.seed_etags()` instead of pulling again, so the app's
+`push()` still sends the right `If-Match`. `UKOREHUB_CLOUD_ETAGS=""`
+means Portal couldn't reach R2 → app runs local-only; unset (the
+`python launcher.py` dev path) → app pulls itself, as before. Add a new
+eagerly-pulled blob in **both** places. Lazily-pulled data
+(`shared=True` plugin configs, thumbnails/icons) is still the app's job.
+
 ## Conflict handling — `R2JsonSync.pull`/`push`
 
 These stores are still naive whole-file JSON blobs (not a real per-record

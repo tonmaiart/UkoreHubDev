@@ -363,6 +363,24 @@ despite sharing the string) is gone along with the rest of that plugin's
 `manifest.json` — nothing else in the app declared it as a `requires`
 target, so no dependency-graph fallout.
 
+**Auto-sync moved to Portal (2026-09-30):** `_SyncController`,
+`sync_worker.py`, and the "Force update and restart UkoreHub" popup are
+**gone** — per the user's own request, since restarting right after launch
+made no sense. `portal/plugin_update.py` now runs after sign-in, right
+before Portal spawns `app/launcher.py`: fetch + `merge --ff-only` for
+every clone under `cache/plugins/` (never resets — a clone with local
+commits/edits just fails the fast-forward, is logged, and is left as-is),
+plus clone-if-missing for catalog entries required by the active
+project's locally-cloned repos (and the active repo), read from
+`data/projects/<id>.json` — which Portal itself has just pulled from R2
+(`portal/cloud_sync.py`), for the project just picked in Portal's own
+project combobox (`portal/main.py`'s `_on_cloud_synced`). What's left here:
+`_backfill_catalog_plugin_ids` on `on_app_start` (Portal needs
+`CatalogEntry.plugin_id` set to map required ids to entries),
+`sync_engine.py` trimmed to the status constants the Updater page still
+reads, and the manual Settings > Account > Plugins tab, unchanged. The
+paragraph below is history.
+
 **What moved into `plugin.py`:** `_SyncController` (byte-for-byte the same
 class, just built with an injected `catalog` param now instead of
 constructing its own) is built once in `register()` and subscribed to

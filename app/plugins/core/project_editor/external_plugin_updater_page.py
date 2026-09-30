@@ -121,9 +121,8 @@ class _StatusCheckSignals(QObject):
 class _StatusCheckTask(QRunnable):
     """One catalog entry's "Check for Status" network call, run on a
     QThreadPool worker thread so many entries can be checked in parallel
-    instead of one at a time. Mirrors sync_engine.sync_entry's read-only
-    fetch + ahead/behind + working-tree checks, but never clones/pulls/
-    force-syncs anything itself."""
+    instead of one at a time. Read-only fetch + ahead/behind + working-tree
+    checks — never clones/pulls/force-syncs anything itself."""
 
     def __init__(self, git_service: GitService, local_path: Path, entry_id: str, signals: _StatusCheckSignals):
         super().__init__()

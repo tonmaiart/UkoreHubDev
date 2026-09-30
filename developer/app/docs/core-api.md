@@ -129,14 +129,13 @@ core = UkoreCore(
 | `core.local_config` | `LocalConfigStore` | Per-machine settings. |
 | `core.hooks` | `AppLifecycleHooks` | App-start/repo-changed/app-close subscriber lists — `PluginAPI.on_app_start`/etc. delegate here. |
 | `core.git` | `GitService` | Git subprocess wrapper. |
-| `core.github_tokens` | `SecureTokenStore` | Cached GitHub token — read only for logout (`clear_github_session`); never used to authenticate anything itself. |
+| `core.github_tokens` | `SecureTokenStore` | Cached GitHub token — `launcher.py` loads it once to hand to `git`; login/logout both live in Portal now (logout moved there 2026-09-30, `clear_github_session()` removed). |
 | `core.debug_log_handler` | `object \| None` (really `interface_api.QtLogHandler`) | Shared handler DebugConsole's page reads/subscribes to — `None` if not wired up. DebugConsole is now an external plugin under `cache/plugins/DebugConsole/`. |
 
 | Method | Notes |
 |---|---|
 | `get_active_workspace()` | Returns `(Project \| None, Repo \| None)` the `local_config` currently points at, or `(None, None)` if nothing's active/resolvable. |
 | `switch_active_repo(project_id, repo_id)` | Sets the active repo on `local_config`. |
-| `clear_github_session()` | Non-Qt half of logout: clears cached token + remembered username/login-at, resets `git`'s token. Does not relaunch `UkoreHub.exe` — that's the caller's job (`interface/main_window.py`'s `_relaunch_to_login`). |
 
 **Deliberately never imports `core.vcs.cloud_sync`** — `on_save`/`on_delete`
 callbacks are passed in from `launcher.py` instead (see "What's

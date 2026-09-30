@@ -15,13 +15,13 @@ class CatalogEntry:
     git_url: str
     folder_name: str
     # Cache of "what PluginManifest.id does this entry produce once cloned"
-    # — unknown (None) until this session's sync engine (sync_engine.py) or
-    # the Repository Settings manual clone-on-check flow has actually
-    # cloned it and read its manifest.json once. Needed because
+    # — unknown (None) until plugin.py's _backfill_catalog_plugin_ids or
+    # the Repository Settings manual clone-on-check flow has seen it
+    # cloned and read its manifest.json once. Needed because
     # Repo.required_plugin_ids stores manifest ids, not this entry's own
     # uuid id, and a machine that has never cloned this entry has no other
     # way to map a required manifest id back to its git_url/folder_name.
-    # See sync_engine.py's resolve_required_entries.
+    # See portal/plugin_update.py's _missing_required_entries.
     plugin_id: str | None = None
 
 
@@ -31,10 +31,10 @@ def _is_safe_folder_name(folder_name: str) -> bool:
 
 class ExternalPluginCatalog:
     """The active Project's own catalog of cache/plugins/ repo plugins
-    (cloned or not) — CRUD (Project Database tab, project_database_page.py),
-    the auto-sync engine (sync_engine.py/sync_worker.py), and the "Plugins"
-    Settings > Account status tab (external_plugin_updater_page.py) all
-    share one instance of this class, built once in plugin.py's register().
+    (cloned or not) — CRUD (Project Database tab, project_database_page.py)
+    and the "Plugins" Settings > Account status tab
+    (external_plugin_updater_page.py) share one instance of this class,
+    built once in plugin.py's register().
 
     Used to be plugins/core/ExternalPluginManager/'s own catalog_store.py,
     with this file carrying a deliberate local duplicate (same

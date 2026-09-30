@@ -28,7 +28,7 @@ interface/      [CLOSED] PySide6 GUI shell — MainWindow, shared widgets,
 interface_api/  [FACADE] the only thing allowed to reach into interface/.
                  Flat re-export module — no composition class, since
                  interface/ already has its own (MainWindow).
-launcher.py     imports MainWindow/ProjectSelectorDialog/apply_theme/
+launcher.py     imports MainWindow/apply_theme/
                  register_builtin_settings_tabs FROM interface_api, calls
                  each at its own existing call site (see "Why not a single
                  composition facade" below).
@@ -50,10 +50,12 @@ construction into one `__init__`, called once near the end of
 `launcher.py`. Rejected — it doesn't match what `launcher.py` actually
 does:
 
-- `apply_theme()` runs **before** the `ProjectSelectorDialog` gate (so
-  that dialog itself renders themed) — a single bundled facade called
-  once, near `MainWindow` construction, would apply the theme *after*
-  that dialog might already show.
+- `apply_theme()` runs **before** the no-project error gate (so that
+  message box renders themed) — a single bundled facade called once, near
+  `MainWindow` construction, would apply the theme *after* it might
+  already show. (The Project picker itself moved out to Portal,
+  a combobox in `portal/UkoreHubPortal.ui`, 2026-09-30 — `ProjectSelectorDialog` is
+  gone from `interface/`.)
 - `register_builtin_settings_tabs()` runs **before** the plugin-apply
   loop, so a plugin can never silently win a `SettingsTabRegistry` key
   collision against a builtin tab by registering later. Bundling it into
@@ -68,9 +70,8 @@ where it already does; only the import source changed.
 Everything below is importable as `from interface_api import X` — never
 `from interface.xxx import X` in `launcher.py` or `plugin_api/__init__.py`.
 
-**App composition** (`interface/main_window.py`, `interface/project_selector_dialog.py`):
-`MainWindow`, `ProjectSelectorDialog` — `launcher.py`-only, `plugin_api`
-does not re-export these.
+**App composition** (`interface/main_window.py`): `MainWindow` —
+`launcher.py`-only, `plugin_api` does not re-export it.
 
 **Theme** (`interface/theme.py`, `interface/theme_apply.py`):
 `DEFAULT_THEME_NAME`, `get_theme`, `apply_theme` — `apply_theme` is

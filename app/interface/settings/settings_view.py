@@ -177,7 +177,7 @@ class SettingsView(QWidget):
     def get_tab_widget(self, key: str) -> QWidget | None:
         """Looks up a constructed settings page by its SettingsTabSpec key —
         e.g. so MainWindow can connect to a signal a specific built-in page
-        exposes (CommonSettingsPage.logout_requested) without SettingsView
+        exposes (CommonSettingsPage.back_to_portal_requested) without SettingsView
         needing to know about that page's internals itself."""
         return self._tab_widgets.get(key)
 
@@ -227,7 +227,7 @@ class SettingsDialog(QDialog):
     def get_tab_widget(self, key: str) -> QWidget | None:
         """Looks up a constructed settings page by its SettingsTabSpec key —
         e.g. so MainWindow can connect to a signal a specific built-in page
-        exposes (CommonSettingsPage.logout_requested) without SettingsView
+        exposes (CommonSettingsPage.back_to_portal_requested) without SettingsView
         needing to know about that page's internals itself."""
         return self.view.get_tab_widget(key)
 

@@ -453,11 +453,30 @@ def main() -> None:
     # there's nothing per-project to pull — MetadataStore.load()'s one-time
     # migration handles that locally and pushes the new blobs itself once
     # constructed below.
+    #
+    # Portal (portal/cloud_sync.py) normally does this whole pull before
+    # spawning this process and hands over the ETags it saw via
+    # UKOREHUB_CLOUD_ETAGS, so push() below still gets the right If-Match
+    # precondition without pulling everything twice. An empty value means
+    # Portal couldn't reach the cloud this launch — stay local-only rather
+    # than timing out a second time. Unset means Portal didn't launch this
+    # at all (the `python launcher.py` dev path), so pull here as before.
+    portal_etags = os.environ.get("UKOREHUB_CLOUD_ETAGS")
     _report_status("Connecting to cloud sync...")
     cloud_sync = _build_cloud_sync(data_dir, appdata_dir)
     if cloud_sync is None:
         print("UkoreHub: cloud sync not configured on this machine — shared data stays local-only.")
         cloud_sync_logger.warning("not configured on this machine — shared data stays local-only")
+    elif portal_etags == "":
+        cloud_sync_logger.warning("Portal couldn't reach cloud sync this launch — shared data stays local-only")
+        cloud_sync = None
+    elif portal_etags is not None:
+        try:
+            cloud_sync.seed_etags(json.loads(Path(portal_etags).read_text(encoding="utf-8")))
+            cloud_sync_logger.info("using Portal's cloud pull from this launch")
+        except (OSError, ValueError) as exc:
+            cloud_sync_logger.warning(f"Portal's cloud pull unavailable this run ({exc}) — shared data stays local-only")
+            cloud_sync = None
     else:
         _report_status("Syncing shared data from cloud...")
         try:
@@ -620,34 +639,25 @@ def main() -> None:
 
     apply_theme(app, local_config_store.theme)
 
-    # Project must be fixed for the whole session before plugins/MainWindow
-    # are constructed — every page downstream (Program Database, Software
-    # Linker, Project Editor's Viewgraph, ...) now assumes
-    # local_config_store.active_project_id already points at a real
-    # project, with no in-app way to change it to a *different* one at
-    # all — UkoreHub is designed to launch into one project only, so a
-    # different project means a full relaunch back through this same gate
-    # (there used to be a "Switch Project..." button in Settings that did
-    # this in-app via interface/main_window.py's _request_switch_project —
-    # removed 2026-09-01 along with the rest of
-    # plugins/core/project_editor/project_settings_page.py, per the user's
-    # own call that switching wasn't the app's job to begin with). Skipped
-    # entirely — no dialog shown — when the remembered active_project_id
-    # already resolves, or when there's at most one project to begin with
-    # (nothing to actually choose), so an ordinary day-to-day launch stays
-    # a single click through the GitHub gate above, same as before this
-    # existed.
+    # Project is picked in Portal (portal/main.py's project combobox) before this
+    # process is spawned, and fixed for the whole session — every page
+    # downstream assumes local_config_store.active_project_id already points
+    # at a real project, and switching means relaunching back through
+    # Portal. With zero/one project there's nothing to choose, so that case
+    # (and the Portal-less `python launcher.py` dev path) is settled here.
     existing_project_ids = {project.id for project in store.list_projects()}
     if local_config_store.active_project_id not in existing_project_ids:
         if len(existing_project_ids) <= 1:
             local_config_store.set_active_project(next(iter(existing_project_ids), None))
         else:
-            from interface_api import ProjectSelectorDialog
-
-            selector = ProjectSelectorDialog(store.list_projects())
-            if not selector.exec():
-                sys.exit(0)
-            local_config_store.set_active_project(selector.selected_project_id())
+            QMessageBox.critical(
+                None,
+                "No Project Selected",
+                "Choose a project in UkoreHub Portal before opening UkoreHub.\n\n"
+                "UkoreHub will now reopen Portal.",
+            )
+            relaunch_ukorehub_exe(REPO_ROOT)
+            sys.exit(1)
 
     # Reconcile Repo.status against disk for the active project — picks up
     # a repo folder an artist copy-pasted into the workspace root directly

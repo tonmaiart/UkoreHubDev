@@ -7,6 +7,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QFile, QSize, Qt
 from PySide6.QtGui import QPixmap
+from PySide6.QtNetwork import QLocalServer
 from PySide6.QtUiTools import QUiLoader
 from PySide6.QtWidgets import (
     QApplication,
@@ -32,9 +33,21 @@ from plugin_api import UICommandService, UIRegistryManager
 import subprocess
 
 # interface/main_window.py -> interface/ -> repo root — used only to find
-# UkoreHub.exe for _relaunch_to_login (the launcher exe built at the repo
+# UkoreHub.exe for relaunching into Portal (the launcher exe built at the repo
 # root by build_exe.py (UkoreHubLauncher repo)).
 _REPO_ROOT = Path(__file__).resolve().parent.parent
+_SHOW_PROJECT_PICKER_MARKER = "portal_show_project_picker"
+
+
+def _release_singleton_server() -> None:
+    # launcher.py's single-instance QLocalServer ("UkoreHubApp", parented
+    # to the QApplication) must stop listening *before* relaunching the exe:
+    # QApplication.quit() only exits once control returns to the event loop,
+    # and a dev-checkout exe reaches Portal fast enough that Portal's
+    # _raise_existing_app_instance would still find this process answering,
+    # "raise" it, and exit — leaving nothing on screen once this one quits.
+    for server in QApplication.instance().findChildren(QLocalServer):
+        server.close()
 
 # Sidebar + view_stack shell, authored in Qt Designer and loaded at runtime
 # instead of being built widget-by-widget in code — same QUiLoader pattern
@@ -77,10 +90,6 @@ class MainWindow(QMainWindow):
         self.store = core.metadata
         self.local_config_store = core.local_config
         self.git_service = core.git
-        # Only used for logout (clearing the cached token) — login itself
-        # happens entirely in the launcher exe now, see
-        # updater.py (UkoreHubLauncher repo) and _on_logout_requested below.
-        self._token_store = core.github_tokens
         self._cache_dir = Path(cache_dir)
         self.hook_registry = core.hooks
         self.section_registry = registries.sections
@@ -322,11 +331,10 @@ class MainWindow(QMainWindow):
             return
         common_settings_page = dialog.view.get_tab_widget(builtin_settings_tabs.COMMON)
         if common_settings_page is not None:
-            common_settings_page.logout_requested.connect(self._on_logout_requested)
-            # Logging out closes the whole app (see _on_logout_requested) —
-            # close the dialog itself too rather than leaving it floating
-            # over nothing.
-            common_settings_page.logout_requested.connect(dialog.accept)
+            common_settings_page.back_to_portal_requested.connect(self._on_back_to_portal_requested)
+            # Going back to Portal closes the whole app — close the dialog
+            # itself too rather than leaving it floating over nothing.
+            common_settings_page.back_to_portal_requested.connect(dialog.accept)
             common_settings_page.restart_requested.connect(self._on_restart_requested)
         if select_key is not None:
             dialog.select_tab(select_key)
@@ -508,36 +516,21 @@ class MainWindow(QMainWindow):
             AppLifecycleContext(project=self._active_project, repo=self._active_repo, repo_path=repo_path)
         )
 
-    # -- GitHub logout ----------------------------------------------------
+    # -- back to Portal -------------------------------------------------------
 
-    def _on_logout_requested(self) -> None:
-        # Login/token-caching moved entirely to the launcher exe (see
-        # updater.py (UkoreHubLauncher repo)) — there's no in-app login gate to
-        # send the user back to, so "logout" here means: clear the cached
-        # token + username, then close this app and reopen the launcher
-        # exe, whose own login step will show the GitHub login screen again
-        # since the token is now gone.
-        self._token_store.clear_token()
-        self.local_config_store.set_github_username(None)
-        self.local_config_store.set_github_login_at(None)
-        self.setting_button.setText("")
-        self._relaunch_to_login()
-
-    @staticmethod
-    def _relaunch_to_login() -> None:
-        # relaunch_ukorehub_exe (core/relaunch.py) owns the _PYI_-env-var
-        # stripping needed here (see the ukorehub-interface skill) — shared
-        # with launcher.py's own mandatory login gate, see that module's
-        # docstring.
+    def _on_back_to_portal_requested(self) -> None:
+        # Relaunches the exe (-> Portal) without touching the GitHub
+        # session. The marker file tells Portal to show its project picker
+        # even with only one project (it normally skips it then) — Portal
+        # deletes it once read. Keep the name in sync with
+        # portal/main.py's _SHOW_PROJECT_PICKER_MARKER.
+        (self._cache_dir / _SHOW_PROJECT_PICKER_MARKER).write_text("", encoding="utf-8")
+        _release_singleton_server()
         if not relaunch_ukorehub_exe(_REPO_ROOT):
-            # Dev environment running via `python launcher.py` directly,
-            # with no built exe next to it — there's no login UI left in
-            # the plain-Python app to fall back to (see root README.md's
-            # "Running" section), so just tell the user what to do.
             QMessageBox.information(
                 None,
-                "Logout",
-                "Logged out. Run UkoreHub.exe to log back in.",
+                "Go Back To Portal",
+                "No UkoreHubLauncher.exe found next to this install — run it to open Portal.",
             )
         QApplication.quit()
 
@@ -551,20 +544,19 @@ class MainWindow(QMainWindow):
         # plugins/core/project_editor's Settings > Project "Switch
         # Project..." button, via UICommandService.switch_project. Project is
         # fixed for the whole run (LocalConfigStore.active_project_id, set
-        # once by launcher.py's mandatory Project Selector gate before this
-        # window was even built) — every page downstream assumed it
+        # once by Portal's project picker, portal/main.py's _on_cloud_synced, before
+        # this process was even spawned) — every page downstream assumed it
         # couldn't change under them, so the only honest way to view a
-        # different one is the same real restart _on_logout_requested uses
-        # for a changed identity, not an in-place swap. clear_active_repo()
-        # resets both active_project_id and active_repo_id so the restarted
-        # process's launcher.py gate sees nothing remembered and shows the
-        # picker again instead of silently re-selecting this same project.
+        # different one is a real restart, not an in-place swap. clear_active_repo()
+        # resets both active_project_id and active_repo_id so Portal's picker
+        # (reached via the exe relaunch) has nothing preselected.
         self.local_config_store.clear_active_repo()
         self._restart_app()
 
     @staticmethod
     def _restart_app() -> None:
         # Restart app via Launcher Only to ensure auto-update is working.
+        _release_singleton_server()
         if not relaunch_ukorehub_exe(_REPO_ROOT):
             # สำรองไว้สำหรับ Developer ที่รัน python launcher.py ตรงๆ ในโฟลเดอร์ app
             subprocess.Popen([sys.executable, *sys.argv], cwd=str(_REPO_ROOT))

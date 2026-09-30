@@ -72,8 +72,8 @@ file that threads all of it together.
   never depends on `interface/`).
 - `theme_apply.py` — applies a Fusion style + a hand-built dark `QPalette`
   once on the `QApplication` (no third-party theming library anymore — see
-  "Zero QSS Policy" below); used only by `launcher.py`, before the
-  `ProjectSelectorDialog` gate. `theme_name` is still accepted as a
+  "Zero QSS Policy" below); used only by `launcher.py`, before its
+  no-project error gate. `theme_name` is still accepted as a
   parameter for call-site/persisted-config compatibility but no longer
   selects anything (`THEMES` only ever had the one dark entry).
 
@@ -124,14 +124,15 @@ stylesheet string:
   register themselves from `plugins/core/`, not from here) and registers
   them into `plugin_api`'s `SettingsTabRegistry`, exactly as a plugin would
   register its own.
-- `project_selector_dialog.py` — `ProjectSelectorDialog`: the mandatory
-  pre-`MainWindow` gate for which Project this run is scoped to, shown by
-  `launcher.py` (only when `LocalConfigStore.active_project_id` doesn't
-  already resolve and there's more than one project to choose from). Once
-  chosen, Project is fixed for the whole run — no page anywhere else can
-  change it again; only a real restart back through this same gate can
-  (`plugins/core/project_editor`'s Settings > Project "Switch Project...",
-  `MainWindow._request_switch_project`).
+- `project_selector_dialog.py` — **removed 2026-09-30**: the Project
+  picker moved to Portal (`comboBox_project` in `portal/UkoreHubPortal.ui`, driven by
+  `portal/main.py`'s `_on_cloud_synced`), which shows it on
+  every launch with more than one project, before cloud pull results are
+  used for the plugin update and before `launcher.py` is spawned.
+  `launcher.py` now only auto-picks the zero/one-project case and
+  otherwise shows an error and relaunches the exe (back into Portal).
+  Project is still fixed for the whole run; `MainWindow._request_switch_project`
+  still works by relaunching into Portal.
 
 Note: `section_registry.py`/`settings_tab_registry.py`/
 `sidebar_footer_action_registry.py`/`registry_base.py`/
@@ -236,11 +237,13 @@ single shared R2 key is baked into `UkoreHubLauncher.exe` (see the
   `QDialogButtonBox`) closes `SettingsDialog`. `get_tab_widget(key)` is the
   public escape hatch for reaching a specific constructed page from
   outside — `main_window.py` uses it to connect
-  `CommonSettingsPage.logout_requested`.
+  `CommonSettingsPage.back_to_portal_requested`.
 - `common_settings_page.py` — account info (avatar, GitHub username, login
-  date), workspace folder (read-only), Logout button (clears cached
-  token/username/login-date via `core_api`'s `SecureTokenStore` and
-  relaunches `UkoreHub.exe`), Restart button (`os.execv` re-exec).
+  date), workspace folder (read-only), "Go Back To Portal" button
+  (replaced Logout 2026-09-30 — keeps the GitHub session, writes a
+  `cache/portal_show_project_picker` marker and relaunches the exe, so
+  Portal forces its project picker open even with one project; see
+  `MainWindow._on_back_to_portal_requested`), Restart button (`os.execv` re-exec).
   `CATEGORY_GENERAL`.
 - `github_oauth_settings_page.py` — `GithubOAuthSettingsPage`: just the
   GitHub OAuth Client ID field — studio-admin plumbing, still needed since
@@ -332,11 +335,12 @@ even spawned — by the time `launcher.py` constructs `GitService`, it just
 loads whatever token the launcher already cached and calls
 `git_service.set_github_token(...)`.
 
-`MainWindow` still shows the signed-in username (`Sidebar.account_label`)
-and still owns logout (`Settings > Common`'s Logout button) — but logout
-here doesn't tear down any in-app UI: it clears the cached token/username
-via `SecureTokenStore` and relaunches `UkoreHub.exe`, whose own login step
-shows the GitHub login screen again.
+`MainWindow` still shows the signed-in username (`Sidebar.account_label`).
+There is no in-app logout anymore (2026-09-30) — Settings > Account's
+Logout button was replaced by "Go Back To Portal", which relaunches into
+Portal without clearing the token. Logout itself lives in Portal
+(`pushButton_logout`, shown next to the project combobox — "Go Back To
+Portal" always forces that step open, so it's always reachable).
 
 ## Testing conventions
 

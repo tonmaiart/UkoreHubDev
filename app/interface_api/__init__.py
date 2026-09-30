@@ -9,14 +9,14 @@ Flat re-export module, not a composition class — unlike core_api/plugin_api,
 interface/ already has its own composition object (MainWindow), so there's
 nothing to wrap. Bundling apply_theme/register_builtin_settings_tabs/
 MainWindow into a single facade class was considered and rejected: real
-launcher.py calls apply_theme() before the ProjectSelectorDialog gate, and
+launcher.py calls apply_theme() before its no-project error gate, and
 calls register_builtin_settings_tabs() before the plugin-apply loop (so a
 plugin can't silently win a SettingsTabRegistry key collision against a
 builtin tab) — both orderings a single bundled __init__ would have to
 either hard-code or break. A flat facade lets launcher.py keep calling
 each piece exactly where it already does, unchanged.
 
-Re-exports MainWindow/ProjectSelectorDialog/theme helpers/
+Re-exports MainWindow/theme helpers/
 register_builtin_settings_tabs (launcher.py's needs) plus the
 interface/shared/* widgets and interface/theme.py helpers that
 app/plugins/core/**'s pages use (plugin_api/__init__.py re-exports these
@@ -29,8 +29,8 @@ and interface.builtin_settings_tabs both transitively import plugin_api
 (MainWindow needs UIRegistryManager; register_builtin_settings_tabs needs
 SettingsTabSpec/CATEGORY_*), and plugin_api/__init__.py imports back from
 this module — a straight circular import. Every symbol plugin_api actually
-re-exports from here (everything except MainWindow/ProjectSelectorDialog/
-apply_theme/register_builtin_settings_tabs, which plugin_api never needs)
+re-exports from here (everything except MainWindow/apply_theme/
+register_builtin_settings_tabs, which plugin_api never needs)
 must already be bound on this partially-initialized module *before* the
 main_window/builtin_settings_tabs imports run, so plugin_api's `from
 interface_api import ...` finds them already set. Add a new plugin-facing
@@ -38,7 +38,6 @@ re-export above the main_window/builtin_settings_tabs imports, not below.
 """
 from __future__ import annotations
 
-from interface.project_selector_dialog import ProjectSelectorDialog
 from interface.qt_log_handler import QtLogHandler, configure_app_logging
 from interface.shared.commit_history import (
     CommitCard,
@@ -75,7 +74,6 @@ __all__ = [
     "DEFAULT_THEME_NAME",
     "MainWindow",
     "ProgramDialog",
-    "ProjectSelectorDialog",
     "QtLogHandler",
     "RequirementsTreeWidget",
     "apply_theme",

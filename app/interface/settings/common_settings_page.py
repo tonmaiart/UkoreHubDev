@@ -44,13 +44,11 @@ def _format_login_at(raw: str | None) -> str:
 
 
 class CommonSettingsPage(QWidget):
-    # MainWindow connects this to _on_logout_requested (also closing the
-    # dialog itself, since logout closes the whole app — see that method's
-    # docstring for why: login/token-caching now lives in the launcher exe,
-    # not here, so "logging out" means clearing the cached token and
-    # relaunching to the launcher's login screen, not just tearing down
-    # some in-app gate).
-    logout_requested = Signal()
+    # MainWindow connects this to _on_back_to_portal_requested (also closing
+    # the dialog itself, since it closes the whole app). Replaced the old
+    # Logout button: same relaunch into Portal, but the GitHub session is
+    # kept and Portal's project picker is forced open.
+    back_to_portal_requested = Signal()
     # MainWindow connects this to the same os.execv restart MainWindow's
     # own "Update and Restart" sidebar button already uses (see
     # _on_update_and_restart/_restart_app) — this one just restarts, no
@@ -89,8 +87,8 @@ class CommonSettingsPage(QWidget):
         # (forced in launcher.py) — shown here read-only, no Browse option.
         self.workspace_label = QLabel(local_config_store.workspace_root or "")
 
-        self.logout_button = QPushButton("Logout")
-        self.logout_button.clicked.connect(self.logout_requested.emit)
+        self.back_to_portal_button = QPushButton("Go Back To Portal")
+        self.back_to_portal_button.clicked.connect(self.back_to_portal_requested.emit)
 
         self.restart_button = QPushButton("Restart")
         self.restart_button.clicked.connect(self.restart_requested.emit)
@@ -98,7 +96,7 @@ class CommonSettingsPage(QWidget):
         form = QFormLayout(self)
         form.addRow("Account:", account_row)
         form.addRow("Workspace folder:", self.workspace_label)
-        form.addRow("Logout:", self.logout_button)
+        form.addRow("Portal:", self.back_to_portal_button)
         form.addRow("Application:", self.restart_button)
 
         if username:
