@@ -101,7 +101,15 @@ buttons at the top of the file table are the only navigation aids now.)
   Explorer was open).
   Right-clicking a row opens a context menu (Add this to bookmarks/Copy
   Name/Copy File Relative Path/Copy File Absolute Path/Rename/Delete) via
-  `_on_table_context_menu`;
+  `_on_table_context_menu`. Both table menus (row and empty-area, below)
+  end with any plugin entries from `api.file_context_action_registry`
+  (`file_context_actions` ctor param, passed by `RepoBrowserPage`; added
+  2026-10-18 — see `plugin-api.md`'s `FileContextActionSpec`), e.g.
+  MayaPublisher's "Add to Maya Publish Queue". The row menu hands them
+  `_context_paths(clicked)` (the whole multi-row selection if the click is
+  inside it, else just the clicked row); the empty-area menu hands them
+  `[_current_path]`. The built-in row actions still act on the clicked row
+  only;
   right-clicking blank space in the table (no row under the cursor) falls
   through to `_on_empty_area_context_menu` instead, whose Create New
   Folder/Rename Folder/Delete Folder act on the currently open folder

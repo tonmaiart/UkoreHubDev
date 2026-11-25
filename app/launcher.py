@@ -61,14 +61,14 @@ os.environ["UKOREHUB_APP_ROOT"] = str(REPO_ROOT)
 # REPO_ROOT-relative — a problem for Update, which replaces this whole app/
 # folder (see UkoreHubLauncher's README.md): anything left inside it is
 # either wiped or, worse, silently orphaned next to the new copy. Sourced
-# from env vars instead so the real launcher exe (UkoreHub.exe, built from
-# the separate UkoreHubLauncher repo) can point them at a path outside app/
-# before spawning this file — same UKOREHUB_-prefixed convention as
+# from env vars instead so Portal (portal/main.py, spawned by
+# UkoreHubLauncher.exe) can point them at a path outside app/ before
+# spawning this file — same UKOREHUB_-prefixed convention as
 # core/vcs/git_service.py's UKOREHUB_GITHUB_TOKEN. Falls back to a folder
 # under the user's own Documents (never REPO_ROOT — see root CLAUDE.md's
 # "program folder stays program-only" rule) only for the `python launcher.py`
-# direct-invocation dev path, which bypasses UkoreHub.exe entirely and so
-# never gets these set.
+# direct-invocation dev path, which bypasses Portal entirely and so never
+# gets these set.
 USER_DATA_DIR = Path.home() / "Documents" / "UkoreHub"
 CACHE_DIR = (
     Path(os.environ["UKOREHUB_CACHE_DIR"]) if os.environ.get("UKOREHUB_CACHE_DIR") else USER_DATA_DIR / "cache"
@@ -85,27 +85,38 @@ DATA_DIR = Path(os.environ["UKOREHUB_DATA_DIR"]) if os.environ.get("UKOREHUB_DAT
 # UKOREHUB_APP_ROOT (not yet done for any of them — separate follow-up).
 os.environ["UKOREHUB_DATA_DIR"] = str(DATA_DIR)
 
-REQUIRED_PACKAGES = [
-    ("PySide6", "PySide6>=6.7,<7.0"),
-    ("keyring", "keyring>=24.0"),
-    ("boto3", "boto3>=1.36.0"),
-]
+# Import names only — version specs live solely in requirements.txt, which
+# is what gets installed when any of these is missing.
+REQUIRED_IMPORTS = ("PySide6", "keyring", "boto3")
 
 GIT_DOWNLOAD_URL = "https://github.com/git-for-windows/git/releases/download/v2.55.0.windows.3/Git-2.55.0.3-64-bit.exe"
 
+# The literals below are a contract with portal/, which can't import this
+# file — developer/app/tests/test_portal_app_contract.py checks each one
+# against its portal/ counterpart.
+#
 # Named-pipe server this process listens on so portal/main.py can detect an
 # already-running instance and raise its window instead of spawning a
 # duplicate (see main()'s QLocalServer setup below and
-# portal/main.py's _raise_existing_app_instance). Keep this string in sync
-# with portal/main.py's own _APP_SINGLETON_SERVER_NAME.
+# portal/main.py's _raise_existing_app_instance). Must match
+# portal/main.py's _APP_SINGLETON_SERVER_NAME.
 SINGLETON_SERVER_NAME = "UkoreHubApp"
 
 # Prefix portal/main.py's _AppLaunchWaiter looks for on each stdout line to
 # keep its own loading label live while this process does its slow
 # pre-window startup work (cloud sync, plugin discovery, ...) below — see
-# _report_status. Keep this literal in sync with portal/main.py's own
-# _APP_STATUS_PREFIX.
+# _report_status. Must match portal/main.py's _APP_STATUS_PREFIX.
 _APP_STATUS_PREFIX = "UKOREHUB_APP_STATUS:"
+
+# Printed by _reveal_window once MainWindow is shown — portal/main.py's
+# _AppLaunchWaiter closes Portal's window when it sees this line. Must
+# match portal/main.py's _APP_READY_MARKER.
+_APP_READY_MARKER = "UKOREHUB_APP_WINDOW_READY"
+
+# Pulled eagerly at launch, before any store is constructed. Must match
+# portal/cloud_sync.py's _FIXED_BLOBS — Portal normally does this pull
+# instead, see main().
+_SHARED_FIXED_BLOBS = ("projects.json", "programs.json", "system_config.json")
 
 
 def _report_status(message: str) -> None:
@@ -116,24 +127,27 @@ def _report_status(message: str) -> None:
     print(f"{_APP_STATUS_PREFIX}{message}", flush=True)
 
 
+def _is_importable(import_name: str) -> bool:
+    try:
+        # find_spec on a dotted name tries to import the parent package
+        # first — if that parent isn't installed at all yet, it raises
+        # ModuleNotFoundError instead of just returning None, so that
+        # case needs its own catch too.
+        return importlib.util.find_spec(import_name) is not None
+    except ModuleNotFoundError:
+        return False
+
+
 def ensure_dependencies() -> None:
-    for import_name, pip_spec in REQUIRED_PACKAGES:
-        try:
-            # find_spec on a dotted name tries to import the parent package
-            # first — if that parent isn't installed at all yet, it raises
-            # ModuleNotFoundError instead of just returning None, so that
-            # case needs its own catch too.
-            found = importlib.util.find_spec(import_name) is not None
-        except ModuleNotFoundError:
-            found = False
-        if found:
-            continue
-        print(f"UkoreHub: installing missing dependency '{pip_spec}'...")
-        subprocess.run([sys.executable, "-m", "pip", "install", pip_spec], check=True)
+    missing = [name for name in REQUIRED_IMPORTS if not _is_importable(name)]
+    if not missing:
+        return
+    print(f"UkoreHub: installing missing dependencies {missing} from requirements.txt...")
+    subprocess.run([sys.executable, "-m", "pip", "install", "-r", str(REPO_ROOT / "requirements.txt")], check=True)
 
 
-# Presence checks only — no auto-install. UkoreHub.exe (updater.py in the
-# UkoreHubLauncher repo) already checks/updates before this file is ever
+# Presence checks only — no auto-install. Portal (portal/main.py, spawned
+# by UkoreHubLauncher.exe) already checks/updates before this file is ever
 # spawned; these only matter for the `python launcher.py` direct-invocation
 # dev path, which bypasses that exe entirely.
 
@@ -144,6 +158,16 @@ def check_git_prerequisite() -> bool:
 
 def check_git_lfs_prerequisite() -> bool:
     return shutil.which("git-lfs") is not None
+
+
+def _read_json_or_empty(path: Path) -> dict:
+    # A corrupt/half-written file here must not crash startup — the pull
+    # below is exactly what would replace it with a good copy.
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
 
 
 def _build_cloud_sync(data_dir: Path, appdata_dir: Path):
@@ -179,19 +203,13 @@ def _build_cloud_sync(data_dir: Path, appdata_dir: Path):
     if not all([account_id, access_key_id, secret_access_key]):
         return None
 
-    system_config_path = data_dir / "system_config.json"
-    config = {}
-    if system_config_path.exists():
-        config = json.loads(system_config_path.read_text(encoding="utf-8"))
-    bucket_name = config.get("r2_bucket_name") or os.environ.get("UKOREHUB_R2_BUCKET_NAME")
+    bucket_name = (
+        _read_json_or_empty(data_dir / "system_config.json").get("r2_bucket_name")
+        or os.environ.get("UKOREHUB_R2_BUCKET_NAME")
+        or _read_json_or_empty(appdata_dir / "system_config.default.json").get("r2_bucket_name")
+    )
     if not bucket_name:
-        default_path = appdata_dir / "system_config.default.json"
-        if not default_path.exists():
-            return None
-        config = json.loads(default_path.read_text(encoding="utf-8"))
-        bucket_name = config.get("r2_bucket_name")
-        if not bucket_name:
-            return None
+        return None
 
     from core.vcs.cloud_sync import R2JsonSync
 
@@ -429,8 +447,8 @@ def main() -> None:
     appdata_dir = REPO_ROOT / "appdata"
     appdata_dir.mkdir(exist_ok=True)
     # cache/ is where every per-machine, gitignored file lives now (not
-    # data/) — it's already excluded wholesale from UkoreHub.exe (git-
-    # tracked) and from developer/commit-main.ps1's release publish, so
+    # data/) — it's already excluded wholesale from git and from
+    # developer/release_app.ps1's release publish, so
     # anything placed here can never accidentally ship in a release the way
     # a stray copy of data/ would. See cache/README.md. Location comes from
     # CACHE_DIR (module-level, above) — not necessarily under REPO_ROOT.
@@ -493,7 +511,7 @@ def main() -> None:
             # pull and re-raise the first failure, same as the sequential
             # loop this replaced.
             with ThreadPoolExecutor(max_workers=3) as pool:
-                list(pool.map(lambda name: _pull(name, data_dir / name), ("projects.json", "programs.json", "system_config.json")))
+                list(pool.map(lambda name: _pull(name, data_dir / name), _SHARED_FIXED_BLOBS))
 
             project_ids = read_project_ids(data_dir / "projects.json")
             if project_ids is not None:
@@ -609,17 +627,15 @@ def main() -> None:
     forced_workspace_root = str(STORAGE_DIR)
     if local_config_store.workspace_root != forced_workspace_root:
         local_config_store.set_workspace_root(forced_workspace_root)
-    # GitHub login now happens in the launcher exe before this process is
-    # even spawned (updater.py (UkoreHubLauncher repo) owns the token cache) —
-    # just load whatever it already cached, same "presence, not validity"
-    # semantics updater.py's own _check_login uses (never calls GitHub to
-    # confirm the token still works, only that a login happened at some
-    # point on this machine).
+    # GitHub login happens in Portal (portal/main.py) before this process is
+    # even spawned — Portal owns the token cache and its revalidation; just
+    # load whatever it already cached ("presence, not validity" — never
+    # calls GitHub here to confirm the token still works).
     #
     # Mandatory gate: this process refuses to open the main window at all
     # without a cached token. The whole point of moving login into the
-    # launcher exe was for it to be the *only* way in — without this check,
-    # `python launcher.py` run directly (bypassing UkoreHub.exe entirely)
+    # launcher/Portal was for it to be the *only* way in — without this
+    # check, `python launcher.py` run directly (bypassing Portal entirely)
     # would silently open the full app unauthenticated instead. This is a
     # hard rule, not a soft warning: no MainWindow construction, no plugin
     # discovery, nothing past this point without a token.
@@ -628,9 +644,9 @@ def main() -> None:
         box = QMessageBox(
             QMessageBox.Icon.Critical,
             "Login Required",
-            "You must log in to GitHub through UkoreHub.exe before UkoreHub "
-            "can open.\n\nRun UkoreHub.exe (the Launcher) and complete the "
-            "GitHub login step, then try again.",
+            "You must log in to GitHub before UkoreHub can open.\n\n"
+            "Run UkoreHubLauncher.exe and complete the GitHub sign-in step "
+            "in UkoreHub Portal, then try again.",
         )
         box.exec()
         relaunch_ukorehub_exe(REPO_ROOT)
@@ -669,10 +685,10 @@ def main() -> None:
             local_config_store.active_project_id, local_config_store.workspace_root, git_service
         )
 
-    # plugins/core is git-tracked and distributed to everyone via
-    # self_update.py's whole-tree `git pull`, mirroring how
-    # data/programs.json is shared today — ships bundled with the app, no
-    # separate fetch, always visible per repo, no per-repo opt-out.
+    # plugins/core is git-tracked and distributed to everyone as part of
+    # app/ itself (Portal's git_update.py keeps app/ in sync with the
+    # release repo) — ships bundled with the app, no separate fetch,
+    # always visible per repo, no per-repo opt-out.
     # cache/plugins is different in kind, not just visibility — each entry
     # is its own git clone (own remote/history), gitignored and per-user,
     # fetched/updated on demand only for a repo that requires it (opts in
@@ -807,9 +823,8 @@ def main() -> None:
         # file's module docstring. flush=True matters here: stdout is a
         # pipe when spawned from Portal (not a tty), so Python block-buffers
         # by default and this print might otherwise sit unflushed for a
-        # while. Keep this literal in sync with portal/main.py's
-        # _APP_READY_MARKER if it ever changes.
-        print("UKOREHUB_APP_WINDOW_READY", flush=True)
+        # while.
+        print(_APP_READY_MARKER, flush=True)
 
     QTimer.singleShot(0, _reveal_window)
     sys.exit(app.exec())

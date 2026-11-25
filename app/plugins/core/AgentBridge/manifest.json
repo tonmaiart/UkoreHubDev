@@ -1,0 +1,9 @@
+{
+  "id": "agent_bridge",
+  "name": "Agent Bridge",
+  "version": "0.1.0",
+  "api_version": 1,
+  "entry_point": "plugin.py",
+  "description": "Lets a local AI agent (jcoopy) drive UkoreHub over a token-protected localhost socket: list repos, open files and launch programs through their registered openers/launchers. Off unless enabled on this machine.",
+  "requires": []
+}

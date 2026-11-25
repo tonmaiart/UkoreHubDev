@@ -73,6 +73,7 @@ from core_api import (
 )
 
 from plugin_api.plugin_api import PLUGIN_API_VERSION, PluginAPI, RepoContextDTO
+from plugin_api.registries.file_context_action_registry import FileContextActionRegistry, FileContextActionSpec
 from plugin_api.registries.notification_registry import NotificationRegistry, NotificationSpec
 from plugin_api.registries.program_launch_registry import ProgramLaunchRegistry, ProgramLaunchSpec
 from plugin_api.registries.registry_base import KeyedOrderedRegistry
@@ -135,6 +136,8 @@ __all__ = [
     "DEFAULT_THEME_NAME",
     "DiscoveredPlugin",
     "FileChange",
+    "FileContextActionRegistry",
+    "FileContextActionSpec",
     "FileOpenerRegistry",
     "FileOpenerSpec",
     "GitHubAuthError",

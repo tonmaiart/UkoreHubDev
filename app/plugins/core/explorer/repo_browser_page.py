@@ -49,6 +49,7 @@ class RepoBrowserPage(QWidget):
             cache_dir=cache_dir,
             metadata_store=api.metadata if api else None,
             local_config_store=local_config_store,
+            file_context_actions=api.file_context_action_registry if api else None,
         )
 
         layout = QVBoxLayout(self)

@@ -22,6 +22,7 @@ from core_api import (
     SystemConfigStore,
     UkoreCore,
 )
+from plugin_api.registries.file_context_action_registry import FileContextActionRegistry, FileContextActionSpec
 from plugin_api.registries.notification_registry import NotificationSpec
 from plugin_api.registries.program_launch_registry import ProgramLaunchRegistry, ProgramLaunchSpec
 from plugin_api.registries.section_registry import SectionSpec
@@ -95,6 +96,7 @@ class PluginAPI:
         self._program_launch_registry = registries.program_launchers
         self._sidebar_footer_action_registry = registries.sidebar_footer_actions
         self._notification_registry = registries.notifications
+        self._file_context_action_registry = registries.file_context_actions
         self._plugins_data_dir = Path(plugins_data_dir)
         self._plugins_local_dir = Path(plugins_local_dir)
         self._cache_dir = Path(cache_dir)
@@ -223,6 +225,13 @@ class PluginAPI:
         return self._settings_tab_registry
 
     @property
+    def file_context_action_registry(self) -> FileContextActionRegistry:
+        """Read access to the same registry register_file_context_action()
+        writes into — for a file browser (Explorer's RepoBrowserWidget) to
+        add every matching plugin action to its right-click menu."""
+        return self._file_context_action_registry
+
+    @property
     def app_root(self) -> Path:
         """UkoreHub's own repo root — for plugins that need to reference
         other paths inside the UkoreHub installation itself (e.g. the
@@ -252,6 +261,11 @@ class PluginAPI:
 
     def register_program_launcher(self, spec: ProgramLaunchSpec) -> None:
         self._program_launch_registry.register(spec)
+
+    def register_file_context_action(self, spec: FileContextActionSpec) -> None:
+        """Adds an entry to Explorer's file/folder right-click menu — see
+        FileContextActionSpec (plugin_api/registries/file_context_action_registry.py)."""
+        self._file_context_action_registry.register(spec)
 
     def register_sidebar_footer_action(self, spec: SidebarFooterActionSpec) -> None:
         self._sidebar_footer_action_registry.register(spec)

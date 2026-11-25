@@ -28,7 +28,14 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from plugin_api import GitService, LocalConfigStore, MetadataStore, open_in_file_explorer, open_with_default_app
+from plugin_api import (
+    FileContextActionRegistry,
+    GitService,
+    LocalConfigStore,
+    MetadataStore,
+    open_in_file_explorer,
+    open_with_default_app,
+)
 from plugins.core.explorer.bookmarks_store import BookmarksStore
 from plugins.core.explorer.file_local_change_panel import FileLocalChangePanel
 from plugins.core.explorer.file_row_authors_worker import FileRowAuthorsWorker
@@ -137,12 +144,14 @@ class RepoBrowserWidget(QWidget):
         cache_dir: Path | None = None,
         metadata_store: MetadataStore | None = None,
         local_config_store: LocalConfigStore | None = None,
+        file_context_actions: FileContextActionRegistry | None = None,
     ):
         super().__init__(parent)
         self._git_service = git_service
         self._local_config_store = local_config_store
         self._cache_dir = cache_dir
         self._metadata_store = metadata_store
+        self._file_context_actions = file_context_actions
         self._open_file = open_file or open_with_default_app
         self._root: Path | None = None
         self._current_path: Path | None = None
@@ -850,9 +859,13 @@ class RepoBrowserWidget(QWidget):
         menu.addSeparator()
         act_rename = menu.addAction("Rename")
         act_delete = menu.addAction("Delete")
+        context_paths = self._context_paths(path)
+        plugin_actions = self._add_plugin_actions(menu, context_paths)
 
         action = menu.exec(self.table.viewport().mapToGlobal(pos))
-        if action == act_bookmark:
+        if action in plugin_actions:
+            self._run_plugin_action(plugin_actions[action], context_paths)
+        elif action == act_bookmark:
             self._add_to_bookmarks(path)
         elif action == act_copy_name:
             QApplication.clipboard().setText(path.name)
@@ -877,14 +890,41 @@ class RepoBrowserWidget(QWidget):
         act_delete_folder = menu.addAction("Delete Folder")
         act_rename_folder.setEnabled(not is_root)
         act_delete_folder.setEnabled(not is_root)
+        context_paths = [self._current_path]
+        plugin_actions = self._add_plugin_actions(menu, context_paths)
 
         action = menu.exec(self.table.viewport().mapToGlobal(pos))
-        if action == act_new_folder:
+        if action in plugin_actions:
+            self._run_plugin_action(plugin_actions[action], context_paths)
+        elif action == act_new_folder:
             self._create_new_folder(self._current_path)
         elif action == act_rename_folder:
             self._rename_current_folder()
         elif action == act_delete_folder:
             self._delete_current_folder()
+
+    def _context_paths(self, clicked: Path) -> list[Path]:
+        # Right-clicking inside a multi-row selection acts on the whole
+        # selection (Explorer-style); right-clicking outside it acts on just
+        # the clicked row.
+        rows = sorted({index.row() for index in self.table.selectionModel().selectedRows()})
+        selected = [p for p in (self._path_for_row(row) for row in rows) if p is not None]
+        return selected if clicked in selected else [clicked]
+
+    def _add_plugin_actions(self, menu: QMenu, paths: list[Path]) -> dict:
+        if self._file_context_actions is None:
+            return {}
+        specs = self._file_context_actions.actions_for(paths)
+        if specs:
+            menu.addSeparator()
+        return {menu.addAction(spec.label): spec for spec in specs}
+
+    def _run_plugin_action(self, spec, paths: list[Path]) -> None:
+        try:
+            spec.run(paths)
+        except Exception as exc:
+            logger.exception(f"file context action '{spec.key}' failed")
+            QMessageBox.warning(self, spec.label, str(exc))
 
     def _create_new_folder(self, parent_dir: Path) -> None:
         name, ok = QInputDialog.getText(self, "New Folder", "Folder name:")

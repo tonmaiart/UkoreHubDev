@@ -81,6 +81,7 @@ end.
 | `api.debug_log_handler` | `QtLogHandler \| None` | DebugConsole-only plumbing — the shared `interface_api.QtLogHandler` its page reads/subscribes to, or `None` if unwired (e.g. a bare test construction). **Don't use this for general logging** — any plugin just calls `logging.getLogger("YourPlugin").info(...)`/`.warning(...)` etc. directly, no `api` involved at all, and it shows up live in DebugConsole automatically. DebugConsole itself moved out to its own `cache/plugins/DebugConsole/` external-plugin repo 2026-09-01 (own README there, not documented in this repo anymore). |
 | `api.file_opener_registry` | `FileOpenerRegistry` | Read access to the registry `register_file_opener()` writes into — for a page that needs to call `.find_opener()` itself (e.g. Explorer). |
 | `api.program_launch_registry` | `ProgramLaunchRegistry` | Read access to the registry `register_program_launcher()` writes into — `software_linker`'s Program Launcher tab uses this to look up a plugin-contributed launch behavior for a given Program. |
+| `api.file_context_action_registry` | `FileContextActionRegistry` | Read access to the registry `register_file_context_action()` writes into — Explorer's file table calls `.actions_for(paths)` to add matching plugin entries to its right-click menu. |
 | `api.settings_tab_registry` | `SettingsTabRegistry` | Read access to the registry `register_settings_tab()` writes into — for a page that needs to enumerate every `CATEGORY_REPO` tab generically (e.g. `project_editor`'s right panel). |
 | `api.app_root` | `Path` | UkoreHub's own install root — for referencing other paths inside the install without guessing nesting depth from `__file__`. |
 
@@ -92,6 +93,7 @@ end.
 | `register_settings_tab` | `(spec: SettingsTabSpec) -> None` | Adds a tab inside the Setting dialog. |
 | `register_file_opener` | `(plugin_id: str, extensions: list[str], opener: Callable[[Path, Repo], bool]) -> None` | Claims responsibility for opening certain file extensions from Repo Browser. |
 | `register_program_launcher` | `(spec: ProgramLaunchSpec) -> None` | Contributes custom launch behavior for a Program (e.g. Maya's setProject/env-merge wiring) instead of a bare `subprocess.Popen`. |
+| `register_file_context_action` | `(spec: FileContextActionSpec) -> None` | Adds an entry to Explorer's file/folder right-click menu (e.g. MayaPublisher's "Add to Maya Publish Queue"). |
 | `register_sidebar_footer_action` | `(spec: SidebarFooterActionSpec) -> None` | Adds a widget to Sidebar's footer strip. |
 | `register_notification` | `(spec: NotificationSpec) -> None` | Adds a plugin's own widget as a row in Sidebar's `listWidget_notification`. |
 
@@ -129,11 +131,12 @@ for the full worked examples and when to reach for each option.
 - **`SidebarFooterActionSpec`** — `key, order, widget_factory: Callable[[], QWidget]`, optional `background_threads`.
 - **`NotificationSpec`** — `key, order, widget_factory: Callable[[], QWidget]`, optional `background_threads` — same shape as `SidebarFooterActionSpec`, but the widget becomes a real row in `listWidget_notification` (wrapped in a `QListWidgetItem` via `setItemWidget`), not just a kept-alive-for-cleanup widget with no layout home.
 - **`ProgramLaunchSpec`** — `match: Callable[[Program], bool]`, `launch: Callable[[Repo], bool]`. First match wins, in registration order.
+- **`FileContextActionSpec`** — `key, label, order, match: Callable[[list[Path]], bool], run: Callable[[list[Path]], None]` (`plugin_api/registries/file_context_action_registry.py`, added 2026-10-18). Explorer passes the right-clicked absolute paths: every selected row when the click lands inside a multi-row selection, else just the clicked row; right-clicking empty table space passes `[current folder]`. Matching specs appear after a separator at the end of the menu, in `(order, key)` order. `match` runs at menu time on the UI thread — keep it cheap (don't scan folders there). A raising `match` is logged and skipped; a raising `run` is logged and shown as a warning box. The registry lives on `UIRegistryManager.file_context_actions`, which defaults to a fresh `FileContextActionRegistry` (so `launcher.py` doesn't pass it). A plugin that must also load on an older UkoreHub should guard with `hasattr(api, "register_file_context_action")`.
 - **`UICommandService`** — passed to `SectionSpec.wire(page, host)`: `set_status_message`, `navigate_and_focus`, `set_active_repo`, `open_settings_tab`, `switch_project`, `refresh_section` — named callbacks a plugin page calls into without holding a `MainWindow` reference. `refresh_section(key)` asks another section to re-read its own on-disk/data state (calls that page's optional `refresh_content()` method if it has one) without switching the visible tab — e.g. Submit's Sync button telling Explorer to rescan after a clone/pull, since Explorer's `QFileSystemModel` watcher can miss/lag a bulk filesystem change.
 
-All five `*Registry` classes (`SectionRegistry`, `SettingsTabRegistry`,
+All six `*Registry` classes (`SectionRegistry`, `SettingsTabRegistry`,
 `SidebarFooterActionRegistry`, `ProgramLaunchRegistry`,
-`NotificationRegistry`) and
+`NotificationRegistry`, `FileContextActionRegistry`) and
 `UIRegistryManager` (bundles all of them + `FileOpenerRegistry`) are also
 importable directly from `plugin_api` — a plugin almost never constructs
 these itself (that's `launcher.py`'s job), only the spec dataclasses above.

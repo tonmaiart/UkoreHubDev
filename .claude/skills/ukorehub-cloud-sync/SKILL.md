@@ -164,7 +164,13 @@ every ETag it saw to `cache/cloud_etags.json` and passes that path to
 `push()` still sends the right `If-Match`. `UKOREHUB_CLOUD_ETAGS=""`
 means Portal couldn't reach R2 → app runs local-only; unset (the
 `python launcher.py` dev path) → app pulls itself, as before. Add a new
-eagerly-pulled blob in **both** places. Lazily-pulled data
+eagerly-pulled blob in **both** places (`_FIXED_BLOBS` / `launcher.py`'s
+`_SHARED_FIXED_BLOBS` — pinned together by
+`developer/app/tests/test_portal_app_contract.py`). A blob that fails to
+pull is just left out of the ETags file (the app's push of it is then
+create-only, so it can only conflict, never clobber); Portal only reports
+R2 as unreachable when every fixed blob failed. Portal writes pulled blobs
+atomically (tmp + `os.replace`). Lazily-pulled data
 (`shared=True` plugin configs, thumbnails/icons) is still the app's job.
 
 ## Conflict handling — `R2JsonSync.pull`/`push`

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from core_api import FileOpenerRegistry
+from plugin_api.registries.file_context_action_registry import FileContextActionRegistry
 from plugin_api.registries.notification_registry import NotificationRegistry
 from plugin_api.registries.program_launch_registry import ProgramLaunchRegistry
 from plugin_api.registries.section_registry import SectionRegistry
@@ -28,3 +29,6 @@ class UIRegistryManager:
     program_launchers: ProgramLaunchRegistry
     sidebar_footer_actions: SidebarFooterActionRegistry
     notifications: NotificationRegistry
+    # Defaulted (unlike the rest) so launcher.py and existing tests that
+    # build this with keyword args keep working unchanged.
+    file_context_actions: FileContextActionRegistry = field(default_factory=FileContextActionRegistry)

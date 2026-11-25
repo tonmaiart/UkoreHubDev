@@ -14,7 +14,7 @@ Two roots, both scanned by the same `discover_plugins()` (see
 plugin ships bundled with the app vs. is fetched separately, and whether
 it's on by default per repo vs. opt-in:
 - `plugins/core/` — git-tracked, ships bundled with the app (distributed
-  via `self_update.py`'s whole-tree `git pull`), **always on** for every
+  as part of `app/` itself, which Portal's `git_update.py` keeps in sync), **always on** for every
   repo — no per-repo opt-out at all. Explorer, Submit, and Software Linker
   all live here — reserve this root for functionality every repo
   genuinely needs; anything repo-specific belongs in `cache/plugins/`
